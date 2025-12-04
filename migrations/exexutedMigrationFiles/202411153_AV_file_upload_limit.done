@@ -1,0 +1,61 @@
+"use strict";
+
+const { db } = require("../models/index");
+const CategoryKeyValue = db.categoryKeyValue;
+
+module.exports = {
+    async up() {
+
+        console.log("Starting 'up' migration...");
+
+        console.log("Starting Migration - Adding AV File upload limit in category key-value pair table");
+
+        try {
+            // Adding the first record if it doesn't already exist
+            const existingRecord = await CategoryKeyValue.findOne({
+                where: { category: "assetvault", key: "FILE_UPLOAD_LIMIT" },
+            });
+
+            if (!existingRecord) {
+                await CategoryKeyValue.create({
+                    category: "assetvault",
+                    key: "FILE_UPLOAD_LIMIT",
+                    value: "10",
+                });
+                console.log(
+                    "Migration completed - Added AV File upload limit in category key-value pair table"
+                );
+            } else {
+                console.log("Record already exists for AV File upload limit hence migration skipped");
+            }
+        } catch (error) {
+            console.error("Error adding AV File upload limit : ", error);
+        }
+    },
+
+    async down() {
+
+        console.log("Starting 'down' migration...");
+
+        console.log("Starting Down Migration - Removing AV File upload limit from category key-value pair table");
+
+        try {
+            // Removing the first record if it exists
+            const existingRecord = await CategoryKeyValue.findOne({
+                where: { category: "assetvault", key: "FILE_UPLOAD_LIMIT" },
+            });
+
+            if (existingRecord) {
+                console.log("Record found for AV File upload limit, deleting...");
+                await existingRecord.destroy();
+                console.log(
+                    "Down Migration completed - Removed AV File upload limit from category key-value pair table"
+                );
+            } else {
+                console.log("Record does not exist for AV File upload limit, down migration skipped");
+            }
+        } catch (error) {
+            console.error("Error removing AV File upload limit:", error);
+        }
+    },
+};

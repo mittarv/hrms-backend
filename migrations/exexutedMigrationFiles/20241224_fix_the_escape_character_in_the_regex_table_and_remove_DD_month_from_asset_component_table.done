@@ -1,0 +1,95 @@
+"use strict";
+const { db } = require("../models/index");
+const AssetComponent = db.assetComponents;
+
+// defines the regex class
+class RegexClass {
+  constructor(inputType, regexPattern) {
+    this.inputType = inputType;
+    this.regexPattern = regexPattern;
+    this.isDeleted = 0;
+    this.createdAt = new Date();
+    this.updatedAt = new Date();
+  }
+}
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log(
+      "Starting 'up' migration for updating asset component Calendar"
+    );
+    try {
+      console.log(
+        "Updating fieldType-Calendar | inputType-Calendar  component"
+      );
+
+      const jsonStringPhoneNumberComponent = JSON.stringify({
+        dateFormat: [
+          {
+            format: "YYYY-MM-DD",
+            description: "ISO format (e.g., 2024-01-04)",
+          },
+        ],
+        errorComponent: {
+          errorText: "",
+          showErrorVisibility: false,
+        },
+      });
+
+      const calendarComponent = {
+        fieldType: "Calendar",
+        inputType: "Calendar",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: jsonStringPhoneNumberComponent,
+      };
+
+      // Update the asset component where fieldType is "Calendar" and inputType is "Calendar"
+      await AssetComponent.update(calendarComponent, {
+        where: {
+          fieldType: "Calendar",
+          inputType: "Calendar",
+        },
+      });
+
+      console.log(
+        "Updated fieldType-Calendar | inputType-Calendar  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'up' migration...");
+    const commonText = "Inserting Regex Data into 'assetFieldValidator'";
+
+    const data = [
+      new RegexClass(
+        "Email",
+        "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,}s*$"
+      ),
+      new RegexClass("Alphabet", "^[A-Za-z]+$"),
+      new RegexClass("Numeric", "^[0-9]+$"),
+      new RegexClass("Alphanumeric", "^[A-Za-z0-9]+$"),
+    ];
+
+    // Inseting columns
+
+    console.log(`${commonText} table...`);
+    try {
+      // clearing up data first to insert fresh data
+      await queryInterface.bulkDelete("assetFieldValidators", null, {});
+      await queryInterface.bulkInsert("assetFieldValidators", data, {});
+      console.log(`${commonText} Successful`);
+    } catch (error) {
+      console.error(`Error while ${commonText}`, error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    // Down migration will only be removing the toggle component
+    console.log("Starting 'down' is not possible for this migration");
+  },
+};

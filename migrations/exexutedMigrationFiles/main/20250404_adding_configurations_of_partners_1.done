@@ -1,0 +1,308 @@
+"use strict";
+import { db } from "../../models";
+const { partnerProductConfigure } = db;
+
+module.exports = {
+    up: async () => {
+        console.log(
+            "Starting 'up' migration for inserting Partner code details into 'partnerProductConfigure' table..."
+        );
+
+        const transaction = await db.sequelize.transaction();
+        try {
+
+            console.log(
+                "Deleting default values from 'partnerProductConfigure' table..."
+            );
+
+            await partnerProductConfigure.destroy({
+                where: {},
+                transaction: transaction,
+            });
+
+            console.log(
+                "default values deleted from 'partnerProductConfigure' table successfully."
+            );
+
+            console.log(
+                "Inserting Partner code details into 'partnerProductConfigure' table..."
+            );
+            await partnerProductConfigure.bulkCreate(
+                [
+                    //MAGL product ids for WEB and ANDROID
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_m1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_m2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_m3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_m4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_y1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_y2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_y3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "magl_y4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+
+                    //MAGL product ids for IOS
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "m1_magl",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "m2_magl",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "m3_magl",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "m4_magl",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "y1_magl",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "y2_magl",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "y3_magl",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MAGL",
+                        partnerProductId: "y4_magl",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+
+                    // AMID product ids for WEB and ANDROID
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_m1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_m2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_m3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_m4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_y1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_y2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_y3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "amid_y4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+
+                    // AMID product ids for IOS
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "m1_amid",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "m2_amid",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "m3_amid",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "m4_amid",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "y1_amid",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "y2_amid",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "y3_amid",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "AMID",
+                        partnerProductId: "y4_amid",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                ],
+                { transaction: transaction }
+            );
+            console.log(
+                "Partner code details inserted into 'partnerProductConfigure' table successfully"
+            );
+            await transaction.commit();
+            console.log("'partnerProductConfigure' table updated successfully");
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error inserting Partner code details into 'partnerProductConfigure' table:",
+                error
+            );
+        }
+    },
+    down: async (queryInterface, Sequelize) => {
+        console.log(
+            "Starting 'down' migration for deleting Partner code details from 'partnerProductConfigure' table..."
+        );
+        const transaction = await db.sequelize.transaction();
+        try {
+            console.log(
+                "Deleting Partner code details from 'partnerProductConfigure' table..."
+            );
+
+            await partnerProductConfigure.destroy({
+                where: {
+                    partnerCode: ["MAGL", "AMID"],
+                },
+                transaction: transaction,
+            });
+
+            await transaction.commit();
+            console.log(
+                "Partner code details deleted from 'partnerProductConfigure' table successfully."
+            );
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error deleting Partner code details from 'partnerProductConfigure' table:",
+                error
+            );
+        }
+    },
+};

@@ -1,0 +1,175 @@
+"use strict";
+import { db } from "../../models";
+const { partnerProductConfigure } = db;
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log(
+            "Starting 'up' migration for inserting default values into 'partnerProductConfigure' table..."
+        );
+
+        const transaction = await db.sequelize.transaction();
+        try {
+            console.log(
+                "Inserting default values into 'partnerProductConfigure' table..."
+            );
+            await partnerProductConfigure.bulkCreate(
+                [
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y1",
+                        partnerStorageLimit: 2,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y2",
+                        partnerStorageLimit: 5,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y3",
+                        partnerStorageLimit: 10,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y4",
+                        partnerStorageLimit: 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                ],
+                { transaction: transaction }
+            );
+            console.log(
+                "Default values inserted into 'partnerProductConfigure' table successfully"
+            );
+            await transaction.commit();
+            console.log("'partnerProductConfigure' table updated successfully");
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error inserting default values into 'partnerProductConfigure' table:",
+                error
+            );
+        }
+    },
+    down: async (queryInterface, Sequelize) => {
+        console.log(
+            "Starting 'down' migration for deleting default values from 'partnerProductConfigure' table..."
+        );
+        const transaction = await db.sequelize.transaction();
+        try {
+            console.log(
+                "Deleting default values from 'partnerProductConfigure' table..."
+            );
+
+            await partnerProductConfigure.destroy({
+                where: {
+                    partnerCode: ["MITTARV", "LIVEAMAN"],
+                },
+                transaction: transaction,
+            });
+
+            await transaction.commit();
+            console.log(
+                "Default values deleted from 'partnerProductConfigure' table successfully."
+            );
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error deleting default values from 'partnerProductConfigure' table:",
+                error
+            );
+        }
+    },
+};

@@ -1,0 +1,50 @@
+// Example migration file: remove_unique_constraint_from_email_column.js
+
+'use strict';
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration...");
+    console.log("Removing unique constraint from 'email' column in tmsusers table...");
+
+    try {
+    await queryInterface.removeIndex('tmsUsers', 'email');
+      console.log("Unique constraint removed successfully from 'email' column.");
+    } catch (error) {
+      console.error("Error removing unique constraint:", error);
+    }
+
+    try {
+        await queryInterface.addColumn('tmsUsers', 'isDeleted', {
+          type: Sequelize.BOOLEAN,
+          defaultValue: false
+        });
+        console.log("Column 'isDeleted' added successfully.");
+      } catch (error) {
+        console.error("Error adding column 'isDeleted':", error);
+      }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Starting 'down' migration...");
+    console.log("Adding unique constraint back as a index to 'email' column in tmsusers table...");
+    try {
+        await queryInterface.addIndex('tmsUsers', ['email'], {
+            unique: true,
+            name: 'email'
+          });
+      console.log("Unique constraint added back to 'email' column as a index.");
+    } catch (error) {
+      console.error("Error adding unique constraint back:", error);
+    }
+
+
+    try {
+        await queryInterface.removeColumn('tmsUsers', 'isDeleted');
+        console.log("Column 'isDeleted' removed successfully.");
+      } catch (error) {
+        console.error("Error removing column 'isDeleted':", error);
+      }
+
+  },
+};

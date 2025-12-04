@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <meta name="color-scheme" content="light dark">
+  <title>Document</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    .center {
+      margin: auto;
+      width: 50%;
+    }
+
+    .container {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: white;
+      width: 100%;
+      background: #033348;
+      padding: 2% 4%;
+      padding-bottom: 4%;
+      box-sizing: border-box;
+    }
+
+    .logo {
+      height: 60px;
+      width: 60px;
+      padding-left: 4%;
+      margin-top: 1%;
+      margin-bottom: 1.5%;
+    }
+
+    .welcome-section {
+      background: #054A68;
+      padding: 2% 4%;
+      margin-bottom: 2%;
+      border-radius: 5px;
+      text-align: center;
+    }
+
+    .welcome-image {
+      margin-top: 51px;
+      margin-bottom: 26px;
+      height: 64px;
+    }
+
+    .welcome-title {
+      margin-bottom: 33px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.21px;
+      line-height: 20px;
+    }
+
+    .welcome-message {
+      margin-bottom: 26px;
+      text-align: center;
+      padding-left: 130px;
+      padding-right: 130px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.21px;
+    }
+
+    .mission-section-1 {
+      padding-left: 78px;
+      padding-right: 67px;
+      margin-bottom: 20px;
+      text-align: left;
+      font-weight: 400;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .mission-section-2 {
+      padding-left: 78px;
+      padding-right: 67px;
+      margin-bottom: 65px;
+      text-align: left;
+      font-weight: 400;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .intimation {
+      padding-left: 153px;
+      padding-right: 152px;
+      margin-bottom: 35px;
+      text-align: center;
+      font-weight: 400;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .asset-vault {
+      padding-left: 78px;
+      margin-bottom: 72px;
+      display: flex;
+    }
+
+    .asset-vault .asset-description {
+      flex: 1;
+    }
+
+    .asset-vault .asset-description .asset-title {
+      margin-top: 26px;
+      margin-bottom: 25px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.21px;
+    }
+
+    .asset-vault .asset-description,
+    .asset-body {
+      text-align: left;
+      font-weight: 400;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .emotional-will {
+      display: flex;
+      padding-left: 20px;
+      margin-bottom: 45px;
+    }
+
+    .emotional-will .emotional-description {
+      flex: 1;
+      padding-left: 10px;
+
+    }
+
+    .emotional-will .emotional-description .emotional-title {
+      margin-bottom: 29px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.21px;
+    }
+
+    .emotional-will .emotional-description,
+    .emotional-body {
+      text-align: left;
+      padding-right: 10px;
+      font-weight: 400;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+
+    .signature {
+      padding-left: 200px;
+      padding-right: 200px;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .signature span {
+      font-weight: 700;
+      color: #84B5D2;
+    }
+
+    .footer {
+      height: 2px;
+      background: #033348;
+      margin-top: 2.5%;
+      margin-bottom: 2.5%;
+      margin-left: -4%;
+      margin-right: -4%;
+    }
+
+    .contact-info {
+      padding-left: 140px;
+      padding-right: 134px;
+      font-size: 12px;
+      letter-spacing: 0.18px;
+    }
+
+    .contact-info span {
+      font-weight: 700;
+      color: #84B5D2;
+    }
+
+    /* updated css */
+    .asset-image,
+    .emotional-image,
+    .emotional-image-mobile {
+      margin-top: 30px;
+      height: 200px;
+      width: 250px;
+      object-fit: contain;
+      /* overflow is hidden so that image will not overflow over other text*/
+      overflow: hidden;
+    }
+
+    .emotional-image-mobile {
+      display: none;
+    }
+
+
+
+    /* forcing it for all screen of max-width 600px*/
+    @media only screen and (max-width: 600px),
+    only screen and (max-device-width:600px) {
+
+      .container {
+        padding: 2% 4%;
+        padding-bottom: 4%;
+      }
+
+      .logo {
+        height: 45px;
+        width: 45px;
+      }
+
+      .welcome-section,
+      .mission-section-1,
+      .mission-section-2,
+      .goal-section,
+      .asset-vault,
+      .emotional-will,
+      .intimation,
+      .signature,
+      .footer,
+      .contact-info {
+        padding-left: 4%;
+        padding-right: 4%;
+      }
+
+      .welcome-message {
+        padding-left: 12%;
+        padding-right: 12%;
+
+      }
+
+      .mission-section-2,
+      .asset-vault {
+        margin-bottom: 40px;
+      }
+
+      /* some of the flex property not supported in gmail */
+      .asset-vault,
+      .emotional-will {
+        display: block;
+      }
+
+      /* updated css */
+      .asset-vault .asset-image,
+      .emotional-will .emotional-image {
+        margin-top: 40px;
+        /* instead of changing resolution i change scale 
+        to make it compatible with small screens */
+        transform: scale(1.2);
+        align-self: center;
+      }
+
+      .emotional-image,
+      .emotional-image-mobile {
+        display: block;
+        /* to center image */
+        margin: 0 auto;
+        margin-top: 20px;
+        transform: scale(1.1);
+        padding-right: 15px;
+        /* order: 2; */
+      }
+
+      .emotional-image {
+        display: none;
+      }
+
+      .emotional-description {
+        padding: 0 !important;
+      }
+
+      /* justified according to the design requirement */
+      .emotional-body,
+      .asset-body,
+      .mission-section-1,
+      .mission-section-2 {
+        text-align: justify;
+      }
+
+      .emotional-body {
+        padding-right: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <img style="height: 60px;width: 60px;padding-left:4%;margin-top:1%;margin-bottom:1.5%;"
+      src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv_logo_white_tm.png" />
+
+    <div class="welcome-section">
+      <img class="welcome-image" src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/welcome.png" />
+      <h2 class="welcome-title">Hey {{userName}},</h2>
+      <h2 class="welcome-message">Thank you for your active presence within our community! </h2>
+      <p class="mission-section-1">We appreciate your trust in our platform and are committed to providing you
+        with an
+        exceptional experience.</p>
+      <p class="mission-section-2">
+
+        At Mitt Arv, we empower individuals worldwide to proactively plan their legacy, prioritize emotional
+        well-being,
+        seamlessly manage assets and unlock a brighter, financially stable future! <br><br>
+
+        Ignite Your Life's Legacy with our comprehensive platform, where like-minded visionaries strive to leave
+        a
+        lasting impact. Now that you are a part of our community, we can’t wait to witness your journey as you
+        head
+        towards exploring the wonders of our product lineup!
+      </p>
+      <div class="asset-vault">
+        <div class="asset-description">
+          <p class="asset-title">Asset Vault</p>
+          <p class="asset-body">Your wealth and assets deserve the utmost protection, and Asset Vault delivers
+            exactly
+            that!<br><br>
+
+            This secure and easy-to-use platform enables you to centralize and manage all your valuable
+            assets,
+            properties, and essential documents in one place.<br> Seamlessly share your listings with loved
+            ones,
+            trustees, and friends, granting them instant access and peace of mind when it truly counts!</p>
+
+          <div class="left"
+            style="margin-top: 30px;width:120px; height: 30px; background-color: #fd9320cc;border-radius:50px; display: flex; ">
+            <a href="{{redirectUrl2}}" target="_blank"
+              style="color:white;font-family: 'Plus Jakarta Sans', sans-serif;font-weight:400;font-size:12px;letter-spacing: 1.5%;margin: auto; text-decoration:none">
+              List an Asset
+            </a>
+
+          </div>
+        </div>
+        <img class="asset-image" src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/welcome_av.png" />
+
+      </div>
+      <div class="emotional-will">
+        <img class="emotional-image" src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/welcome_ew.png" />
+        <div class="emotional-description">
+          <p class="emotional-title">Emotional Will</p>
+          <p class="emotional-body">Emotional Will is a unique product that empowers you to craft a timeless
+            legacy that
+            transcends the conventional concept of a will. <br> It empowers you to convey heartfelt final
+            messages to your
+            loved ones, preserving your priceless emotions in the form of text, audio, or video wills. <br>
+            Express your
+            deepest emotions, share your wisdom, and ensure that your emotional legacy lives on!</p>
+          <div class="left"
+            style="margin-top: 30px;width:120px; height: 30px; background-color: #fd9320cc;border-radius:50px; display: flex; ">
+            <a href="{{redirectUrl1}}" target="_blank"
+              style="color:white;font-family: 'Plus Jakarta Sans', sans-serif;font-weight:400;font-size:12px;letter-spacing: 1.5%;margin: auto; text-decoration:none">
+              Create Will
+            </a>
+          </div>
+        </div>
+        <img class="emotional-image-mobile"
+          src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/welcome_ew.png" />
+      </div>
+      <div class="intimation">
+      </div>
+      <p class="signature">Warmest regards,<br>Team <span>Mitt Arv</span><br><b>Zero - Life - Infinity</b></p>
+      <div class="footer"></div>
+      <p class="contact-info">For any inquiries, kindly reach out to us at<br> <span>support@mittarv.com</span>
+      </p>
+    </div>
+  </div>
+</body>
+
+</html>

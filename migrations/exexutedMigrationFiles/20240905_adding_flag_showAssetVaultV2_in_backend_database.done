@@ -1,0 +1,54 @@
+"use strict";
+
+const { db, } = require("../models/index");
+const CategoryKeyValue = db.categoryKeyValue;
+
+module.exports = {
+  async up(queryInterface, Sequelize) {
+    console.log(
+      "Starting Migration - Adding flag to toggle the assetvaultv2 in category key-value pair table"
+    );
+
+    const existingRecord = await CategoryKeyValue.findOne({
+      where: { category: "new_feature_flag" , key: "showAssetVaultV2" },
+    });
+
+    if (!existingRecord) {
+      await CategoryKeyValue.create({
+        category: "new_feature_flag",
+        key: "showAssetVaultV2",
+        value: false,
+      });
+
+      console.log(
+        "Migration completed - Added a flag to toggle the assetvaultv2 key-value pair in the table"
+      );
+    } else {
+      console.log("Record already exists, hence migration skipped");
+    }
+  },
+
+  async down(queryInterface, Sequelize) {
+    console.log(
+      "Starting Down Migration - Removing flag assetvaultv2  from category key-value pair table"
+    );
+
+    const existingRecord = await CategoryKeyValue.findOne({
+      where: {
+        category: "new_feature_flag",
+        key: "showAssetVaultV2",
+        value: false,
+      },
+    });
+
+    if (existingRecord) {
+      console.log("Record found, deleting...");
+      await existingRecord.destroy();
+      console.log(
+        "Down Migration completed - Removed the assetvaultv2 key-value pair from the table"
+      );
+    } else {
+      console.log("Record does not exist, down migration skipped");
+    }
+  },
+};

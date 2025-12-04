@@ -1,0 +1,61 @@
+
+"use strict";
+
+
+module.exports = {
+    up: async (queryInterface: any, Sequelize: any) => {
+        console.log("Starting 'up' migration for tempPhoneOtpModule...");
+
+        console.log("Creating 'tempPhoneOtpModule' table...");
+        try {
+            await queryInterface.createTable("tempPhoneOtpModule", {
+                id: {
+                    type: Sequelize.INTEGER,
+                    autoIncrement: true,
+                    primaryKey: true,
+                    allowNull: false
+                },
+                userId: {
+                    type: Sequelize.INTEGER,
+                    allowNull: false
+                },
+
+                otp: {
+                    type: Sequelize.INTEGER,
+                    allowNull: false
+                },
+                phone: {
+                    type: Sequelize.BIGINT,
+                    allowNull: false
+                },
+                // to track if the table data is deleted or not?
+                isDeleted: {
+                    type: Sequelize.BOOLEAN,
+                    defaultValue: false,
+                },
+
+                // to track the expiry of the OTP, in this case, it is 120 seconds
+                otpExpiry: {
+                    type: Sequelize.DATE,
+                    allowNull: false,
+                }
+
+            });
+            console.log("Table 'tempPhoneOtpModule' created successfully.");
+        } catch (error) {
+            console.error("Error creating 'tempPhoneOtpModule' table:", error);
+        }
+    },
+
+    down: async (queryInterface: any, _: any) => {
+        console.log("Starting 'down' migration for tempPhoneOtpModule...");
+
+        console.log("Dropping 'tempPhoneOtpModule' table...");
+        try {
+            await queryInterface.dropTable("tempPhoneOtpModule");
+            console.log("Table 'tempPhoneOtpModule' dropped successfully.");
+        } catch (error) {
+            console.error("Error dropping 'tempPhoneOtpModule' table:", error);
+        }
+    },
+};

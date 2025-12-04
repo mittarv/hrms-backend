@@ -1,0 +1,414 @@
+"use strict";
+const { db } = require("../models/index");
+const AssetComponent = db.assetComponents;
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration...");
+    try {
+      console.log("Adding fieldType-Text | inputType-String  component");
+
+      const textStringComponent = {
+        fieldType: "Text",
+        inputType: "String",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          maxCharacterLength: 55,
+          fieldLinesSelection: ["SingleLine", "MultipleLines"],
+        },
+      };
+
+      await AssetComponent.create(textStringComponent);
+
+      console.log(
+        "Added fieldType-Text | inputType-String  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Text | inputType-Numeric  component");
+
+      const textNumericComponent = {
+        fieldType: "Text",
+        inputType: "Numeric",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          maxCharacterLength: 55,
+          fieldLinesSelection: ["SingleLine", "MultipleLines"],
+        },
+      };
+
+      await AssetComponent.create(textNumericComponent);
+
+      console.log(
+        "Added fieldType-Text | inputType-Numeric  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Text | inputType-Alphanumeric  component");
+
+      const textAlphanumericComponent = {
+        fieldType: "Text",
+        inputType: "Alphanumeric",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          maxCharacterLength: 55,
+          fieldLinesSelection: ["SingleLine", "MultipleLines"],
+        },
+      };
+
+      await AssetComponent.create(textAlphanumericComponent);
+
+      console.log(
+        "Added fieldType-Text | inputType-Alphanumeric  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Text | inputType-Alphabet  component");
+
+      const textAlphabetComponent = {
+        fieldType: "Text",
+        inputType: "Alphabet",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          maxCharacterLength: 55,
+          fieldLinesSelection: ["SingleLine", "MultipleLines"],
+        },
+      };
+
+      await AssetComponent.create(textAlphabetComponent);
+
+      console.log(
+        "Added fieldType-Text | inputType-Alphabet  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Dropdown | inputType-Dropdown  component");
+
+      const dropdownComponent = {
+        fieldType: "Dropdown",
+        inputType: "Dropdown",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: { dropdownMenuOptions: ["default value"] },
+      };
+
+      await AssetComponent.create(dropdownComponent);
+
+      console.log(
+        "Added fieldType-Dropdown | inputType-Dropdown  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Email | inputType-Email  component");
+
+      const emailComponent = {
+        fieldType: "Email",
+        inputType: "Email",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: { maxCharacterLength: 55 },
+      };
+
+      await AssetComponent.create(emailComponent);
+
+      console.log(
+        "Added fieldType-Email | inputType-Email  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log("Adding fieldType-Calendar | inputType-Calendar  component");
+
+      const calendarComponent = {
+        fieldType: "Calendar",
+        inputType: "Calendar",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          dateFormat: [
+            {
+              format: "YYYY-MM-DD",
+              description: "ISO format (e.g., 2024-01-04)",
+            },
+            {
+              format: "DD-Month",
+              description: "Day Month (e.g., 4th January)",
+            },
+          ],
+        },
+      };
+
+      await AssetComponent.create(calendarComponent);
+
+      console.log(
+        "Added fieldType-Calendar | inputType-Calendar  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Adding fieldType-Currency | inputType-Currency  component");
+
+      const currencyComponent = {
+        fieldType: "Currency",
+        inputType: "Currency",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {},
+      };
+
+      await AssetComponent.create(currencyComponent);
+
+      console.log(
+        "Added fieldType-Currency | inputType-Currency  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Adding fieldType-Contact | inputType-Contact  component");
+
+      const contactComponent = {
+        fieldType: "Contact",
+        inputType: "Contact",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          contactSelection: ["SingleContact", "MultipleContacts"],
+        },
+      };
+
+      await AssetComponent.create(contactComponent);
+
+      console.log(
+        "Added fieldType-Contact | inputType-Contact  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+    try {
+      console.log(
+        "Adding fieldType-Phone Number | inputType-Phone Number  component"
+      );
+
+      const phoneNumberComponent = {
+        fieldType: "Phone Number",
+        inputType: "Phone Number",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: { maxCharacterLength: 6, maxCharacterLength: 12 },
+      };
+
+      await AssetComponent.create(phoneNumberComponent);
+
+      console.log(
+        "Added fieldType-Phone Number | inputType-Phone Number  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Starting 'down' migration...");
+
+    try {
+      console.log("Removing fieldType-Text | inputType-String component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Text",
+          inputType: "String",
+        },
+      });
+      console.log(
+        "Removed fieldType-Text | inputType-String component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Text | inputType-Numeric component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Text",
+          inputType: "Numeric",
+        },
+      });
+      console.log(
+        "Removed fieldType-Text | inputType-Numeric component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Text | inputType-Alphanumeric component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Text",
+          inputType: "Alphanumeric",
+        },
+      });
+      console.log(
+        "Removed fieldType-Text | inputType-Alphanumeric component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Text | inputType-Alphabet component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Text",
+          inputType: "Alphabet",
+        },
+      });
+      console.log(
+        "Removed fieldType-Text | inputType-Alphabet component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Dropdown | inputType-Dropdown component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Dropdown",
+          inputType: "Dropdown",
+        },
+      });
+      console.log(
+        "Removed fieldType-Dropdown | inputType-Dropdown component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Email | inputType-Email component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Email",
+          inputType: "Email",
+        },
+      });
+      console.log(
+        "Removed fieldType-Email | inputType-Email component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Calendar | inputType-Calendar component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Calendar",
+          inputType: "Calendar",
+        },
+      });
+      console.log(
+        "Removed fieldType-Calendar | inputType-Calendar component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Currency | inputType-Currency component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Currency",
+          inputType: "Currency",
+        },
+      });
+      console.log(
+        "Removed fieldType-Currency | inputType-Currency component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Removing fieldType-Contact | inputType-Contact component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Contact",
+          inputType: "Contact",
+        },
+      });
+      console.log(
+        "Removed fieldType-Contact | inputType-Contact component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log(
+        "Removing fieldType-Phone Number | inputType-Phone Number component"
+      );
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Phone Number",
+          inputType: "Phone Number",
+        },
+      });
+      console.log(
+        "Removed fieldType-Phone Number | inputType-Phone Number component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+  },
+};

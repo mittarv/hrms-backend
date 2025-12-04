@@ -1,0 +1,88 @@
+"use strict";
+
+const { db, } = require("../models/index"); 
+const KeyValuePairs = db.keyValuePairs;
+
+module.exports = {
+  async up() {
+    console.log(
+      "Starting Migration - Adding storage account name in key-value pair table"
+    );
+    // for the storage account name, we will add the value based on the environment
+    const existingRecord = await KeyValuePairs.findOne({
+      where: { category: "azure_storage_account_name" },
+    });
+
+    if (!existingRecord) {
+
+      if (process.env.NODE_ENV === "TESTING") {
+        console.log("Environment: TESTING");
+        console.log(" Adding the azure_storage_account_name to the key-value pair table for DEV / TESTING")
+        await KeyValuePairs.create({
+          category: "azure_storage_account_name",
+          value: "mittarvtesting",
+        });
+
+      } else if (process.env.NODE_ENV === "STAGING") {
+        console.log("Environment: STAGING");
+        console.log(" Adding the azure_storage_account_name to the key-value pair table for STAGING")
+
+        await KeyValuePairs.create({
+          category: "azure_storage_account_name",
+          value: "mittarvstaging",
+        });
+
+      } else { // else means the app is production. 
+        console.log("Environment: PRODUCTION");
+        console.log(" Adding the azure_storage_account_name to the key-value pair table for PRODUCTION")
+
+        await KeyValuePairs.create({
+          category: "azure_storage_account_name",
+          value: "mittarvprodastorage",
+        });
+      }
+
+      console.log("Migration completed - Added a key-value pair to the table");
+    } else {
+      console.log("Record already exists, hence migration skipped");
+    }
+
+    // Updating the azure_sas_validity_in_minutes to 1 in the key-value pair table
+    console.log("Updating azure_sas_validity_in_minutes in the key-value pair table");
+    await KeyValuePairs.update(
+      { value: "1" },
+      { where: { category: "azure_sas_validity_in_minutes" } }
+    );
+    console.log("Updated azure_sas_validity_in_minutes in the table");
+
+  },
+
+  async down() {
+    console.log(
+      "Starting Down Migration - Removing storage account name from key-value pair table"
+    );
+
+    /* When removing the record irrecpective of the environment, we will remove the single record form the KVP table */
+
+    const existingRecord = await KeyValuePairs.findOne({
+      where: { category: "azure_storage_account_name" },
+    });
+
+    if (existingRecord) {
+      console.log("Record found, deleting...");
+      await existingRecord.destroy();
+      console.log(
+        "Down Migration completed - Removed the key-value pair from the table"
+      );
+    } else {
+      console.log("Record does not exist, down migration skipped");
+    }
+
+    console.log("Updating azure_sas_validity_in_minutes in the key-value pair table");
+    await KeyValuePairs.update(
+      { value: "1440" },
+      { where: { category: "azure_sas_validity_in_minutes" } }
+    );
+    console.log("Updated azure_sas_validity_in_minutes in the table");
+  },
+};

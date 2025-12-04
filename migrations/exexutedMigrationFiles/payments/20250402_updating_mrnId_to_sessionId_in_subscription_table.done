@@ -1,0 +1,22 @@
+module.exports = {
+    up: async (queryInterface) => {
+        console.log("up: updating mrnId to sessionId in subscription table");
+        try {
+            await queryInterface.renameColumn('user_subscriptions', 'mrnId', 'sessionId');
+            console.log('Successfully renamed column from mrnId to sessionId');
+        } catch (error) {
+            console.error('Error renaming column from mrnId to sessionId:', error);
+            throw error;
+        }
+    },
+    down: async (queryInterface) => {
+        console.log("down: updating sessionId to mrnId in subscription table");
+        try {
+            await queryInterface.renameColumn('user_subscriptions', 'sessionId', 'mrnId');
+            console.log('Successfully renamed column from sessionId back to mrnId');
+        } catch (error) {
+            console.error('Error renaming column from sessionId back to mrnId:', error);
+            throw error;
+        }
+    }
+}

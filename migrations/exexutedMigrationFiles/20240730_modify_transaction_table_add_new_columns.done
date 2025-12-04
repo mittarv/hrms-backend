@@ -1,0 +1,57 @@
+"use strict"
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log("Starting 'up' migration...")
+
+        try {
+            console.log("Adding new columns to assetToolsRequestTransaction table...")
+
+            await queryInterface.addColumn(
+                "assetToolsRequestTransactions",
+                "requestedBy",
+                {
+                    type: Sequelize.INTEGER,
+                    allowNull: false,
+                }
+            );
+
+            await queryInterface.addColumn(
+                "assetToolsRequestTransactions",
+                "requestedAt",
+                {
+                    type: Sequelize.DATE,
+                    allowNull: false,
+                }
+            );
+
+            await queryInterface.addColumn(
+                "assetToolsRequestTransactions",
+                "transactionChanges",
+                {
+                    type: Sequelize.STRING,
+                    allowNull: true,
+                }
+            );
+
+            console.log("Columns added successfully")
+        } catch (error) {
+            console.error("Error adding columns:", error)
+        }
+    },
+    down: async (queryInterface, Sequelize) => {
+        console.log("Starting 'down' migration...")
+
+        try {
+            console.log("Removing columns from assetToolsRequestTransaction table...")
+
+            await queryInterface.removeColumn("assetToolsRequestTransactions", "requestedBy");
+            await queryInterface.removeColumn("assetToolsRequestTransactions", "requestedAt");
+            await queryInterface.removeColumn("assetToolsRequestTransactions", "transactionChanges");
+
+            console.log("Columns removed successfully")
+        } catch (error) {
+            console.error("Error removing columns:", error)
+        }
+    }
+}

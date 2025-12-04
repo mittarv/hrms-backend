@@ -1,0 +1,97 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="color-scheme" content="light dark">
+    <title>Document</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        .center {
+            margin: auto;
+            width: 50%;
+        }
+        .intimation {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: white;
+            padding-left: 140px;
+            padding-right: 140px;
+            margin-bottom: 35px;
+            text-align: center;
+            font-weight: 400;
+            font-size: 12px;
+            letter-spacing: 0.18px;
+        }
+
+        .message {
+            padding-left: 60px;
+            padding-right: 40px;
+            margin: 25px 0;
+            text-align: left;
+            color: white;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 400;
+            font-size: 12px;
+            letter-spacing: 1.5%;
+        }
+
+        @media screen and (max-width: 600px) {
+
+            .intimation,
+            .message {
+                padding-left: 12%;
+                padding-right: 12%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div
+        style="width:100%;padding:0;margin:0;box-sizing:border-box;background: #033348;padding:2% 4%;padding-bottom: 4%;max-width: 600px;">
+        <img style="height: 60px;width: 60px;padding-left:4%;margin-top:1%;margin-bottom:1.5%;"
+            src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv_logo_white_tm.png" />
+
+        <div style="background: #054A68;padding:2% 4%;margin-bottom:2%;border-radius: 5px;text-align:center">
+            <img style="margin-top:40px;margin-bottom:1.5%; height:60px" src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/collaborationInvite.png" />
+            <div
+                style="margin: 25px 0 30px 0;color:white;font-weight:700;font-family: 'Plus Jakarta Sans', sans-serif;font-size: 14px;letter-spacing: 1.5%;">
+                Hey {{userNameOne}},</div>
+            <div
+                style="color:white;font-weight:700;font-family: 'Plus Jakarta Sans', sans-serif;font-size: 14px;letter-spacing: 1.5%;" 
+            >An invitation is waiting for you!</div>
+            <p class="message">
+                {{userNameTwo}} has invited you to take charge as an {{accessType}} in their exclusive collaboration group, '{{collaborationName}},' Mitt Arv. Your presence in this collaborative space is highly valued.<br/><br/>To respond to the invitation, please click the "View in App" button below.<br/>
+                <div class="center"
+                style="margin-bottom: 30px;width:120px; height: 30px; background-color: #fd9320cc;border-radius:50px; display: flex; ">
+                <a href="{{redirectUrl}}" target="_blank"
+                    style="color:white;font-family: 'Plus Jakarta Sans', sans-serif;font-weight:400;font-size:12px;letter-spacing: 1.5%;margin: auto; text-decoration:none">
+                    View in App
+                </a>
+                </div>
+            <div class="intimation">
+                <p class="version1">Thank you for your active engagement with us.</p>
+            </div>
+            <p
+                style="font-size: 12px;font-family: 'Plus Jakarta Sans', sans-serif;color:white;font-weight:400;letter-spacing: 1.5%;margin-top: 30px ;">
+                Warmest regards,<br>Team<span
+                    style=" font-size: 12px;font-family: 'Plus Jakarta Sans', sans-serif; color: #84B5D2;font-weight: 700;letter-spacing: 1.5%;">
+                    Mitt
+                    Arv</span><br>
+                <b>Zero - Life - Infinity</b>
+            </p>
+            <div
+                style="height:2px;background:#033348;margin-top: 2.5%; margin-bottom: 2.5%; margin-left: -4%; margin-right: -4%;">
+            </div>
+            <p style="font-family: 'Plus Jakarta Sans', sans-serif;font-size: 12px;color: white;letter-spacing: 1.5%;">
+                For any inquiries, kindly reach out to us at<br> support@mittarv.com
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,76 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Dropping existing partnerContactInfo table...");
+    await queryInterface.dropTable("partnerContactInfo");
+    await queryInterface.dropTable("partnerContactInfos");
+    console.log("partnerContactInfo table dropped successfully.");
+
+    console.log("Recreating partnerContactInfo table...");
+
+    await queryInterface.createTable("partnerContactInfos", {
+      id: {
+        allowNull: false,
+        primaryKey: true,
+        type: Sequelize.UUID,
+        defaultValue: Sequelize.UUIDV4,
+      },
+      // Foreignkey, parimary key of the partner table will be stored here
+      partnerId: {
+        type: Sequelize.UUID,
+      },
+      type: {
+        type: Sequelize.STRING,
+      },
+      registeredOffice: {
+        type: Sequelize.STRING,
+      },
+      operationalAddress: {
+        type: Sequelize.STRING,
+      },
+      partnerCountryCode: {
+        type: Sequelize.STRING,
+      },
+      partnerContactName: {
+        type: Sequelize.STRING,
+      },
+      email: {
+        type: Sequelize.STRING,
+      },
+      phoneNumber: {
+        type: Sequelize.STRING,
+      },
+      designation: {
+        type: Sequelize.STRING,
+      },
+      isDeleted: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+      },
+      createdAt: {
+        allowNull: false,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW,
+      },
+      updatedAt: {
+        allowNull: false,
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW,
+      },
+    });
+
+    console.log("partnerContactInfo table recreated successfully.");
+  },
+  down: async (queryInterface, Sequelize) => {
+    try {
+      console.log("Dropping existing partnerContactInfo table...");
+      await queryInterface.dropTable("partnerContactInfo");
+      await queryInterface.dropTable("partnerContactInfos");
+      console.log("partnerContactInfo table dropped successfully.");
+    } catch (error) {
+      console.error("Error dropping partnerContactInfo table:", error);
+      throw error;
+    }
+  },
+};
