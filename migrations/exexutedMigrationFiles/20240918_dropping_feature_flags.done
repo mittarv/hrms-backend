@@ -1,0 +1,23 @@
+
+"use strict";
+const { db } = require("../models/index");
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    try {
+      console.log("Dropping feature flags table");
+      await queryInterface.dropTable('featureFlags');
+      console.log("Feature flags table dropped");
+    } catch (error) {
+      console.error("Error dropping feature flags table:", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    try {
+      console.log("not needed because we are dropping the table");
+    } catch (error) {
+      console.error("Error creating feature flags table:", error);
+    }
+  },
+};

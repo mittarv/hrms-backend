@@ -1,0 +1,64 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration...");
+    // Adding new columns
+    console.log("Adding 'lastAttempt' in LockedInUserQuestionAnswer table");
+    try {
+      await queryInterface.addColumn(
+        "LockedInUserQuestionAnswers",
+        "lastAttempt",
+        {
+          type: Sequelize.INTEGER,
+          allowNull: false,
+        }
+      );
+      console.log("Column 'lastAttempt' added successfully.");
+    } catch (error) {
+      console.error("Error adding 'lastAttempt' column:", error);
+    }
+    
+    // =================================removing old columns=============================================
+    console.log(
+      "Removing 'customQuestion' from LockedInUserQuestionAnswer table"
+    );
+    try {
+      await queryInterface.removeColumn(
+        "LockedInUserQuestionAnswers",
+        "customQuestion"
+      );
+      console.log("Column 'customQuestion' removed successfully.");
+    } catch (error) {
+      console.error("Error removing 'customQuestion' column:", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Starting 'down' migration...");
+
+    // ================================Removing new columns==========================================
+    try {
+      await queryInterface.removeColumn(
+        "LockedInUserQuestionAnswers",
+        "lastAttempt"
+      );
+      console.log("Column 'lastAttempt' removed successfully.");
+    } catch (error) {
+      console.log("Error removing 'lastAttempt' column:", error);
+    }
+    try {
+      await queryInterface.addColumn(
+        "LockedInUserQuestionAnswers",
+        "customQuestion",
+        {
+          type: Sequelize.STRING,
+          allowNull: true,
+        }
+      );
+      console.log("Column 'customQuestion' added successfully.");
+    } catch (error) {
+      console.error("Error adding 'customQuestion' column:", error);
+    }
+  },
+};

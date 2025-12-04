@@ -1,0 +1,110 @@
+"use strict";
+
+const { outputSequelize } = require("../models/index");
+
+module.exports = {
+    up: async () => {
+        console.log("Starting 'up' migration for changing 'empAccountNumber' data type from INT to BIGINT...");
+
+        const transaction = await outputSequelize.transaction();
+        
+        try {
+            const tables = [
+                "employeebankaccountdetails",
+                "employeebankaccountdetailhistories",
+            ];
+            
+            const modifiedTables = [];
+
+            for (const table of tables) {
+                const [columnInfo] = await outputSequelize.query(`
+                    SELECT COLUMN_NAME, DATA_TYPE 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '${table}' AND COLUMN_NAME = 'empAccountNumber';
+                `, { transaction });
+
+                if (columnInfo.length > 0) {
+
+                    if (columnInfo[0].DATA_TYPE.toLowerCase() !== 'bigint') {
+                        console.log(`Changing 'empAccountNumber' data type to BIGINT in ${table}`);
+                        await outputSequelize.query(`
+                            ALTER TABLE ${table} 
+                            MODIFY COLUMN empAccountNumber BIGINT;
+                        `, { transaction });
+                        modifiedTables.push(table);
+                        console.log(`Successfully changed 'empAccountNumber' data type in ${table}`);
+                    } else {
+                        console.log(`Column 'empAccountNumber' in ${table} is already BIGINT, skipping...`);
+                    }
+                } else {
+                    console.log(`Column 'empAccountNumber' does not exist in ${table}, skipping...`);
+                }
+            }
+
+            if (modifiedTables.length === tables.length || modifiedTables.length > 0) {
+                await transaction.commit();
+                console.log(`Committed changes for tables: ${modifiedTables.join(', ')}`);
+                console.log("Completed updating 'empAccountNumber' data type to BIGINT");
+            } else {
+                await transaction.rollback();
+                console.log("No tables were modified, rolling back transaction");
+            }
+        } catch (error) {
+            await transaction.rollback();
+            console.error("Error changing data type using raw SQL - transaction rolled back:", error);
+            throw error;
+        }
+    },
+
+    down: async () => {
+        console.log("Starting 'down' migration for reverting 'empAccountNumber' data type back to INT...");
+        
+        const transaction = await outputSequelize.transaction();
+        
+        try {
+            const tables = [
+                "employeebankaccountdetails",
+                "employeebankaccountdetailhistories",
+            ];
+            
+            const revertedTables = [];
+
+            for (const table of tables) {
+                const [columnInfo] = await outputSequelize.query(`
+                    SELECT COLUMN_NAME, DATA_TYPE 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_NAME = '${table}' AND COLUMN_NAME = 'empAccountNumber';
+                `, { transaction });
+
+                if (columnInfo.length > 0) {
+                    if (columnInfo[0].DATA_TYPE.toLowerCase() !== 'int') {
+                        console.log(`Reverting 'empAccountNumber' data type back to INT in ${table}`);
+                        await outputSequelize.query(`
+                            ALTER TABLE ${table} 
+                            MODIFY COLUMN empAccountNumber INT;
+                        `, { transaction });
+                        revertedTables.push(table);
+                        console.log(`Successfully reverted 'empAccountNumber' data type in ${table}`);
+                    } else {
+                        console.log(`Column 'empAccountNumber' in ${table} is already INT, skipping...`);
+                    }
+                } else {
+                    console.log(`Column 'empAccountNumber' does not exist in ${table}, skipping...`);
+                }
+            }
+
+            if (revertedTables.length === tables.length || revertedTables.length > 0) {
+                await transaction.commit();
+                console.log(`Committed reversions for tables: ${revertedTables.join(', ')}`);
+                console.log("Completed reverting 'empAccountNumber' data type to INT");
+            } else {
+                await transaction.rollback();
+                console.log("No tables were modified, rolling back transaction");
+            }
+        } catch (error) {
+            await transaction.rollback();
+            console.error("Error reverting data type using raw SQL - transaction rolled back:", error);
+            throw error;
+        }
+    }
+};

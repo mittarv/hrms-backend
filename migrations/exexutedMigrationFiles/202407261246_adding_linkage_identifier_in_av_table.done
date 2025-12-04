@@ -1,0 +1,115 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration...");
+
+    // Adding 'linkageIdentifierUuId' column to assetType table
+    console.log("Adding 'linkageIdentifierUuId' column to assetType table...");
+    try {
+      await queryInterface.addColumn("assetTypes", "linkageIdentifierUuId", {
+        type: Sequelize.UUID,
+        allowNull: true,
+      });
+      console.log(
+        "Column 'linkageIdentifierUuId' added successfully to assetType table."
+      );
+    } catch (error) {
+      console.error(
+        "Error adding 'linkageIdentifierUuId' column to assetType table:",
+        error
+      );
+    }
+
+    // Adding 'linkageIdentifierUuId' column to assetSubtype table
+    console.log(
+      "Adding 'linkageIdentifierUuId' column to assetSubtype table..."
+    );
+    try {
+      await queryInterface.addColumn("assetSubTypes", "linkageIdentifierUuId", {
+        type: Sequelize.UUID,
+        allowNull: true,
+      });
+      console.log(
+        "Column 'linkageIdentifierUuId' added successfully to assetSubtype table."
+      );
+    } catch (error) {
+      console.error(
+        "Error adding 'linkageIdentifierUuId' column to assetSubtype table:",
+        error
+      );
+    }
+
+    // Adding 'linkageIdentifierUuId' column to assetField table
+    console.log("Adding 'linkageIdentifierUuId' column to assetField table...");
+    try {
+      await queryInterface.addColumn("assetFields", "linkageIdentifierUuId", {
+        type: Sequelize.UUID,
+        allowNull: true,
+      });
+      console.log(
+        "Column 'linkageIdentifierUuId' added successfully to assetField table."
+      );
+    } catch (error) {
+      console.error(
+        "Error adding 'linkageIdentifierUuId' column to assetField table:",
+        error
+      );
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Starting 'down' migration...");
+
+    // Removing 'linkageIdentifierUuId' column from assetType table
+    console.log(
+      "Removing 'linkageIdentifierUuId' column from assetType table..."
+    );
+    try {
+      await queryInterface.removeColumn("assetTypes", "linkageIdentifierUuId");
+      console.log(
+        "Column 'linkageIdentifierUuId' removed successfully from assetType table."
+      );
+    } catch (error) {
+      console.error(
+        "Error removing 'linkageIdentifierUuId' column from assetType table:",
+        error
+      );
+    }
+
+    // Removing 'linkageIdentifierUuId' column from assetSubtype table
+    console.log(
+      "Removing 'linkageIdentifierUuId' column from assetSubtype table..."
+    );
+    try {
+      await queryInterface.removeColumn(
+        "assetSubTypes",
+        "linkageIdentifierUuId"
+      );
+      console.log(
+        "Column 'linkageIdentifierUuId' removed successfully from assetSubtype table."
+      );
+    } catch (error) {
+      console.error(
+        "Error removing 'linkageIdentifierUuId' column from assetSubtype table:",
+        error
+      );
+    }
+
+    // Removing 'linkageIdentifierUuId' column from assetField table
+    console.log(
+      "Removing 'linkageIdentifierUuId' column from assetField table..."
+    );
+    try {
+      await queryInterface.removeColumn("assetFields", "linkageIdentifierUuId");
+      console.log(
+        "Column 'linkageIdentifierUuId' removed successfully from assetField table."
+      );
+    } catch (error) {
+      console.error(
+        "Error removing 'linkageIdentifierUuId' column from assetField table:",
+        error
+      );
+    }
+  },
+};

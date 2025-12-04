@@ -1,0 +1,52 @@
+'use strict';
+
+const { db, } = require("../models/index");
+const AllWills = db.allwills
+const DraftWills = db.draftwills
+
+
+module.exports = {
+    async up (queryInterface,Sequelize) {
+        console.log("Starting Up Migration - Adding old draft will records to draftwills from allwills, if record not present in draftwill")
+
+        //  get all draft wills from allwils table
+          const draftWillsInAllwills = await AllWills.findAll({
+            where : {
+                draft : true,
+                isDeleted : false
+            },
+          attributes : ["id","userId","createdAt","updatedAt"]
+        })
+        if(draftWillsInAllwills) {
+            for(let i=0; i < draftWillsInAllwills.length ; i++) {
+             
+                const draftRecord = await DraftWills.findOne({
+                    where : {
+                        willId : draftWillsInAllwills[i].dataValues.id,
+                        userId : draftWillsInAllwills[i].dataValues.userId,
+                    
+                    },
+                    attributes : ["id"]
+                })
+                // draftwill that is in all will if it is not in draftwill then add
+                if (!draftRecord) {
+                    await DraftWills.create(
+                        {
+                          userId : draftWillsInAllwills[i].dataValues.userId,
+                          willId: draftWillsInAllwills[i].dataValues.id,
+                          createdAt : draftWillsInAllwills[i].dataValues.createdAt,
+                          updatedAt : draftWillsInAllwills[i].dataValues.updatedAt
+                        }
+                       )
+                } 
+            }
+        } else {
+            console.log("There are no draft wills in allwills table - hence migration skipped")
+        }
+        console.log(" Migration Completed - Adding old draft will records to draftwills from allwills, if record not present in draftwill")
+      
+    } ,
+    async down (queryInterface,Sequelize) {
+       console.log("Down Migration Skipped - as we can't find newly added records")
+    }
+}

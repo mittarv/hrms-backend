@@ -1,0 +1,86 @@
+"use strict";
+import { QueryInterface, Sequelize } from "sequelize";
+import { Country } from "country-state-city";
+import { db } from "../models";
+const { users: User, keyValuePairs: KeyValuePairs, userIdentifier: UserIdentifier } = db;
+import { generateRandom10Digits } from "../utilities/helperFunctions";
+
+function getIsoCode(countryNameOrTelephoneCode: string): string | null {
+  // Trim and convert to lowercase
+  const normalizedCountryName = countryNameOrTelephoneCode.trim().toLowerCase();
+
+  // Fetch all countries
+  const countries = Country.getAllCountries();
+
+  // Find the country by name
+  const country = countries.find(
+    (c) => c.name.toLowerCase() === normalizedCountryName
+  );
+
+  return country ? country.isoCode : null;
+}
+
+export const up = async (queryInterface: QueryInterface, Sequelize: Sequelize) => {
+  console.log("Starting 'up' migration for generating customer Id for existing users");
+
+  const transaction = await queryInterface.sequelize.transaction();
+
+  try {
+    // Finding the company code for the user which is currently by default 'MA'
+    const mittarvCompanyCode = await KeyValuePairs.findOne({
+      where: { category: "ma_company_code" },
+      attributes: ["value"],
+      transaction,
+    });
+
+    let mittarvCode = mittarvCompanyCode?.dataValues.value || "MA";
+
+    const users = await User.findAll({
+      attributes: ["id", "countryCode", "country"],
+      transaction,
+    });
+
+    for (const user of users) {
+      const isoCode = getIsoCode(user.country);
+      if (!isoCode) {
+        console.error(
+          `ISO code not found for user with ID ${user.id} and country: ${user.country}`
+        );
+        continue;
+      }
+
+      // check if UserIdentifier already exists for the user
+      const userIdentifierExists = await UserIdentifier.findOne({
+        where: {
+          userId: user.id,
+          isDeleted: false,
+        },
+        transaction,
+      });
+
+      if (userIdentifierExists) {
+        console.log(`UserIdentifier already exists for user with ID ${user.id} and country: ${user.country}, so creation skipped`);
+        continue;
+      }
+
+      const customerId10Digits = await generateRandom10Digits();
+      await UserIdentifier.create({
+        userId: user.id,
+        userIdentifierId: mittarvCode + isoCode + customerId10Digits,
+        companyCode: mittarvCode,
+        userIsoCode: isoCode,
+        userIdentifierNumber: customerId10Digits,
+        idType: mittarvCode ? mittarvCode : null,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { transaction });
+    }
+    await transaction.commit();
+  } catch (error) {
+    console.error("Error during migration:", error);
+    await transaction.rollback();
+  }
+};
+
+

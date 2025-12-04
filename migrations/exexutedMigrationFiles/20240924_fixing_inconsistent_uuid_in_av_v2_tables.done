@@ -1,0 +1,36 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration...");
+    // Adding new columns
+
+    try {
+      console.log("Adding new columns to draftwills table...");
+
+      // ############ AV-TOOL TABLES ############
+      // Assettype table
+      await queryInterface.renameColumn(
+        "assetTypes", // Name of the table
+        "assetTypeUuId", // Old column name
+        "assetTypeUuid" // New column name
+      );
+
+      // AssetSubType table
+      await queryInterface.renameColumn(
+        "assetSubTypes", // Name of the table
+        "assetSubTypeUuId", // Old column name
+        "assetSubTypeUuid" // New column name
+      );
+      await queryInterface.renameColumn(
+        "assetSubTypes", // Name of the table
+        "assetTypeUuId", // Old column name
+        "assetTypeUuid" // New column name
+      );
+
+      console.log("Columns added successfully");
+    } catch (error) {
+      console.error("Error adding columns:", error);
+    }
+  },
+};

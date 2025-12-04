@@ -1,0 +1,37 @@
+'use strict';
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        try {
+            console.log("Starting 'up' migration...");
+
+            console.log("modifying the remarks datatype to VARCHAR(1024) in userassetdetails table ...");
+
+            await queryInterface.changeColumn('userassetdetails', 'remarks', {
+                type: Sequelize.STRING(1024),
+            });
+
+            console.log("modifying the remarks datatype to VARCHAR(1024) in userassetdetails table successfully");
+        } catch (err) {
+            console.log(err);
+            console.log("modifying the remarks datatype to VARCHAR(1024) in userassetdetails table Failed");
+        }
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        try {
+            console.log("Starting 'down' migration...");
+
+            console.log("modifying the remarks datatype to STRING in userassetdetails table ...");
+
+            await queryInterface.changeColumn('userassetdetails', 'remarks', {
+                type: Sequelize.STRING,
+            });
+
+            console.log("modifying the remarks datatype to STRING in userassetdetails table successfully");
+        } catch (err) {
+            console.log(err);
+            console.log("modifying the remarks datatype to STRING in userassetdetails table Failed");
+        }
+    }
+};

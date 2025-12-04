@@ -1,0 +1,76 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    try {
+        console.log("Dropping existing partnerOperationDetails table...");
+        await queryInterface.dropTable("partnerOperationDetails");
+
+        console.log("partnerOperationDetails table dropped successfully.");
+
+        console.log("Creating the partnerOperationDetails table...");
+
+        await queryInterface.createTable("partnerOperationDetails", {
+            id: {
+                allowNull: false,
+                primaryKey: true,
+                type: Sequelize.UUID,
+                defaultValue: Sequelize.UUIDV4
+            },
+            partnerId: {
+                type: Sequelize.UUID,
+                
+            },
+            partnershipType:{
+                type: Sequelize.STRING,
+                
+            },
+            slaUpload:{
+                type: Sequelize.STRING,
+                
+            },
+            responsibilities:{
+                type: Sequelize.TEXT,
+                
+            },
+            partnershipGoal:{
+                type: Sequelize.TEXT,
+              
+            },
+            customClauses:{
+                type: Sequelize.TEXT,
+                
+            },
+            isDeleted: {
+                type: Sequelize.BOOLEAN,
+                defaultValue: false,
+            },
+            createdAt: {
+                allowNull: false,
+                type: Sequelize.DATE,
+                defaultValue: Sequelize.NOW,
+            },
+            updatedAt: {
+                allowNull: false,
+                type: Sequelize.DATE,
+                defaultValue: Sequelize.NOW,
+            },
+        });
+        
+        console.log("partnerOperationDetails table created successfully.");
+        
+    } catch (error) {
+      console.error("Error dropping partnerOperationDetails table:", error);
+        
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    try {
+      console.log("Dropping existing partnerOperationDetails table...");
+      await queryInterface.dropTable("partnerOperationDetails");
+    } catch (error) {
+      console.error("Error recreating partnerOperationDetails table:", error);
+    }
+  },
+};

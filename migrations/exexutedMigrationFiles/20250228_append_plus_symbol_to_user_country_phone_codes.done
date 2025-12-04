@@ -1,0 +1,54 @@
+"use strict";
+import { db } from "../models/index";
+const Users = db.users;
+
+module.exports = {
+  up: async (queryInterface: any, Sequelize: any) => {
+    console.log("Starting 'up' migration...");
+
+    console.log("Adding '+' symbol to user country phone codes if it doesn't exists");  // 91 --> +91
+
+    const t = await queryInterface.sequelize.transaction();
+
+    try {
+      const users = await Users.findAll({ transaction: t });
+
+      await Promise.all(
+        users.map(async(user) => {
+          const userExists = user["dataValues"]["isDeleted"] === false;
+          const userId = user["dataValues"]["id"];
+          const countryPhoneCode = user["dataValues"]["countryCode"];
+
+          if (userExists && !countryPhoneCode.startsWith("+")) {
+
+            await Users.update(
+              { countryCode: `+${countryPhoneCode}` },
+              {
+                where: {
+                  id: userId
+                },
+              },
+              { transaction: t, }
+            );
+
+          }
+        })
+      );
+
+      await t.commit();
+      console.log("Added '+' symbol to user country phone codes successfully");
+
+    } catch (error) {
+
+      await t.rollback();
+      console.error("Error adding '+' symbol to user country phone codes: ", error);
+    }
+  },
+
+  down: async (queryInterface: any, _: any) => {
+    console.log("Starting 'down' migration...");
+
+    console.log("'down' migration completed successfully...");
+  },
+};
+

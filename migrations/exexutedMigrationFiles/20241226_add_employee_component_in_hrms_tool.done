@@ -1,0 +1,252 @@
+"use strict";
+const { dbOutput } = require("../models/index");
+const EmployeeComponentConfigurator = dbOutput.employeeComponentConfigurator;
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log("Starting 'up' migration for adding Employee Type component");
+    try {
+      const employeeTypeComponent = JSON.stringify({
+        fte_key: "FTE",
+        pte_key: "PTE",
+        contractor_key: "Contractor",
+        intern_key: "Intern",
+        consultant_key: "Consultant",
+      });
+      console.log("Adding Employee Type Component:");
+      const empComponent = {
+        componentType: "emp_type_dropdown",
+        componentValue: employeeTypeComponent,
+      };
+
+      // Add the employee component where componentType is "HRMS" and componentValue is "Test1"
+      await EmployeeComponentConfigurator.create(empComponent);
+
+      console.log("Added Employee Type component successfully");
+    } catch (error) {
+      console.log("Failed to add Employee Type component");
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log(
+        "Starting 'up' migration for adding Department Type component"
+      );
+      const departmentTypeComponent = JSON.stringify({
+        product_key: "Product Management",
+        sde_key: "Software Engineering",
+        project_key: "Project Management",
+        design_key: "Design",
+        half_key: "HALF",
+        analytics_key: "Analytics",
+        cdm_key: "CDM",
+      });
+      console.log("Adding Department Type Component:");
+      const deptComponent = {
+        componentType: "department_type_dropdown",
+        componentValue: departmentTypeComponent,
+      };
+      await EmployeeComponentConfigurator.create(deptComponent);
+    } catch (error) {
+      console.log("Failed to add Department Type component");
+      console.error("Error ", error);
+    }
+
+    // Gender Component
+    try {
+      console.log("Starting 'up' migration for adding Gender Type component");
+      const genderTypeComponent = JSON.stringify({
+        male_key: "Male",
+        female_key: "Female",
+        other_key: "Other",
+      });
+      console.log("Adding Gender Type Component:");
+      const genderComponent = {
+        componentType :"gender_type_dropdown",
+        componentValue: genderTypeComponent,
+      };
+      await EmployeeComponentConfigurator.create(genderComponent);
+    } catch (error) {
+      console.log("Failed to add Gender Type component");
+      console.error("Error ", error);
+    }
+
+    // Blood Group Component
+    try {
+      console.log("Starting 'up' migration for adding Blood Group component");
+      const bloodGroupComponent = JSON.stringify({
+        0: "A+",
+        1: "A-",
+        2: "B+",
+        3: "B-",
+        4: "AB+",
+        5: "AB-",
+        6: "O+",
+        7: "O-",
+      });
+      console.log("Adding Blood Group Component:");
+      const bloodComponent = {
+        componentType: "blood_group_dropdown",
+        componentValue: bloodGroupComponent,
+      };
+      await EmployeeComponentConfigurator.create(bloodComponent);
+      console.log("Added Blood Group component successfully");
+    } catch (error) {
+      console.log("Failed to add Blood Group component");
+      console.error("Error ", error);
+    }
+
+    // Emergency Contact Relation Component
+    try {
+      console.log("Starting 'up' migration for adding Emergency Contact Relation component");
+      const emergencyContactRelationComponent = JSON.stringify({
+        0: "Parent",
+        1: "Spouse",
+        2: "Friend",
+      });
+      console.log("Adding Emergency Contact Relation Component:");
+      const emergencyContactComponent = {
+        componentType: "emergency_contact_relation_dropdown",
+        componentValue: emergencyContactRelationComponent,
+      };
+      await EmployeeComponentConfigurator.create(emergencyContactComponent);
+      console.log("Added Emergency Contact Relation component successfully");
+    } catch (error) {
+      console.log("Failed to add Emergency Contact Relation component");
+      console.error("Error ", error);
+    }
+
+    // Marital Status Component
+    try {
+      console.log("Starting 'up' migration for adding Marital Status component");
+      const maritalStatusComponent = JSON.stringify({
+        0: "Single",
+        1: "Married",
+      });
+      console.log("Adding Marital Status Component:");
+      const maritalComponent = {
+        componentType: "marital_status_dropdown",
+        componentValue: maritalStatusComponent,
+      };
+      await EmployeeComponentConfigurator.create(maritalComponent);
+      console.log("Added Marital Status component successfully");
+    } catch (error) {
+      console.log("Failed to add Marital Status component");
+      console.error("Error ", error);
+    }
+
+    // Total Number of Leaves Component
+    try {
+      console.log("Starting 'up' migration for adding Total Number of Leaves component");
+      const totalLeavesComponent = JSON.stringify({
+      sick_leave: 10,
+      casual_leave: 12,
+      bereavement_leave: 5,
+      });
+      console.log("Adding Total Number of Leaves Component:");
+      const leavesComponent = {
+      componentType: "total_leaves_dropdown",
+      componentValue: totalLeavesComponent,
+      };
+      await EmployeeComponentConfigurator.create(leavesComponent);
+      console.log("Added Total Number of Leaves component successfully");
+    } catch (error) {
+      console.log("Failed to add Total Number of Leaves component");
+      console.error("Error ", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Starting 'down' migration for removing Employee Type component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "emp_type_dropdown",
+        },
+      });
+      console.log("Removed Employee Type component successfully");
+    } catch (error) {
+      console.log("Failed to remove Employee Type component");
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'down' migration for removing Department Type component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "department_type_dropdown",
+        },
+      });
+      console.log("Removed Department Type component successfully");
+    } catch (error) {
+      console.log("Failed to remove Department Type component");
+      console.error("Error ", error);
+    }
+    
+    console.log("Starting 'down' migration for removing Blood Group component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "blood_group_dropdown",
+        },
+      });
+      console.log("Removed Blood Group component successfully");
+    } catch (error) {
+      console.log("Failed to remove Blood Group component");
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'down' migration for removing Emergency Contact Relation component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "emergency_contact_relation_dropdown",
+        },
+      });
+      console.log("Removed Emergency Contact Relation component successfully");
+    } catch (error) {
+      console.log("Failed to remove Emergency Contact Relation component");
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'down' migration for removing Marital Status component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "marital_status_dropdown",
+        },
+      });
+      console.log("Removed Marital Status component successfully");
+    } catch (error) {
+      console.log("Failed to remove Marital Status component");
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'down' migration for removing Total Number of Leaves component");
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "total_leaves_dropdown",
+        },
+      });
+      console.log("Removed Total Number of Leaves component successfully");
+    } catch (error) {
+      console.log("Failed to remove Total Number of Leaves component");
+      console.error("Error ", error);
+    }
+
+    try {
+      await EmployeeComponentConfigurator.destroy({
+        where: {
+          componentType: "gender_type_dropdown",
+        },
+      });
+      console.log("Removed Gender Type component successfully");
+    } catch (error) {
+      console.log("Failed to remove Gender Type component");
+      console.error("Error ", error);
+    }
+
+    console.log("Starting 'down' migration for removing Gender Type component");
+  },
+};

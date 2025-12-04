@@ -1,0 +1,41 @@
+'use strict';
+
+module.exports = {
+
+    up: async (queryInterface, Sequelize) => {
+        console.log("Starting 'up' migration...");
+
+        // Removing columns
+
+        console.log("Removing 'fieldName' column from assetFields table...");
+        try {
+            await queryInterface.removeColumn('assetFields', 'fieldName');
+            console.log("Column 'fieldName' removed successfully.");
+        } catch (error) {
+            console.error("Error removing 'fieldName' column:", error);
+        }
+
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        console.log("Starting 'down' migration...");
+
+
+        // Adding columns
+       
+        console.log("Adding 'fieldName' column to assetFields table...");
+        try {
+            await queryInterface.addColumn('assetFields', 'fieldName', {
+                type: Sequelize.STRING,
+                allowNull: true,
+            });
+            console.log("Column 'fieldName' added successfully.");
+        } catch (error) {
+            console.error("Error adding 'fieldName' column:", error);
+        }
+
+
+
+    },
+
+};

@@ -1,0 +1,22 @@
+//dropping old feature flags
+
+"use strict";
+const { db } = require("../models/index");
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    try {
+      console.log("Dropping old feature flags table");
+      await queryInterface.dropTable('featureFlags');
+      console.log("Old feature flags table dropped successfully");
+    } catch (error) {
+      console.error("Error dropping old feature flags table:", error);
+      throw error; // Re-throw the error to halt the migration if it fails
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    console.log("Down migration not implemented for dropping feature flags table");
+    console.log("To reverse this, you would need to recreate the table with its original schema");
+  },
+};

@@ -1,0 +1,53 @@
+'use strict';
+const { Country } = require('country-state-city');
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log("Starting 'up' migration...");
+
+
+        // Adding new columns
+       
+        try {
+            
+            console.log("Clearing up the assetCountries table...");
+            await queryInterface.bulkDelete('assetCountries',null,{});
+
+            console.log("Fetching all countries from the package...");
+            const listOfCountryCode=Country.getAllCountries();
+
+            console.log("Generating list of entries to insert in assetCountries table...")
+            const countriesEntry=[];
+            listOfCountryCode?.forEach(e=>{
+                countriesEntry.push({
+                    'countryName':e.name,
+                    'countryIsoCode':e.isoCode,
+                    'isActive':false
+                })
+            });
+
+            console.log("Inserting list of entries to insert in assetCountries table...");
+            await queryInterface.bulkInsert('assetCountries',countriesEntry,{});
+
+            console.log("All countries added successfully.");
+        } catch (error) {
+            console.error("Error while adding countries:", error);
+        }
+
+    },
+
+    down: async (queryInterface, _) => {
+        console.log("Starting 'down' migration...");
+
+        // Removing new columns
+
+        console.log("Clearing all data of assetCountries table...");
+        try {
+            await queryInterface.bulkDelete('assetCountries',null,{});
+            console.log("Cleared assetCountries table successfully.");
+        } catch (error) {
+            console.error("Error while clearing assetCountries table:", error);
+        }
+
+    },
+};

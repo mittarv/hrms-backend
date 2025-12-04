@@ -1,0 +1,89 @@
+"use strict";
+const { dbOutput } = require("../models/index");
+const EmployeeComponentConfigurator = dbOutput.employeeComponentConfigurator;
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+      console.log("Starting 'up' migration for adding Accural Frequency and status component");
+      try {
+        const accuralFrequency = JSON.stringify({
+          monthly_key: ["Monthly","12"],
+          quaterly_key: ["Quaterly","4"],
+            half_yearly_key: ["Half-Yearly","2"],
+            annually_key: ["Annually","1"],
+        });
+        console.log("Adding Accural Frequency Component:");
+        const accuralComponent = {
+          componentType: "leave_accural_frequency",
+          componentValue: accuralFrequency,
+        };
+  
+        // check key exist or not
+        const accuralFrequencyComponent = await EmployeeComponentConfigurator.findOne({
+          where: {
+            componentType: "leave_accural_frequency",
+          },
+        });
+        if (accuralFrequencyComponent) {
+          console.log("Accural Frequency Component already exist");
+          return;
+        }
+        await EmployeeComponentConfigurator.create(accuralComponent);
+  
+        console.log("Added Accural Frequency component successfully");
+      } catch (error) {
+        console.log("Failed to add Accural Frequency component");
+        console.error("Error ", error);
+      }
+
+      try {
+        // add status component that is active and inactive
+        const statusComponentValue = JSON.stringify({
+          active_key: "Active",
+          inactive_key: "Inactive",
+        });
+        console.log("Adding Status Component:");
+        const statusComponent = {
+          componentType: "status",
+          componentValue: statusComponentValue,
+        };
+        if (await EmployeeComponentConfigurator.findOne({ where: { componentType: "status" } })) {
+          console.log("Status Component already exists");
+          return;
+        }
+        await EmployeeComponentConfigurator.create(statusComponent);
+        console.log("Added Status component successfully");
+      } catch (error) {
+        console.log("Failed to add Status component");
+        console.error("Error ", error); 
+      }
+    },
+  
+    down: async (queryInterface, Sequelize) => {
+        console.log("Starting 'down' migration for removing Accural Frequency and status component");
+        try {
+            console.log("Removing Accural Frequency Component:");
+            await EmployeeComponentConfigurator.destroy({
+            where: {
+                componentType: "leave_accural_frequency",
+            },
+            });
+            console.log("Removed Accural Frequency component successfully");
+        } catch (error) {
+            console.log("Failed to remove Accural Frequency component");
+            console.error("Error ", error);
+        }
+    
+        try {
+            console.log("Removing Status Component:");
+            await EmployeeComponentConfigurator.destroy({
+            where: {
+                componentType: "status",
+            },
+            });
+            console.log("Removed Status component successfully");
+        } catch (error) {
+            console.log("Failed to remove Status component");
+            console.error("Error ", error);
+        } 
+    }
+  };

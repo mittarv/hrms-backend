@@ -1,0 +1,38 @@
+'use strict';
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log("Changing string to text in partnerlegalcompliances");
+        
+        await queryInterface.changeColumn("partnerlegalcompliances", "ndaUpload", {
+            type: Sequelize.TEXT,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "agreementUpload", {
+            type: Sequelize.TEXT,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "incorporationUpload", {
+            type: Sequelize.TEXT,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "taxComplianceUpload", {
+            type: Sequelize.TEXT,
+        });
+
+        console.log("Changed string to text in partnerlegalcompliances");
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        console.log("Changing text to string in partnerlegalcompliances");
+        await queryInterface.changeColumn("partnerlegalcompliances", "ndaUpload", {
+            type: Sequelize.STRING,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "agreementUpload", {
+            type: Sequelize.STRING,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "incorporationUpload", {
+            type: Sequelize.STRING,
+        });
+        await queryInterface.changeColumn("partnerlegalcompliances", "taxComplianceUpload", {
+            type: Sequelize.STRING,
+        });
+        console.log("Changed text to string in partnerlegalcompliances");
+    },
+};

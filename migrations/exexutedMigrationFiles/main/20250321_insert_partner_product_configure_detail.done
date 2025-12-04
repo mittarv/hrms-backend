@@ -1,0 +1,236 @@
+import { db } from "../../models";
+const { partnerProductConfigureDetail } = db;
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log(
+            "Starting 'up' migration for inserting default values into 'partnerProductConfigureDetail' table..."
+        );
+        const transaction = await db.sequelize.transaction();
+        try {
+            console.log(
+                "Inserting default values into 'partnerProductConfigureDetail' table..."
+            );
+
+            await partnerProductConfigureDetail.bulkCreate(
+                [
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M1",
+                        duration: "MONTHLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 300,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M2",
+                        duration: "MONTHLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 450,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M3",
+                        duration: "MONTHLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 700,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_M4",
+                        duration: "MONTHLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 1200,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y1",
+                        duration: "YEARLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 3000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y2",
+                        duration: "YEARLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 4500,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y3",
+                        duration: "YEARLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 7000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "MITTARV",
+                        partnerProductId: "MITTARV_Y4",
+                        duration: "YEARLY",
+                        countryCode: "IN",
+                        currency: "INR",
+                        price: 12000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M1",
+                        duration: "MONTHLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 60000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M2",
+                        duration: "MONTHLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 90000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M3",
+                        duration: "MONTHLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 140000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_M4",
+                        duration: "MONTHLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 240000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y1",
+                        duration: "YEARLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 600000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y2",
+                        duration: "YEARLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 900000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y3",
+                        duration: "YEARLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 1400000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        partnerCode: "LIVEAMAN",
+                        partnerProductId: "LIVEAMAN_Y4",
+                        duration: "YEARLY",
+                        countryCode: "ID",
+                        currency: "IDR",
+                        price: 2400000,
+                        platform: "WEB",
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                ],
+                { transaction: transaction }
+            );
+
+            console.log("Default values inserted into 'Products' table successfully");
+
+            await transaction.commit();
+            console.log("'Products' table updated successfully");
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error inserting default values into 'partnerProductConfigureDetail' table:",
+                error
+            );
+        }
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        console.log(
+            "Starting 'down' migration for deleting default values from 'Products' table..."
+        );
+
+        const transaction = await db.sequelize.transaction();
+        try {
+            console.log("Deleting default values from 'partnerProductConfigureDetail' table...");
+
+            await partnerProductConfigureDetail.destroy({
+                where: {
+                    partnerCode: ["MITTARV", "LIVEAMAN"],
+                },
+                transaction: transaction,
+            });
+
+            await transaction.commit();
+            console.log("Default values deleted from 'partnerProductConfigureDetail' table successfully.");
+        } catch (error) {
+            await transaction.rollback();
+            console.error(
+                "Error deleting default values from 'partnerProductConfigureDetail' table: ",
+                error
+            );
+        }
+    },
+};

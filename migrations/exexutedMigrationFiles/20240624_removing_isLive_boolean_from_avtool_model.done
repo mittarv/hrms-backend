@@ -1,0 +1,61 @@
+"use strict";
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    try {
+      await queryInterface.removeColumn("assetTypes", "isLive");
+      console.log('Removed "isLive" column from "assetType" table');
+    } catch (error) {
+      console.error('Failed to remove "isLive" column from "assetType" table:', error);
+    }
+
+    try {
+      await queryInterface.removeColumn("assetSubTypes", "isLive");
+      console.log('Removed "isLive" column from "assetSubType" table');
+    } catch (error) {
+      console.error('Failed to remove "isLive" column from "assetSubType" table:', error);
+    }
+
+    try {
+      await queryInterface.removeColumn("assetFields", "isLive");
+      console.log('Removed "isLive" column from "assetFields" table');
+    } catch (error) {
+      console.error('Failed to remove "isLive" column from "assetFields" table:', error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    try {
+      await queryInterface.addColumn("assetTypes", "isLive", {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log('Added "isLive" column to "assetTypes" table');
+    } catch (error) {
+      console.error('Failed to add "isLive" column to "assetType" table:', error);
+    }
+
+    try {
+      await queryInterface.addColumn("assetSubTypes", "isLive", {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log('Added "isLive" column to "assetSubType" table');
+    } catch (error) {
+      console.error('Failed to add "isLive" column to "assetSubType" table:', error);
+    }
+
+    try {
+      await queryInterface.addColumn("assetFields", "isLive", {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log('Added "isLive" column to "assetFields" table');
+    } catch (error) {
+      console.error('Failed to add "isLive" column to "assetFields" table:', error);
+    }
+  },
+};

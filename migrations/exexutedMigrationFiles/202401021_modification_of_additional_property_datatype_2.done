@@ -1,0 +1,61 @@
+'use strict';
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+
+      console.log("Starting 'up' migration...");
+      try {
+        console.log("Altering datatype to STRING of 'additionalProperties' from 'assetComponents' ");
+
+        await queryInterface.changeColumn('assetComponents', 'additionalProperties', {
+          type: Sequelize.STRING,
+          defaultValue:"",
+          allowNull: false, // or true, depending on your requirement
+        });
+        console.log("Altering datatype to STRING of 'additionalProperties' from 'assetComponents' successful ");
+
+        
+        console.log("Altering datatype to STRING of 'additionalProperties' from 'assetFields' ");
+
+        await queryInterface.changeColumn('assetFields', 'additionalProperties', {
+          type: Sequelize.STRING,
+          defaultValue:"",
+          allowNull: false, // or true, depending on your requirement
+        });
+        console.log("Altering datatype to STRING of 'additionalProperties' from 'assetFields' successful ");
+        
+      }catch(error){
+        console.error("Error removing unique constraint:", error);
+      }
+    },
+  
+    down: async (queryInterface, Sequelize) => {
+      
+      console.log("Starting 'down' migration...");
+
+      try{
+        console.log("Altering datatype to JSON of 'additionalProperties' from 'assetComponents' ");
+
+        await queryInterface.changeColumn('assetComponents', 'additionalProperties', {
+          type: Sequelize.JSON,
+          defaultValue:{},
+          allowNull: false, // or true, depending on your requirement
+        });
+        
+        console.log("Altering datatype to JSON of 'additionalProperties' from 'assetComponents' successful ");
+
+        
+        console.log("Altering datatype to JSON of 'additionalProperties' from 'assetFields' ");
+
+        await queryInterface.changeColumn('assetFields', 'additionalProperties', {
+          type: Sequelize.JSON,
+          defaultValue:{},
+          allowNull: false, // or true, depending on your requirement
+        });
+        console.log("Altering datatype to JSON of 'additionalProperties' from 'assetFields' successful ");
+
+      }catch(error){
+        console.error("Error removing unique constraint:", error);
+      }
+    },
+};

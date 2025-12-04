@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "mittarv-signin-prod",
+  "private_key_id": "a8d09a5a349f6c6aa641640781b93e5ce2a735f8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDHL1MoHAfiKOk5\nHe9TVirRvG+gctBPS7Xu9n7NKFpmRUHmaquQXkdVDIWXr2dKXVXEULdOUPM12G5b\nYUfR8s+xs/5o2kI8HhckQnXkjE22JuU5T3CbRF+GbKE3+UOLVH1QwkkTALEnX2/W\nv5FNIWU3FsytDZ6/jyC3LX5IfWyz3hdRvvQsDecqlPyGourOfpaZwV6iN8wlKFqz\nfVGqBI0/yB8vgjQk4bhgg4xUJACoOSjrgQcXqZ7b6u9xwMV5CPYR3ryvcrcoZdUf\nOkp77GHvwPn9QNpJsG8iRYMNeQ00UrkzFJ/8gKuVriEGGUJZkgveKgot5AE9osKr\nnjy8Cv2BAgMBAAECggEACbPv+JW4+pbkmZAwPt6FMndb9rRxGlPFVpEyZxsOoEnC\nZo+OsPcuwWFdRqDYRsKaMXh/HXULC/Xxlkj8XylVXcI3Y/Mx48zRcsY8CPietn9Z\njjuk8CNaBenXxqrBVBG3Ew6L0b2oY5MeFxd45Al67T6SlOGDeLBntxSjwLM/btmO\nKG6i57kfqKTJe3weFuVkf/0Qv5N17+VgxSpb+UcPTNHbZhuFLZjOCITPL4qWUbXv\nAlvvSoW2/q6BbTHSEEtAGzjyVFeDV2RR6O1ukScjy+FRiR1YyPOaBSAoKCz+pJA1\nErSz9WlA22VU+mAoRuWfMMvIm0dyJigAJ03FKkjF4QKBgQD7F2Jpjz8rZYtHpYTU\nSfYUf802oBQBxZ69a/rNiqrqPzC7fV4fXv6UaAAbXzHjuwbI2zov1TifHzxqrtzY\n8G3uHsTJtcjUrxNL1f3g+wyrK2Xxa7WXfY//BKzWu/f6dfgdsfou9Ydt+EO+R/05\nc4xjnu4CZOvCQGDDk3Xesvl0GQKBgQDLFCseXr1h24j0aBDZ2ryZPsE3y0ZFMUiw\nXE7nbJvJGesMSzno0hPDmVfNdzBuIg950g4tEGdVvzUlPcxywlDTOmyeZNjwtwOb\nbcY3Lb4UQ7mU8WDE9WR6zW8xe98RanMDg9j+tc5wXKYOP3tdsWMHb8pU67obLVvK\nyZRiCltBqQKBgHktE+V1qDq9SrZM/wmkmAnUk6jlIEKqqK0py2Qeo9VgoZgaLK5f\nHeVpO4P6MQ2CWQfeJPqooCbK4FFsClD311Wvq7Dc9gsOYvWaVGebQMXqr8wO+xgd\nFL0x+Ge5Vzecbx2FowO+oplD0w2lmGN9jCcXsC2fntekUg6Qv7W2EgUhAoGBAJvm\nt9Nw1+KwLsuyuH0Gt5LN4nd6zk+ALlV2B/0SG+aexxuBBMv/uryGlClgPwXNkCPt\nZoSh+zKQv7P/ZV0UYAhI6eoPcZwaY+KGu4zQyQO1mlsFk0yhNqov3BUZC37LQdCI\n/6VK3VjVR4XYplSfQW8MG0BmV1FV2QotBoTdfoFBAoGBAOjiTsEgtwAJLTnpZV8C\nbkvzD8zbUuEgMvBVBvpZM0c9vsERFVG6Ev+AoOfEC8QltES5JcFsgybYTB3v/l36\nM5/VU0tadBEphYLGUznTHWvejSRsggaFCewvmVdCbCtDGOIvJvF1snwTWZfojYiO\ndOH3eMDVlqce7YAB8RjtWdA+\n-----END PRIVATE KEY-----\n",
+  "client_email": "ma-google-play-svc-acc-test@mittarv-signin-prod.iam.gserviceaccount.com",
+  "client_id": "101692010855050598311",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ma-google-play-svc-acc-test%40mittarv-signin-prod.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

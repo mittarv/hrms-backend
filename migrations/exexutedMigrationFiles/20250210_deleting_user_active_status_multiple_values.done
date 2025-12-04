@@ -1,0 +1,34 @@
+"use strict";
+
+module.exports = {
+    up: async (queryInterface, Sequelize) => {
+        console.log("Starting 'up' migration to clean useractivestatuses...");
+
+        try {
+            await queryInterface.sequelize.query(`
+                DELETE uas FROM useractivestatuses uas
+                LEFT JOIN (
+                    SELECT userId, MIN(id) AS id
+                    FROM useractivestatuses
+                    WHERE lastLogin IN (
+                        SELECT MAX(lastLogin) 
+                        FROM useractivestatuses AS sub 
+                        WHERE sub.userId = useractivestatuses.userId
+                    )
+                    GROUP BY userId
+                ) latestRecords
+                ON uas.id = latestRecords.id
+                WHERE latestRecords.id IS NULL;
+            `);
+
+            console.log("Duplicate rows removed successfully while preserving the latest valid entry.");
+        } catch (error) {
+            console.error("Error while cleaning useractivestatuses:", error);
+        }
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        console.log("Starting 'down' migration... (No reversal for deleted records)");
+    },
+};
+

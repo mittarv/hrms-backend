@@ -1,0 +1,101 @@
+"use strict";
+
+module.exports = {
+
+    up: async (queryInterface, Sequelize) => {
+        console.log("Dropping existing partnerLegalCompliance table...");
+        await queryInterface.dropTable("partnerLegalCompliances");
+        await queryInterface.dropTable("partnerLegalCompliance");
+        console.log("partnerLegalCompliance table dropped successfully.");
+
+        console.log("Creating the partnerLegalCompliance table...");
+        // creating table as database does, added s to the table name
+        await queryInterface.createTable("partnerLegalCompliances", {
+            id: {
+                allowNull: false,
+                primaryKey: true,
+                type: Sequelize.UUID,
+                defaultValue: Sequelize.UUIDV4,
+            },
+            // Foreignkey, parimary key of the partner table will be stored here
+            partnerId: {
+                type: Sequelize.UUID,
+            },
+            ndaUpload: {
+                type: Sequelize.STRING,
+            },
+            ndaUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            ndaUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            agreementUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            incorporationUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            taxComplianceUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            agreementUpload: {
+                type: Sequelize.STRING,
+            },
+            agreementUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            incorporationUpload: {
+                type: Sequelize.STRING,
+            },
+            incorporationUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            taxComplianceUpload: {
+                type: Sequelize.STRING,
+            },
+            taxComplianceUploadRemarks: {
+                type: Sequelize.TEXT,
+            },
+            corporateIdentityNumber: {
+                type: Sequelize.STRING,
+            },
+            documentExpiryDate: {
+                type: Sequelize.DATE,
+            },
+            isLifeTimeValid: {
+                type: Sequelize.BOOLEAN,
+            },
+            isDeleted: {
+                type: Sequelize.BOOLEAN,
+                defaultValue: false,
+            },
+            createdAt: {
+                allowNull: false,
+                type: Sequelize.DATE,
+                defaultValue: Sequelize.NOW,
+            },
+            updatedAt: {
+                allowNull: false,
+                type: Sequelize.DATE,
+                defaultValue: Sequelize.NOW,
+            },
+        });
+
+        console.log("partnerLegalCompliance table created successfully.");
+
+    },
+
+    down: async (queryInterface, Sequelize) => {
+        try {
+            console.log("Dropping partnerLegalCompliance table...");
+            await queryInterface.dropTable("partnerLegalCompliances");
+            await queryInterface.dropTable("partnerLegalCompliance");
+            console.log("partnerLegalCompliance table dropped successfully.");
+
+        } catch (error) {
+            console.error("Error dropping partnerLegalCompliance table:", error);
+
+        }
+    }
+};

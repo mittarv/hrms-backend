@@ -1,0 +1,108 @@
+"use strict";
+const { db } = require("../models/index");
+const AssetComponent = db.assetComponents;
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log(
+      "Starting 'up' migration for updating asset component and adding toggle field component"
+    );
+    try {
+      console.log(
+        "Updating fieldType-Phone Number | inputType-Phone Number  component"
+      );
+      const jsonStringPhoneNumberComponent = JSON.stringify({
+        minCharacterLength: 6,
+        maxCharacterLength: 12,
+      });
+      const phoneNumberComponent = {
+        fieldType: "Phone Number",
+        inputType: "Phone Number",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: jsonStringPhoneNumberComponent,
+      };
+
+      // Update the asset component where fieldType is "Phone Number" and inputType is "Phone Number"
+      await AssetComponent.update(phoneNumberComponent, {
+        where: {
+          fieldType: "Phone Number",
+          inputType: "Phone Number",
+        },
+      });
+
+      console.log(
+        "Updated fieldType-Phone Number | inputType-Phone Number  component successfully"
+      );
+    } catch (error) {
+      console.error("Error ", error);
+    }
+
+    try {
+      console.log("Adding fieldType-Toggle | inputType-Toggle  component");
+      const findExistingToggleComponent = await AssetComponent.findOne({
+        where: {
+          fieldType: "Toggle",
+          inputType: "Toggle",
+        },
+      });
+      if (findExistingToggleComponent) {
+        //delete the existing toggle component
+        console.log("Removing fieldType-Toggle | inputType-Toggle component");
+        await AssetComponent.destroy({
+          where: {
+            fieldType: "Toggle",
+            inputType: "Toggle",
+          },
+        });
+      }
+
+      console.log("Adding fieldType-Toggle | inputType-Toggle  component");
+      const jsonToggleComponent = JSON.stringify({
+        toggleListOption: ["default first option", "default second option"],
+      });
+
+      const toggleComponent = {
+        fieldType: "Toggle",
+        inputType: "Toggle",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: {
+          toggleListOption: jsonToggleComponent,
+        },
+      };
+
+      await AssetComponent.create(toggleComponent);
+
+      console.log("Added fieldType-Toggle | inputType-Toggle  component");
+    } catch (error) {
+      console.error("Error ", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    // Down migration will only be removing the toggle component
+    console.log("Starting 'down' migration for toggle field component");
+    try {
+      console.log("Removing fieldType-Toggle | inputType-Toggle component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Toggle",
+          inputType: "Toggle",
+        },
+      });
+      console.log("Removed fieldType-Toggle | inputType-Toggle component");
+    } catch (error) {
+      console.log(
+        "Removing fieldType-Toggle | inputType-Toggle  component failed"
+      );
+      console.error("Error ", error);
+    }
+  },
+};

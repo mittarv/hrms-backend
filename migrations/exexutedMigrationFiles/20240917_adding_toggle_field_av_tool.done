@@ -1,0 +1,73 @@
+"use strict";
+const { db } = require("../models/index");
+const AssetComponent = db.assetComponents;
+
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    console.log(
+      "Starting 'up' adding toggle field component"
+    );
+
+    try {
+      console.log("Adding fieldType-Toggle | inputType-Toggle  component");
+      const findExistingToggleComponent = await AssetComponent.findOne({
+        where: {
+          fieldType: "Toggle",
+          inputType: "Toggle",
+        },
+      });
+      if (findExistingToggleComponent) {
+        //delete the existing toggle component
+        console.log("Removing fieldType-Toggle | inputType-Toggle component");
+        await AssetComponent.destroy({
+          where: {
+            fieldType: "Toggle",
+            inputType: "Toggle",
+          },
+        });
+      }
+
+      console.log("Adding fieldType-Toggle | inputType-Toggle  component");
+      const jsonToggleComponent = JSON.stringify({
+        toggleListOption: ["default first option", "default second option"],
+      });
+
+      const toggleComponent = {
+        fieldType: "Toggle",
+        inputType: "Toggle",
+        labelText: "Label",
+        hintText: " ",
+        isToolTipActive: true,
+        toolTipText: " ",
+        isMandatory: true,
+        additionalProperties: jsonToggleComponent,
+      };
+
+      await AssetComponent.create(toggleComponent);
+
+      console.log("Added fieldType-Toggle | inputType-Toggle  component");
+    } catch (error) {
+      console.error("Error ", error);
+    }
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    // Down migration will only be removing the toggle component
+    console.log("Starting 'down' migration for toggle field component");
+    try {
+      console.log("Removing fieldType-Toggle | inputType-Toggle component");
+      await AssetComponent.destroy({
+        where: {
+          fieldType: "Toggle",
+          inputType: "Toggle",
+        },
+      });
+      console.log("Removed fieldType-Toggle | inputType-Toggle component");
+    } catch (error) {
+      console.log(
+        "Removing fieldType-Toggle | inputType-Toggle  component failed"
+      );
+      console.error("Error ", error);
+    }
+  },
+};

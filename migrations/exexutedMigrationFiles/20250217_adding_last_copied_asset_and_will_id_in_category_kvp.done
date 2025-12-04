@@ -1,0 +1,78 @@
+import { db, dbOutput } from "../models/index";
+const CategoryKeyValuePair = db.categoryKeyValue;
+const ReferralTrack = dbOutput.referralTrackModel;
+const AllWills = db.allwills;
+const UserAssetDetails = db.userAssetDetails;
+
+module.exports = {
+    up: async () => {
+        try {
+            // We can start the cron from 0 for the first time as the crons will take care of last copied id after first run
+            // Mark all records as processed during migration
+            // await ReferralTrack.update(
+            //     { isProcessed: true },
+            //     { where: {} } // Ensure it updates all records
+            // );
+
+            // // Fetch the last created asset ID and will ID
+            // const [lastAsset, lastWill] = await Promise.all([
+            //     UserAssetDetails.findOne({
+            //         attributes: ['id'],
+            //         order: [['id', 'DESC']], // Get the latest asset ID
+            //     }),
+            //     AllWills.findOne({
+            //         attributes: ['id'],
+            //         order: [['id', 'DESC']], // Get the latest will ID
+            //     })
+            // ]);
+
+            // // Extract IDs or default to '0' if no records exist
+            // const lastAssetId = lastAsset?.id ? lastAsset.id.toString() : '0';
+            // const lastWillId = lastWill?.id ? lastWill.id.toString() : '0';
+
+            // Ensure the records exist, or create them with the last IDs
+            await Promise.all([
+                CategoryKeyValuePair.findOrCreate({
+                    where: {
+                        category: 'cron_last_copied_records',
+                        key: 'referral_cron_last_copied_assetId',
+                    },
+                    defaults: {
+                        value: '0',
+                    },
+                }),
+                CategoryKeyValuePair.findOrCreate({
+                    where: {
+                        category: 'cron_last_copied_records',
+                        key: 'referral_cron_last_copied_willId',
+                    },
+                    defaults: {
+                        value: '0',
+                    },
+                })
+            ]);
+
+            console.log('Successfully inserted or verified cron last copied records with latest IDs.');
+        } catch (error) {
+            console.error('Error inserting cron last copied records:', error);
+        }
+    },
+
+    down: async () => {
+        try {
+            await ReferralTrack.update(
+                { isProcessed: false },
+            );
+            await CategoryKeyValuePair.destroy({
+                where: {
+                    category: 'cron_last_copied_records',
+                    key: ['referral_cron_last_copied_assetId', 'referral_cron_last_copied_willId']
+                }
+            });
+
+            console.log('Successfully removed cron last copied records.');
+        } catch (error) {
+            console.error('Error removing cron last copied records:', error);
+        }
+    }
+};
