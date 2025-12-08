@@ -1,8 +1,8 @@
-const { db, } = require("../../../models/index");
-const TmsUsers = db.tmsUsers;
-const UamToolDetails = db.uamToolDetails;
-const UamToolUsers = db.uamToolUsers;
-const UamUserGroups = db.uamUserGroups;
+const { dbOutput } = require("../../../models/index");
+const TmsUsers = dbOutput.tmsUsers;
+const UamToolDetails = dbOutput.uamToolDetails;
+const UamToolUsers = dbOutput.uamToolUsers;
+const UamUserGroups = dbOutput.uamUserGroups;
 
 exports.createTool = async (req, res) => {
   try {

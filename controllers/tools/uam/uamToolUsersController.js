@@ -1,8 +1,8 @@
-const { db } = require('../../../models/index');
-const UamToolUsers = db.uamToolUsers
-const UamUserGroups = db.uamUserGroups;
-const Tmsusers = db.tmsUsers;
-const UamToolDetails = db.uamToolDetails;
+const { dbOutput } = require('../../../models/index');
+const UamToolUsers = dbOutput.uamToolUsers
+const UamUserGroups = dbOutput.uamUserGroups;
+const Tmsusers = dbOutput.tmsUsers;
+const UamToolDetails = dbOutput.uamToolDetails;
 const { Op } = require('sequelize');
 
 //This API will be use to add users to all the tools. Pass an array because multiple users can also be added in different tools at the same time
@@ -174,7 +174,7 @@ exports.getAllToolDetailsByUserId = async (req, res) => {
         const tools = await UamToolDetails.findAll({
             where: {
                 toolId: {
-                    [db.Sequelize.Op.notIn]: idPresent
+                    [dbOutput.Sequelize.Op.notIn]: idPresent
                 },
                 isDeleted: false
             },

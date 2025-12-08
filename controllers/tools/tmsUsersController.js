@@ -1,5 +1,5 @@
-const { db,dbOutput } = require("../../models/index");
-const TmsUsers = db.tmsUsers;
+const { dbOutput } = require("../../models/index");
+const TmsUsers = dbOutput.tmsUsers;
 const employeeContactDetails = dbOutput.employeeContactDetails;
 const jwt = require("jsonwebtoken");
 

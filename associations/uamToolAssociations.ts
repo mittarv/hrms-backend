@@ -1,9 +1,9 @@
-import { db } from "../models/index";
+import { dbOutput } from "../models/index";
 
 export const setUamAssociations = (): void => {
 
     //One to one
-    db.uamToolDetails.belongsTo(db.tmsUsers, {
+    dbOutput.uamToolDetails.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "adminId",
         as: "admin",
         constraints: true,
@@ -11,7 +11,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamToolUsers.belongsTo(db.uamUserGroups, {
+    dbOutput.uamToolUsers.belongsTo(dbOutput.uamUserGroups, {
         foreignKey: "userGroupId",
         as: "userGroup",
         constraints: true,
@@ -19,7 +19,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamToolUsers.belongsTo(db.uamToolDetails, {
+    dbOutput.uamToolUsers.belongsTo(dbOutput.uamToolDetails, {
         foreignKey: "toolId",
         as: "tool",
         constraints: true,
@@ -27,7 +27,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamRequest.belongsTo(db.uamUserGroups, {
+    dbOutput.uamRequest.belongsTo(dbOutput.uamUserGroups, {
         foreignKey: "newUserGroupId",
         as: "userGroup",
         constraints: true,
@@ -35,7 +35,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamRequest.belongsTo(db.tmsUsers, {
+    dbOutput.uamRequest.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "requestedBy",
         as: "requestedByUser",
         constraints: true,
@@ -43,7 +43,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamRequest.belongsTo(db.tmsUsers, {
+    dbOutput.uamRequest.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "resolvedBy",
         as: "resolvedByUser",
         constraints: true,
@@ -51,7 +51,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamRequest.belongsTo(db.uamToolDetails, {
+    dbOutput.uamRequest.belongsTo(dbOutput.uamToolDetails, {
         foreignKey: "toolId",
         as: "tool",
         constraints: true,
@@ -59,7 +59,7 @@ export const setUamAssociations = (): void => {
     });
 
     //One to one
-    db.uamRequest.belongsTo(db.uamUserGroups, {
+    dbOutput.uamRequest.belongsTo(dbOutput.uamUserGroups, {
         foreignKey: "currentAccess",
         as: "currentAccessGroup",
         constraints: true,
@@ -67,7 +67,7 @@ export const setUamAssociations = (): void => {
     })
 
     //One to one
-    db.uamRequest.belongsTo(db.uamUserGroups, {
+    dbOutput.uamRequest.belongsTo(dbOutput.uamUserGroups, {
         foreignKey: "requestedAccess",
         as: "requestedAccessGroup",
         constraints: true,
@@ -76,28 +76,28 @@ export const setUamAssociations = (): void => {
 
     // HR Repository associations
     //One to one - Policy List creator
-    db.policyList.belongsTo(db.tmsUsers, {
+    dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "createdBy",
         as: "creator",
         constraints: false
     });
 
     //One to one - Policy List modifier
-    db.policyList.belongsTo(db.tmsUsers, {
+    dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "lastModifiedBy",
         as: "modifier",
         constraints: false
     });
 
     //One to one - Important Link List creator
-    db.importantLinkList.belongsTo(db.tmsUsers, {
+    dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "createdBy",
         as: "creator",
         constraints: false
     });
 
     //One to one - Important Link List modifier
-    db.importantLinkList.belongsTo(db.tmsUsers, {
+    dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
         foreignKey: "lastModifiedBy",
         as: "modifier",
         constraints: false

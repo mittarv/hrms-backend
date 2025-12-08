@@ -1,8 +1,8 @@
-const { db } = require("../../../models/index");
-const { sequelize } = db;
-const ImportantLinkList = db.importantLinkList;
-const PolicyList = db.policyList;
-const TmsUser = db.tmsUsers;
+const { dbOutput } = require("../../../models/index");
+const { sequelize } = dbOutput;
+const ImportantLinkList = dbOutput.importantLinkList;
+const PolicyList = dbOutput.policyList;
+const TmsUser = dbOutput.tmsUsers;
 import { createHRMSNotification } from "../../../utilities/hrmsUtilities/dbCalls";
 import { hrmsNotificationTypes } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 //===================fetching all the important links from the database and this function will be same for the every user=========================,

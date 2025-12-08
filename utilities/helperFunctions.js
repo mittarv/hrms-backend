@@ -1,8 +1,8 @@
-const { db, } = require("../models/index");
+const { dbOutput } = require("../models/index");
 
-const UamToolsDetails = db.uamToolDetails;
-const UamToolsUsers = db.uamToolUsers;
-const UamUserGroupsModel = db.uamUserGroups;
+const UamToolsDetails = dbOutput.uamToolDetails;
+const UamToolsUsers = dbOutput.uamToolUsers;
+const UamUserGroupsModel = dbOutput.uamUserGroups;
 const uamUserGroupsModel = require("../models/tools/uam/uamUserGroupsModel");
 const e=require("express");
 const { raw }=require("mysql2");

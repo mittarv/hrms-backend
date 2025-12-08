@@ -48,9 +48,6 @@ import swaggerUi from "swagger-ui-express";
 import techRoutes from "./routes/tech";
 import rsaWrapper from "./security/rsa-wrapper";
 
-
-import keyValuePairApprovalRoutes from "./routes/tools/keyValuePair/keyValuePairApprovalRoutes";
-
 // NEW CRON JOBS (CONTAINS DEA JOBS AS WELL)
 if (process.env.NODE_ENV !== 'preprod') { // this ensure that our crons will run on all places except for preprod as production and preprod will share same database
   // const { setCronJobMachineV2 } = require("./cronJobs/cron_v2");
@@ -270,10 +267,6 @@ app.use("/api/hrms/empAttendanceManagement", employeeAttendanceRoutes);
 app.use("/api/hrms/Notifications", employeeNotificationsRoutes);
 app.use("/api/hrms/salaryConfigurator", salaryConfiguratorRoutes);
 app.use("/api/hrms/payroll", PayrollRoutes);
-
-
-// Using the KeyValuePairApproval routes
-app.use("/api/tools/keyValuePair", keyValuePairApprovalRoutes);
 
 // all country routes
 app.use("/api/platform/allCountries", allCountryRoutes);

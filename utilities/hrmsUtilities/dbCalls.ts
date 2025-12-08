@@ -5,7 +5,6 @@
 
 import { Op, Transaction, WhereOptions } from "sequelize";
 import { dbOutput } from "../../models";
-import { db } from "../../models";
 import { 
     EmployeeAttendanceAttributes, 
     EmployeeLeaveRequestAttributes, 
@@ -35,10 +34,10 @@ const hrmsEmailLogs = dbOutput.hrmsEmailLogs;
 const employeeJobDetailHistory = dbOutput.employeeJobDetailHistory;
 
 // UAM models
-const uamToolDetails = db.uamToolDetails;
-const uamUserGroups = db.uamUserGroups;
-const uamToolUsers = db.uamToolUsers;
-const tmsUsers = db.tmsUsers;
+const uamToolDetails = dbOutput.uamToolDetails;
+const uamUserGroups = dbOutput.uamUserGroups;
+const uamToolUsers = dbOutput.uamToolUsers;
+const tmsUsers = dbOutput.tmsUsers;
 const hrmsNotificationLogs = dbOutput.hrmsNotificationLogs;
 
 // Leave Configuration Functions

@@ -1,5 +1,5 @@
-const {db,} = require('../../../models/index');
-const UamUserGroups = db.uamUserGroups
+const {dbOutput} = require('../../../models/index');
+const UamUserGroups = dbOutput.uamUserGroups
 
 exports.createNewUserGroup = async (req, res) => {
     try {

@@ -66,48 +66,32 @@ const dbOutput = {};
 dbOutput.Sequelize = Sequelize;
 dbOutput.sequelize = outputSequelize;
 
-// Emotional will model :
-db.keyValuePairs = require("./platform/keyValue/keyValuePair")(sequelize, DataTypes);
-db.keyValuePairApproval = require("./tools/keyValuePair/keyValuePairApprovalModel")(sequelize, DataTypes);
-db.categoryKeyValue = require("./platform/keyValue/CategoryKeyValue")(sequelize, DataTypes);
-
 // UAM tool models
-db.tmsUsers = require("./tools/tmsUsersModel")(sequelize, DataTypes);
-db.uamUserGroups = require("./tools/uam/uamUserGroupsModel")(
+dbOutput.tmsUsers = require("./tools/tmsUsersModel")(sequelize, DataTypes);
+dbOutput.uamUserGroups = require("./tools/uam/uamUserGroupsModel")(
   sequelize,
   DataTypes
 );
-db.uamRequest = require("./tools/uam/uamRequestModel")(sequelize, DataTypes);
-db.uamToolDetails = require("./tools/uam/uamToolDetailsModel")(
+dbOutput.uamRequest = require("./tools/uam/uamRequestModel")(sequelize, DataTypes);
+dbOutput.uamToolDetails = require("./tools/uam/uamToolDetailsModel")(
   sequelize,
   DataTypes
 );
 
-db.uamToolUsers = require("./tools/uam/uamToolUsersModel")(
+dbOutput.uamToolUsers = require("./tools/uam/uamToolUsersModel")(
   sequelize,
   DataTypes
 );
 
 // HR Repository Models
-db.importantLinkList = require("./tools/hrRepository/importantLinkList")(
+dbOutput.importantLinkList = require("./tools/hrRepository/importantLinkList")(
   sequelize,
   DataTypes
 );
-db.policyList = require("./tools/hrRepository/policyList")(
+dbOutput.policyList = require("./tools/hrRepository/policyList")(
   sequelize,
   DataTypes
 );
-
-// Referral System
-// TODO: Re-enable when referral models are created
-// db.referralScheme = require("./platform/referralSystem/referralSchemeModel")(
-//   sequelize,
-//   DataTypes
-// );
-// db.userReferralModel = require("./platform/referralSystem/userReferralModel")(
-//   sequelize,
-//   DataTypes
-// );
 
 // ==================================== HRMS Tools Models ================================================================
 dbOutput.employeeComponentConfigurator = require("./tools/hrmsTools/employeeComponentConfiguratorModel")(outputSequelize, DataTypes);
@@ -143,22 +127,13 @@ dbOutput.employeePayslipRecords = require("./tools/hrmsTools/Payroll/employeePay
 dbOutput.employeePayslipItems = require("./tools/hrmsTools/Payroll/employeePayslipItemsModel")(outputSequelize, DataTypes);
 dbOutput.employeeComponentAdjustments = require("./tools/hrmsTools/Payroll/employeeComponentAdjustmentsModel")(outputSequelize, DataTypes);
 
-db.refreshTokens = require("./platform/auth/refreshToken")(sequelize, DataTypes);
-db.authTokens = require("./platform/auth/authToken")(sequelize, DataTypes);
-
-
-
-// ====================================partner onboardin models ============================================================
-// ====================================partner onboardin models ends =======================================================
-// ====================================partner monetization models ============================================================
+dbOutput.refreshTokens = require("./platform/auth/refreshToken")(sequelize, DataTypes);
+dbOutput.authTokens = require("./platform/auth/authToken")(sequelize, DataTypes);
 
 // ====================================partner feature tool models ============================================================
-db.allCountryDetails = require("./platform/regionalSettings/allCountryDetailsModel")(sequelize, DataTypes);
+dbOutput.allCountryDetails = require("./platform/regionalSettings/allCountryDetailsModel")(sequelize, DataTypes);
 
-
-// partner product configure models
-
-db.sequelize
+dbOutput.sequelize
   .sync({ force: false, alter: false })
   .then(() => {
     console.log(" main model sync completed");

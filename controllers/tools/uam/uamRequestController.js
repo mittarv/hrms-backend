@@ -1,10 +1,9 @@
 // const { Op } = require("sequelize");
-const { db, } = require("../../../models/index");
-const UamRequest = db.uamRequest;
-const UamToolUsers = db.uamToolUsers;
-const UserGroup = db.uamUserGroups;
-const TmsUsers = db.tmsUsers
-const UamToolDetails = db.uamToolDetails;
+const { dbOutput } = require("../../../models/index");
+const UamRequest = dbOutput.uamRequest;
+const UamToolUsers = dbOutput.uamToolUsers;
+const UserGroup = dbOutput.uamUserGroups;
+const TmsUsers = dbOutput.tmsUsers
 exports.createRequest = async (req, res) => {
   try {
     const {
@@ -85,28 +84,28 @@ exports.getAllRequests = async (req, res) => {
 
       include: [
         {
-          model: db.uamToolDetails,
+          model: dbOutput.uamToolDetails,
           as: "tool",
           attributes: ["name", "description"],
         },
         {
-          model: db.tmsUsers,
+          model: dbOutput.tmsUsers,
           as: "requestedByUser",
           attributes: ["userId", "name", "email"],
         },
 
         {
-          model: db.tmsUsers,
+          model: dbOutput.tmsUsers,
           as: "resolvedByUser",
           attributes: ["userId", "name", "email"],
         },
         {
-          model: db.uamUserGroups,
+          model: dbOutput.uamUserGroups,
           as: "currentAccessGroup",
           attributes: ["role", "id", "value"],
         },
         {
-          model: db.uamUserGroups,
+          model: dbOutput.uamUserGroups,
           as: "requestedAccessGroup",
           attributes: ["role", "id", "value"],
         },
@@ -153,7 +152,7 @@ exports.getRequestByUserId = async (req, res) => {
       where: { requestedBy: id, status: "pending" },
       include: [
         {
-          model: db.uamUserGroups,
+          model: dbOutput.uamUserGroups,
           as: "requestedAccessGroup",
           attributes: ["role", "id", "value"],
         },
@@ -244,7 +243,7 @@ exports.changRequestStatus = async (req, res) => {
 
       //FETCH the user type to check if he is a super admin, in this case we won't change the user type to tool admin --- (EDGE CASE)
       // WHY EDGE CASE - The request access page is usually not visible to Super admins but to avoid any api call related issues it's considerable
-      const requestedByUser = await db.tmsUsers.findOne({ where: { userId: request.requestedBy, isDeleted: false } });
+      const requestedByUser = await dbOutput.tmsUsers.findOne({ where: { userId: request.requestedBy, isDeleted: false } });
       //Also adding the "requestedByUser.userType !== 500" condition as if the user is already a tool admin there's no need to update it again.
       if (requestedByUser.userType !== 900 && requestedByUser.userType !== 500) {
         if (
@@ -253,7 +252,7 @@ exports.changRequestStatus = async (req, res) => {
         ) {
 
 
-          await db.tmsUsers.update(
+          await dbOutput.tmsUsers.update(
             { userType: 500 },
             { where: { userId: request.requestedBy } }
           );
@@ -334,28 +333,28 @@ exports.getAllActivityLogs = async (_, res) => {
     const activityLogs = await UamRequest.findAll({
       include: [
         {
-          model: db.uamToolDetails,
+          model: dbOutput.uamToolDetails,
           as: "tool",
           attributes: ["name", "description"],
         },
         {
-          model: db.tmsUsers,
+          model: dbOutput.tmsUsers,
           as: "requestedByUser",
           attributes: ["userId", "name", "email"],
         },
 
         {
-          model: db.tmsUsers,
+          model: dbOutput.tmsUsers,
           as: "resolvedByUser",
           attributes: ["userId", "name", "email"],
         },
         {
-          model: db.uamUserGroups,
+          model: dbOutput.uamUserGroups,
           as: "currentAccessGroup",
           attributes: ["role", "id", "value"],
         },
         {
-          model: db.uamUserGroups,
+          model: dbOutput.uamUserGroups,
           as: "requestedAccessGroup",
           attributes: ["role", "id", "value"],
         },

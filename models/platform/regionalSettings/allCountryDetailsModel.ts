@@ -1,5 +1,5 @@
 import { DataTypes, Model, Sequelize } from "sequelize";
-import { AllCountryDetailsAttributes } from "../../../interfaces/platformInterfaces/interfaces/regionalSettingsInterface";
+import { AllCountryDetailsAttributes } from "../../../interfaces/hrmsTool/interface/hrmsInterface";
 
 
 export class AllCountryDetails

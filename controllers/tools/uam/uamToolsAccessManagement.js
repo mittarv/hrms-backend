@@ -1,7 +1,7 @@
-const { db } = require("../../../models/index");
-const UamToolsDetails = db.uamToolDetails;
-const UamToolsUsers = db.uamToolUsers;
-const UamUserGroups = db.uamUserGroups;
+const { dbOutput } = require("../../../models/index");
+const UamToolsDetails = dbOutput.uamToolDetails;
+const UamToolsUsers = dbOutput.uamToolUsers;
+const UamUserGroups = dbOutput.uamUserGroups;
 
 // This api used to give access to user for various tools
 exports.uamToolsAccess = async (req, res) => {

@@ -1,4 +1,4 @@
-const { outputSequelize, dbOutput, db } = require("../../../models/index");
+const { outputSequelize, dbOutput } = require("../../../models/index");
 // const { attribute } = require("../../../test/mockData/platform/userMockData");
 const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
 import { 
@@ -25,7 +25,7 @@ const EmployeeAdvanceSalaryDetailHistory = dbOutput.employeeAdvanceSalaryDetailH
 const EmploymentHistory = dbOutput.employmentHistory;
 const EmployeeLoginHistory = dbOutput.employeeLoginHistory;
 const EmployeeDataRequest = dbOutput.employeeDataRequest;
-const TmsUsers = db.tmsUsers;
+const TmsUsers = dbOutput.tmsUsers;
 
 const tableToFieldsMap = {
   EmployeeBasicDetails: [
