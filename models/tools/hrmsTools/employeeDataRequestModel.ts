@@ -27,18 +27,18 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       requestId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       requestedFor: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       requestedBy: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       actionedBy: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       oldData: {

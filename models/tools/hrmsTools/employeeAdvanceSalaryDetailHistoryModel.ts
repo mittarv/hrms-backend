@@ -22,14 +22,14 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       advanceSalaryHistoryId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       advanceSalaryId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       empCurrentAdvanceSalaryAmount: {

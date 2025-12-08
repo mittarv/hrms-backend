@@ -27,14 +27,14 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       jobId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       empType: {
         type: dataTypes.STRING,
         allowNull: true,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       empDepartment: {
@@ -50,7 +50,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
         allowNull: true,
       },
       empManager: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       isDeleted: {

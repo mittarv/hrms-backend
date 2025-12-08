@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { db } from "../../models";
+import { dbOutput } from "../../models";
 import { Op } from "sequelize";
 
-const { allCountryDetails: AllCountryDetails, } = db;
+const { allCountryDetails: AllCountryDetails, } = dbOutput;
 
 const validateField = (data: string, length: number) => {
     return data.length === length;

@@ -12,7 +12,7 @@ module.exports = {
 
   host: 'localhost:5000',// Host (optional)
   basePath: '/api/', // Base path (optional)
-  apis: ['audiowill.js','videowill.js','textwill.js'],
+  apis: [],
 };
 
 //https://www.acuriousanimal.com/blog/20181020/express-swagger-doc

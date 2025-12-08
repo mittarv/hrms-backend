@@ -23,16 +23,16 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeLeaveBalanceDetails.init(
     {
       balanceId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       leaveConfigId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       totalLeaveUsed: {
@@ -52,12 +52,10 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       },
       fiscalYearStart: {
         type: dataTypes.DATE,
-        defaultValue: 0,
         allowNull: false,
       },
       fiscalYearEnd: {
         type: dataTypes.DATE,
-        defaultValue: 0,
         allowNull: false,
       },
       isDeleted: {

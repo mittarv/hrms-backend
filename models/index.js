@@ -1,5 +1,4 @@
 const { Sequelize, DataTypes} = require("sequelize");
-const dbConfig = require("../config/dbConfig");
 const dbOutputConfig = require("../config/dbOutputConfig");
 import { setupHrmsAssociations } from "../associations/hrmsAssociations";
 import { setUamAssociations } from "../associations/uamToolAssociations";
@@ -8,18 +7,6 @@ let isTestEnv = false;
 if (process.env.NODE_ENV === "DEVELOPMENT") {
   isTestEnv = false;
 }
-const sequelize = new Sequelize(dbConfig.DB, dbConfig.USER, dbConfig.PASSWORD, {
-  host: dbConfig.HOST,
-  dialect: dbConfig.dialect,
-  operatorsAliases: false,
-  logging: isTestEnv,
-  pool: {
-    max: dbConfig.pool.max,
-    min: dbConfig.pool.min,
-    acquire: dbConfig.pool.acquire,
-    idle: dbConfig.pool.idle,
-  },
-});
 
 
 // Creating the output database
@@ -41,19 +28,6 @@ const outputSequelize = new Sequelize(
   }
 );
 
-//checking connection
-sequelize
-  .authenticate()
-  .then(() => {
-    console.log("connected successfully");
-  })
-  .catch((err) => {
-    console.log("Error" + err);
-  });
-const db = {};
-db.Sequelize = Sequelize;
-db.sequelize = sequelize;
-
 outputSequelize
   .authenticate()
   .then(() => {
@@ -67,29 +41,29 @@ dbOutput.Sequelize = Sequelize;
 dbOutput.sequelize = outputSequelize;
 
 // UAM tool models
-dbOutput.tmsUsers = require("./tools/tmsUsersModel")(sequelize, DataTypes);
+dbOutput.tmsUsers = require("./tools/tmsUsersModel")(outputSequelize, DataTypes);
 dbOutput.uamUserGroups = require("./tools/uam/uamUserGroupsModel")(
-  sequelize,
+  outputSequelize,
   DataTypes
 );
-dbOutput.uamRequest = require("./tools/uam/uamRequestModel")(sequelize, DataTypes);
+dbOutput.uamRequest = require("./tools/uam/uamRequestModel")(outputSequelize, DataTypes);
 dbOutput.uamToolDetails = require("./tools/uam/uamToolDetailsModel")(
-  sequelize,
+  outputSequelize,
   DataTypes
 );
 
 dbOutput.uamToolUsers = require("./tools/uam/uamToolUsersModel")(
-  sequelize,
+  outputSequelize,
   DataTypes
 );
 
 // HR Repository Models
 dbOutput.importantLinkList = require("./tools/hrRepository/importantLinkList")(
-  sequelize,
+  outputSequelize,
   DataTypes
 );
 dbOutput.policyList = require("./tools/hrRepository/policyList")(
-  sequelize,
+  outputSequelize,
   DataTypes
 );
 
@@ -127,11 +101,11 @@ dbOutput.employeePayslipRecords = require("./tools/hrmsTools/Payroll/employeePay
 dbOutput.employeePayslipItems = require("./tools/hrmsTools/Payroll/employeePayslipItemsModel")(outputSequelize, DataTypes);
 dbOutput.employeeComponentAdjustments = require("./tools/hrmsTools/Payroll/employeeComponentAdjustmentsModel")(outputSequelize, DataTypes);
 
-dbOutput.refreshTokens = require("./platform/auth/refreshToken")(sequelize, DataTypes);
-dbOutput.authTokens = require("./platform/auth/authToken")(sequelize, DataTypes);
+dbOutput.refreshTokens = require("./platform/auth/refreshToken")(outputSequelize, DataTypes);
+dbOutput.authTokens = require("./platform/auth/authToken")(outputSequelize, DataTypes);
 
 // ====================================partner feature tool models ============================================================
-dbOutput.allCountryDetails = require("./platform/regionalSettings/allCountryDetailsModel")(sequelize, DataTypes);
+dbOutput.allCountryDetails = require("./platform/regionalSettings/allCountryDetailsModel")(outputSequelize, DataTypes);
 
 dbOutput.sequelize
   .sync({ force: false, alter: false })

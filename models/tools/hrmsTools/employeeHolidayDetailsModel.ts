@@ -23,7 +23,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeHolidayDetails.init(
     {
       holidayId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
       },

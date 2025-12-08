@@ -32,16 +32,16 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeLeaveRequestDetails.init(
     {
       leaveRequestId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       leaveConfigId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       startDate: {
@@ -82,7 +82,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
         }
       },
       approvedBy: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       approvalDate: {

@@ -25,10 +25,10 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       contactId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       empPersonalPhone: {

@@ -1,12 +1,12 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
-import { db } from '../models';
+import { dbOutput } from '../models';
 import { Op } from 'sequelize';
 import { DeviceInfo, TokenPayload, TokenResponse } from '../interfaces/platformInterfaces/interfaces/userControllerInterface';
 
 const {
     authTokens: AuthToken,
     refreshTokens: RefreshToken,
-} = db
+} = dbOutput
 
 const REFRESH_TOKEN_SECRET: string = process.env.REFRESH_TOKEN_SECRET || 'mittarv' as string;
 const SECRET_KEY: string = process.env.SECRET_KEY || 'mittarv' as string;

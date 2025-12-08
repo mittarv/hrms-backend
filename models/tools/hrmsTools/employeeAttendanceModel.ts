@@ -26,12 +26,12 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeAttendanceDetails.init(
     {
       attendanceId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       attendanceDate: {
@@ -66,7 +66,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
         allowNull: true,
       },
       leaveRequestId: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
       },
       isDeleted: {

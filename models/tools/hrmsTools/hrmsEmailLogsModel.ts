@@ -23,12 +23,12 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   hrmsEmailLogs.init(
     {
       email_log_id: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
       },
       recipient_employee_id: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: true,
         // references: {
         //   model: "employeebasicdetails",

@@ -23,14 +23,14 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       bankAccountHistoryId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       accountId: {
         allowNull: false,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       empUuid: {
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
         allowNull: false,
       },
       empIFSCCode: {

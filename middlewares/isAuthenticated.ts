@@ -1,9 +1,8 @@
 import jwt from "jsonwebtoken";
 import { NextFunction, Request, Response } from "express";
-import { db } from "../models";
 import { getUserAllToolsAccess } from "../utilities/helperFunctions";
-const User = db.users;
-const TmsUsers = db.tmsUsers;
+import { dbOutput } from "../models";
+const TmsUsers = dbOutput.tmsUsers;
 
 export interface AuthenticatedRequest extends Request {
   userId?: number;

@@ -35,7 +35,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       leaveConfigId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.UUID,
+        type: dataTypes.STRING,
       },
       leaveType: {
         type: dataTypes.STRING,

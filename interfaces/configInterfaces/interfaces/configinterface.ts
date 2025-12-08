@@ -25,9 +25,7 @@ interface SeqConfig {
 }
 
 export interface SequelizeConfig {
-  main: SeqConfig;
   output: SeqConfig;
-  payments: SeqConfig;
 }
 
 
