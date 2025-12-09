@@ -1,7 +1,9 @@
 "use strict";
 
-import { db, sequelize } from "../models";
-const { allCountryDetails: AllCountryDetails } = db;
+import { dbOutput, outputSequelize } from "../../models";
+const { allCountryDetails: AllCountryDetails } = dbOutput;
+
+const sequelize = outputSequelize;
 
 interface Country {
   countryIsoCode: string;
@@ -78,75 +80,6 @@ module.exports = {
     }
   },
 };
-
-
-// ========================== code used to generate the json data of all country details ==============================
-
-// const Excel = require('exceljs');
-// const fs = require('fs');
-// const { countryData } = require("./utilities/countryData.ts");
-
-// async function convertExcelToJson() {
-//     const workbook = new Excel.Workbook();
-//     await workbook.xlsx.readFile('Country - Currency - Telephonic Code - ISO Code - PPP Sheet.xlsx');
-//     const worksheet = workbook.getWorksheet(1);
-
-//     const columnNameData = [
-//       "countryIsoCode",
-//       "countryIsoCodeAlpha3",
-//       "countryName",
-//       "countryPhoneCode",
-//       "currencyName",
-//       "currencySymbol",
-//       "currencyCodeAlpha2",
-//       "currencyCodeAlpha3",
-//       "transactionCurrencySymbol",
-//       "transactionCurrencyCodeAlpha3",
-//       "ppp"
-//     ];
-    
-//     let jsonData = [];
-//     let noFlagIds = [];
-//     worksheet.eachRow((row, rowNumber) => {
-//         if (rowNumber > 1) {  // Skip the header row
-//             let rowData = {};
-//             row.eachCell((cell, colNumber) => {
-//               if (colNumber > 1) {
-
-//                 // Handle countryPhoneCode if it contains a 'result' property
-//                 if (columnNameData[colNumber - 2] === "countryPhoneCode" && typeof cell.value === 'object' && cell.value.result !== undefined) {
-//                   rowData[columnNameData[colNumber - 2]] = cell.value.result.toString();  // Use 'result' for countryPhoneCode
-//                 } else {
-//                   rowData[columnNameData[colNumber - 2]] = cell.value;
-//                 }
-
-//               }
-//             });
-
-//             if (!rowData["transactionCurrencySymbol"]) rowData["transactionCurrencySymbol"] = rowData["currencySymbol"];
-//             if (!rowData["transactionCurrencyCodeAlpha3"]) rowData["transactionCurrencyCodeAlpha3"] = rowData["currencyCodeAlpha3"];
-
-//             const countryIsoCode = rowData["countryIsoCode"];
-//             const country = countryData.find(country => country.countryIsoCode === countryIsoCode);
-//             if (country) {
-//               rowData["countryFlagSvg"] = country.countryFlagSvg;
-//             }
-//             else {
-//               rowData["countryFlagSvg"] = "";
-//               noFlagIds.push(rowData["countryIsoCode"]);
-//             }
-//             jsonData.push(rowData);
-//         }
-//     });
-
-//     fs.writeFileSync('allCountriesDetails.json', JSON.stringify(jsonData, null, 2));
-//     console.log("countries for which there is no flag: ", noFlagIds);
-// }
-
-// convertExcelToJson();
-
-
-// ========================== All countries data in json format ==============================
 
 const countryData: Country[] = [
     {

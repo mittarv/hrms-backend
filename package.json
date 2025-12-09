@@ -21,7 +21,7 @@
     "start:dev": "npm install && tsc --outDir dist && node -r newrelic dist/index.js",
     "server": "nodemon index.ts",
     "dev": "nodemon index.ts",
-    "build": "tsc --outDir dist && shx cp -r views dist/ && shx cp -r keys dist/ && shx cp config/*.p8 dist/config/",
+    "build": "tsc --outDir dist && shx cp -r views dist/ && shx cp -r keys dist/",
     "test": "jest",
     "migrate": "node -e \"require('./dist/migration').migrate()\"",
     "migrate:output": "node -e \"require('./dist/migration').migrateSingle('output')\"",
