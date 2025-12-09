@@ -16,11 +16,3 @@ export interface FieldLengths {
   userIsoCode: number;
   userIdentifierNumber: number;
 }
-
-export interface UserIdentifierEncryptionInterface {
-  encryptUserIdentifierFields(data: UserIdentifierData): UserIdentifierData;
-  decryptUserIdentifierFields(data: UserIdentifierData): UserIdentifierData;
-  encryptFieldForLookup(fieldName: keyof FieldLengths, value: string | number): string;
-  encryptToFixedLength(plaintext: string | number | null, targetLength: number, shouldReturnNumbers?: boolean): string | null;
-  decryptFromFixedLength(encryptedText: string | number | null, originalLength?: number, isNumericField?: boolean): string | null;
-}

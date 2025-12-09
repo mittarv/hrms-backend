@@ -44,7 +44,6 @@ app.disable("x-powered-by");
 app.use("/images", express.static(path.join(__dirname, "/public/images")));
 
 import techRoutes from "./routes/tech";
-import rsaWrapper from "./security/rsa-wrapper";
 
 
 // UAM tool routes
@@ -78,10 +77,6 @@ import PayrollRoutes from "./routes/tools/hrmsTools/PayrollRoutes";
 
 // all country routes
 import allCountryRoutes from "./routes/platform/allCountryRoutes";
-
-
-//using the routes
-rsaWrapper.initLoadServerKeys();
 
 app.use(createLoggingMiddleware());
 

@@ -37,16 +37,7 @@ export const getAllSalaryConfigDetails = async(req, res) => {
 
     // Validate user access level
     const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
-
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
-        res.status(403).json({
-            status: "error",
-            message: "Forbidden: You don't have access to this resource"
-        });
-        return;
-    }
-
+    
     // Fetch salary configuration details
     try {
         const salaryConfigData = await getAllSalaryConfigService(employeeType, employeeLocation, employeeLevel, department, yearOfStudy);
