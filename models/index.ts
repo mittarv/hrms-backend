@@ -1,5 +1,5 @@
-const { Sequelize, DataTypes} = require("sequelize");
-const dbOutputConfig = require("../config/dbOutputConfig");
+import { Sequelize, DataTypes } from "sequelize";
+import dbOutputConfig from "../config/dbOutputConfig";
 import { setupHrmsAssociations } from "../associations/hrmsAssociations";
 import { setUamAssociations } from "../associations/uamToolAssociations";
 
@@ -16,8 +16,7 @@ const outputSequelize = new Sequelize(
   dbOutputConfig.PASSWORD,
   {
     host: dbOutputConfig.HOST,
-    dialect: dbOutputConfig.dialect,
-    operatorsAliases: false,
+    dialect: dbOutputConfig.dialect as any,
     logging: isTestEnv,
     pool: {
       max: dbOutputConfig.pool.max,
@@ -36,7 +35,8 @@ outputSequelize
   .catch((err) => {
     console.log("Report Error : " + err);
   });
-const dbOutput = {};
+
+const dbOutput: any = {};
 dbOutput.Sequelize = Sequelize;
 dbOutput.sequelize = outputSequelize;
 
@@ -131,4 +131,6 @@ setUamAssociations();
 //=================================HRMS Tool related associations==================================================
 setupHrmsAssociations();
 
-export { db, dbOutput, sequelize, outputSequelize };
+const sequelize = outputSequelize;
+
+export { dbOutput, outputSequelize, sequelize };

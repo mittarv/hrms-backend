@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 var hbs = require('nodemailer-express-handlebars');
 const path = require('path')
 const util = require('util');
-const {EmailLog} = require('../utilities/hrmsUtilities/dbCalls');
+import {EmailLog} from '../utilities/hrmsUtilities/dbCalls';
 
 var transporter = nodemailer.createTransport({
   service: "sendMail",
@@ -27,7 +27,7 @@ const handlebarOptions = {
 
 transporter.use('compile', hbs(handlebarOptions));
 
-exports.sendOnboardingEmail = async (email, employeeUuid, transaction) => {
+export const sendOnboardingEmail = async (email, employeeUuid, transaction) => {
   return new Promise((resolve, reject) => {
     transporter.sendMail({
       from: process.env.HRMS_SMTP_FROM,
@@ -65,7 +65,7 @@ exports.sendOnboardingEmail = async (email, employeeUuid, transaction) => {
 };
 
 
-exports.sendEmployeePersonalDetailsUpdateMail = async (users, fullName, transaction) => {
+export const sendEmployeePersonalDetailsUpdateMail = async (users, fullName, transaction) => {
   try {
     const emailPromises = users.map(user => {
       return new Promise((emailResolve, emailReject) => {
@@ -125,7 +125,7 @@ exports.sendEmployeePersonalDetailsUpdateMail = async (users, fullName, transact
   }
 };
 
-exports.sendPersonalDetailsApprovedMail = async (email, employeeUuid, transaction, employeeName) => {
+export const sendPersonalDetailsApprovedMail = async (email, employeeUuid, transaction, employeeName) => {
  return new Promise((resolve, reject) => {
     transporter.sendMail({
       from: process.env.HRMS_SMTP_FROM,
@@ -165,7 +165,7 @@ exports.sendPersonalDetailsApprovedMail = async (email, employeeUuid, transactio
 };
 
 
-exports.sendPersonalDetailsRejectedMail = async (email, employeeUuid, transaction, employeeName) => {
+export const sendPersonalDetailsRejectedMail = async (email, employeeUuid, transaction, employeeName) => {
  return new Promise((resolve, reject) => {
     transporter.sendMail({
       from: process.env.HRMS_SMTP_FROM,
@@ -204,7 +204,7 @@ exports.sendPersonalDetailsRejectedMail = async (email, employeeUuid, transactio
   });
 };
 
-exports.LeaveRequestMail = async (email, employeeUuid, employeeName, startDate, endDate, leaveType, autoApproval, transaction) => {
+export const LeaveRequestMail = async (email, employeeUuid, employeeName, startDate, endDate, leaveType, autoApproval, transaction) => {
  return new Promise((resolve, reject) => {
     transporter.sendMail({
       from: process.env.HRMS_SMTP_FROM,
@@ -247,7 +247,7 @@ exports.LeaveRequestMail = async (email, employeeUuid, employeeName, startDate, 
   });
 };
 
-exports.apporveRejectLeaveRequestMail = async (email, employeeUuid, startDate, endDate, approved, transaction) => {
+export const apporveRejectLeaveRequestMail = async (email, employeeUuid, startDate, endDate, approved, transaction) => {
  return new Promise((resolve, reject) => {
     transporter.sendMail({
       from: process.env.HRMS_SMTP_FROM,
