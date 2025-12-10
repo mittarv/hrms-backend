@@ -52,12 +52,7 @@ exports.createTmsUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Please fill all the details" });
     } else {
-      var userType = 100;
-      if (email.includes("vishal") || email.includes("ashwin")) {
-        userType = 900;
-      } else {
-        userType = 100;
-      }
+      let userType = 100;
       await TmsUsers.create({
         email,
         name,

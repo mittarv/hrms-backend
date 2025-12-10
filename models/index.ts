@@ -101,9 +101,6 @@ dbOutput.employeePayslipRecords = require("./tools/hrmsTools/Payroll/employeePay
 dbOutput.employeePayslipItems = require("./tools/hrmsTools/Payroll/employeePayslipItemsModel")(outputSequelize, DataTypes);
 dbOutput.employeeComponentAdjustments = require("./tools/hrmsTools/Payroll/employeeComponentAdjustmentsModel")(outputSequelize, DataTypes);
 
-dbOutput.refreshTokens = require("./platform/auth/refreshToken")(outputSequelize, DataTypes);
-dbOutput.authTokens = require("./platform/auth/authToken")(outputSequelize, DataTypes);
-
 // ====================================partner feature tool models ============================================================
 dbOutput.allCountryDetails = require("./platform/regionalSettings/allCountryDetailsModel")(outputSequelize, DataTypes);
 

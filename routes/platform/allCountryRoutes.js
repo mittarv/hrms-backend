@@ -9,7 +9,7 @@ const {
 } = require("../../controllers/platform/allCountryController");
 const { isTmsUserAuthenticated } = require("../../middlewares/isAuthenticated");
 
-router.route("/getAll").get(getAllCountries);
+router.route("/getAll").get(isTmsUserAuthenticated, getAllCountries);
 router.route("/addCountry").post(isTmsUserAuthenticated, addNewCountry);
 router.route("/updateCountry").patch(isTmsUserAuthenticated, updateCountryByCountryIsoCode);
 router.route("/deleteCountry").delete(isTmsUserAuthenticated, deleteCountryByCountryIsoCode);
