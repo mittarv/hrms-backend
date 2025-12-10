@@ -672,7 +672,8 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                         attributes: ['leaveRequestId']
                     }
                 ],
-                attributes: ['empUuid', 'attendanceDate']
+                attributes: ['empUuid', 'attendanceDate', 'attendanceStatus'],
+                raw: true
             });
 
             // Count unpaid leaves per employee
