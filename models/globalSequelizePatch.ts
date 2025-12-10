@@ -28,10 +28,6 @@ const originalInit = Model.init;
   const pluralized = options.tableName ? options.tableName.toLowerCase() : pluralizeFn(options.modelName).toLowerCase();
   options.tableName = pluralized;
 
-  console.log(
-    `[GLOBAL INIT OVERRIDE] Model: ${originalTableName} → Table: ${options.tableName}`
-  );
-
   return (originalInit as any).call(this, attributes, options);
 };
 
