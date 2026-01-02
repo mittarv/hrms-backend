@@ -112,6 +112,8 @@ HRMS_SMTP_FROM=noreply@mittarv.com
 HRMS_DASHBOARD_URL=http://localhost:3000
 ```
 
+#### Optional Configuration
+
 #### Azure Service Bus Configuration
 
 ```env
@@ -127,8 +129,6 @@ AZURE_SERVICE_BUS_QUEUE_NAME=your-queue-name
 EVENT_HUB_CONNECTION_STRING=your-event-hub-connection-string
 EVENT_HUB_NAME=your-event-hub-name
 ```
-
-#### Optional Configuration
 
 ```env
 # Logging Configuration (optional, defaults provided)
@@ -194,9 +194,11 @@ The build output will be in the `dist/` folder.
 
 ---
 
-## Database Migration
+## Database Migration (Mandatory)
 
-After building the project, run database migrations to set up the database schema:
+**IMPORTANT:** Database migration is a **required step** before running the application for the first time.
+
+After building the project, you **must** run database migrations for data migration:
 
 ```bash
 npm run migrate
