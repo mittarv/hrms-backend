@@ -39,6 +39,12 @@ export const isTmsUserAuthenticated = async (req: Request, res: Response, next: 
 
     const toolsAccess = await getUserAllToolsAccess(tmsUser);
 
+    const employeeUuid = await dbOutput.employeeContactDetails.findOne({
+      where: { empOfficialEmail: decoded.email, isDeleted: false },
+      attributes: ['empUuid'],
+      raw: true
+    });
+
     if (!tmsUser) {
       res.status(401).json({
         success: false,
@@ -48,7 +54,7 @@ export const isTmsUserAuthenticated = async (req: Request, res: Response, next: 
     }
 
     const authReq = req as AuthenticatedRequest;
-    authReq.user = { ...tmsUser, toolsAccess }
+    authReq.user = { ...tmsUser, toolsAccess, employeeUuid: employeeUuid?.empUuid }
     next();
   } catch (error) {
     res.status(500).json({
