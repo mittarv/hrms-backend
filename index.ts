@@ -17,6 +17,8 @@ import path from "path";
 import helmet from "helmet";
 import bodyParser from "body-parser";
 
+import { startCronJobs } from './cron';
+
 // const app =  express();
 // const app = Application().express();
 const app: Application = express();
@@ -142,6 +144,9 @@ app.listen(port, () => {
   console.log(
     `${process.env.NODE_ENV} Server is running on port: http://localhost:${port}`
   );
+  
+  // Initialize cron jobs after server starts
+  startCronJobs();
 });
 
 
