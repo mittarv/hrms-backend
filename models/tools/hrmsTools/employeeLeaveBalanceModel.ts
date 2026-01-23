@@ -52,12 +52,10 @@ export const initEmployeeLeaveBalanceDetails = (sequelize: Sequelize, dataTypes:
       },
       fiscalYearStart: {
         type: dataTypes.DATE,
-        defaultValue: 0,
         allowNull: false,
       },
       fiscalYearEnd: {
         type: dataTypes.DATE,
-        defaultValue: 0,
         allowNull: false,
       },
       isDeleted: {
