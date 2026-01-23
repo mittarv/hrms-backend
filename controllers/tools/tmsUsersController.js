@@ -5,19 +5,61 @@ const jwt = require("jsonwebtoken");
 
 
 // This API will be used to check if the user already exists or not. If yes then we send token else send null after which we perform createTmsUser
+// If name and profilePic are provided and user doesn't exist, it will auto-create the user
 exports.tmsUserGoogleLogin = async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await TmsUsers.findOne({
+    const { email, name, profilePic } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email is required" 
+      });
+    }
+
+    let user = await TmsUsers.findOne({
       where: { email: email, isDeleted: false },
     });
+
+    // If user doesn't exist and we have name/profilePic, auto-create the user
+    if (!user && name && profilePic) {
+      try {
+        var userType = 100;
+        if (email.includes("vishal") || email.includes("ashwin")) {
+          userType = 900;
+        }
+        
+        await TmsUsers.create({
+          email,
+          name,
+          userType,
+          profilePic,
+        });
+
+        // Fetch the newly created user
+        user = await TmsUsers.findOne({
+          where: { email: email, isDeleted: false },
+        });
+
+        if (!user) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "User creation failed" 
+          });
+        }
+      } catch (createError) {
+        // If creation fails, continue to return "user does not exist" message
+        console.error("Error auto-creating user:", createError);
+      }
+    }
+
     if (user) {
       //signing the token with the userId of the tms user,if the user is present in the database
       const encodedUser = jwt.sign(
         { 
           id: user.userId,
           email: user.email,
-          env:process.env.NODE_ENV,
+          env: process.env.NODE_ENV,
         },
         process.env.SECRET_KEY,
         {
@@ -72,8 +114,13 @@ exports.createTmsUser = async (req, res) => {
           .status(400)
           .json({ success: false, message: "User not created" });
       }
+      // Signing the token with the same structure as login to ensure consistency
       const token = jwt.sign(
-        { id: newCreatedUser.userId },
+        { 
+          id: newCreatedUser.userId,
+          email: newCreatedUser.email,
+          env: process.env.NODE_ENV,
+        },
         process.env.SECRET_KEY,
         {
           expiresIn: "30d",

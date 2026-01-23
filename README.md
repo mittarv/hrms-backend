@@ -13,6 +13,12 @@ This is the backend application for the HRMS (Human Resource Management System) 
 - [Database Migration](#database-migration)
 - [Running the Application](#running-the-application)
 - [Docker Setup](#docker-setup)
+- [CI/CD Setup](#cicd-setup)
+  - [GitHub Actions Workflow](#github-actions-workflow)
+  - [Setting Up GitHub Secrets](#setting-up-github-secrets)
+  - [Setting Up GitHub Variables](#setting-up-github-variables)
+  - [Setting Up Environment](#setting-up-environment)
+  - [Deployment Process](#deployment-process)
 
 ---
 
@@ -273,102 +279,247 @@ You can access the API at: `http://localhost:5000`
 
 ## Docker Setup
 
-### Building the Docker Image
+This project includes Docker support for containerized deployment.
 
-Build the Docker image:
+### Prerequisites
 
-```bash
-docker build -t hrms-backend .
-```
+- Docker installed on your system
+- Docker Compose (optional, but recommended)
 
-This will:
-- Use Node.js 24 Alpine as the base image
-- Install dependencies
-- Build the TypeScript project
-- Create an optimized production image
+### Using Docker Compose (Recommended)
 
-### Running the Docker Container
-
-Run the container:
+The project includes a `docker-compose.yml` file for easy deployment:
 
 ```bash
-docker run -d \
-  --name hrms-backend \
-  -p 5050:5050 \
-  --env-file .env \
-  hrms-backend
+# Build and start the container
+docker compose up -d --build hrms-backend
+
+# View logs
+docker compose logs -f hrms-backend
+
+# Stop the container
+docker compose down
 ```
 
-**Note:** 
-- The container exposes port `5050` by default (as defined in Dockerfile)
-- Make sure your `.env` file has `PORT=5050` or update the port mapping accordingly
-- The `--env-file .env` flag loads all environment variables from your `.env` file
+### Docker Compose Configuration
 
-### Docker Compose (Optional)
-
-You can also use Docker Compose. Create a `docker-compose.yml` file:
+The `docker-compose.yml` includes:
 
 ```yaml
-version: '3.8'
-
 services:
   hrms-backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: hrms-backend:latest
     container_name: hrms-backend
     ports:
-      - "5050:5050"
+      - "${HOST_PORT:-5000}:${PORT:-5000}"
+    restart: unless-stopped
     env_file:
       - .env
-    restart: unless-stopped
-    depends_on:
-      - db
-
-  db:
-    image: mysql:8.0
-    container_name: hrms-db
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: your_database_name
-      MYSQL_USER: your_database_user
-      MYSQL_PASSWORD: your_database_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-
-volumes:
-  db_data:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-5000}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${PORT:-5000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 ```
 
-Then run:
+### Manual Docker Commands
+
+If you prefer not to use Docker Compose:
 
 ```bash
-docker-compose up -d
+# Build the image
+docker build -t hrms-backend:latest .
+
+# Run the container
+docker run -d \
+  --name hrms-backend \
+  -p 5000:5000 \
+  --env-file .env \
+  hrms-backend:latest
+
+# View logs
+docker logs -f hrms-backend
+
+# Stop and remove container
+docker stop hrms-backend && docker rm hrms-backend
 ```
 
-### Important Docker Notes
+### Environment Variables in Docker
 
-1. **Database Migrations in Docker:** If running migrations inside the container, you may need to:
-   ```bash
-   docker exec -it hrms-backend npm run migrate
-   ```
+Make sure your `.env` file is configured before running Docker:
 
-2. **Port Configuration:** Ensure your `.env` file has `PORT=5050` to match the Dockerfile's exposed port.
+- `PORT` - Application port (default: 5000)
+- `HOST_PORT` - Docker host port mapping (default: 5000)
+- All other environment variables from [Environment Setup](#environment-setup)
 
-3. **Logs:** View container logs:
-   ```bash
-   docker logs hrms-backend
-   ```
+### Database Migrations in Docker
 
-4. **Stop Container:**
-   ```bash
-   docker stop hrms-backend
-   ```
+Run migrations inside the container:
 
-5. **Remove Container:**
-   ```bash
-   docker rm hrms-backend
-   ```
+```bash
+docker exec -it hrms-backend npm run migrate
+```
+
+---
+
+## CI/CD Setup
+
+This project uses **GitHub Actions** for automated deployment to a self-hosted Docker environment.
+
+### GitHub Actions Workflow
+
+The workflow automatically:
+1. Creates release tags based on date and commit SHA (format: `release-YYYY-MM-DD-<sha>`)
+2. Generates `.env` file from GitHub Secrets and Variables
+3. Builds and deploys the Docker container
+4. Creates a GitHub Release with auto-generated release notes
+5. Provides deployment summary
+
+**Workflow file:** [`.github/workflows/deploy-docker.yml`](.github/workflows/deploy-docker.yml)
+
+### Setting Up GitHub Secrets
+
+Navigate to: **Repository Settings → Secrets and variables → Actions → Secrets → New repository secret**
+
+Add the following **sensitive** secrets:
+
+| Secret Name | Description | Example |
+|-------------|-------------|---------|
+| `SECRET_KEY` | JWT secret key for authentication | `your-super-secret-jwt-key-here` |
+| `REFRESH_TOKEN_SECRET` | Refresh token secret key | `your-refresh-token-secret-here` |
+| `SMTP_PASS` | SMTP email password | `your-email-app-password` |
+| `DATABASE_OUTPUT_PASSWORD` | Database password | `your-db-password` |
+| `EVENT_HUB_CONNECTION_STRING` | Azure Event Hub connection string | `Endpoint=sb://...` |
+| `AZURE_SERVICE_BUS_CONNECTION_STRING` | Azure Service Bus connection string | `Endpoint=sb://...` |
+
+### Setting Up GitHub Variables
+
+Navigate to: **Repository Settings → Secrets and variables → Actions → Variables → New repository variable**
+
+Add the following **public configuration** variables:
+
+| Variable Name | Description | Example |
+|---------------|-------------|---------|
+| `PORT` | Server port | `5000` |
+| `NODE_ENV` | Node environment | `production` |
+| `IP` | Server IP address | `0.0.0.0` |
+| `SMTP_HOST` | SMTP host | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_USER` | SMTP username/email | `your-email@gmail.com` |
+| `HRMS_SMTP_FROM` | HRMS email from address | `noreply@mittarv.com` |
+| `HRMS_DASHBOARD_URL` | HRMS dashboard URL | `https://hrms.mittarv.com` |
+| `EVENT_HUB_NAME` | Azure Event Hub name | `your-event-hub-name` |
+| `AZURE_SERVICE_BUS_QUEUE_NAME` | Azure Service Bus queue name | `your-queue-name` |
+| `DATABASE_OUTPUT_NAME` | Database name | `hrms_database` |
+| `DATABASE_OUTPUT_USER` | Database username | `hrms_user` |
+| `DATABASE_OUTPUT_PORT` | Database port | `3306` |
+| `DATABASE_OUTPUT_HOST` | Database host address | `localhost` or `db-server.example.com` |
+| `DATABASE_OUTPUT_DIALECT` | Database dialect | `mysql` or `postgres` |
+| `CRON_JOB_MACHINE_HOSTNAME` | Cron job machine hostname | `hrms-server-01` |
+| `HOST_PORT` | Docker host port | `5000` |
+
+**Optional Variables** (with defaults):
+
+| Variable Name | Description | Default |
+|---------------|-------------|---------|
+| `BATCH_SIZE` | Batch size for logging | `1` |
+| `FLUSH_INTERVAL` | Flush interval for logging (ms) | `30000` |
+| `SLOW_THRESHOLD` | Slow threshold for logging (ms) | `10000` |
+
+### Setting Up Environment
+
+1. Navigate to: **Repository Settings → Environments → New environment**
+2. Create environment named: `hrms-backend`
+3. (Optional) Add environment protection rules:
+   - Required reviewers
+   - Wait timer
+   - Deployment branches
+
+### Self-Hosted Runner Setup
+
+The workflow requires a self-hosted runner:
+
+1. Navigate to: **Repository Settings → Actions → Runners → New self-hosted runner**
+2. Follow instructions to install runner on your server
+3. Ensure the runner has:
+   - Docker and Docker Compose installed
+   - Access to database server
+   - Proper network configuration
+
+### Deployment Process
+
+**Automated Deployment** (on push to main):
+
+```bash
+# The workflow triggers automatically when you push to main
+git push origin main
+```
+
+**Manual Deployment**:
+
+1. Go to: **Actions → Build, Deploy to Docker and Create Release → Run workflow**
+2. Select branch: `main`
+3. Click **Run workflow**
+
+**Deployment Flow:**
+
+1. Workflow checks out code
+2. Generates release tag (e.g., `release-2026-01-24-abc1234`)
+3. Creates `.env` from GitHub secrets/variables
+4. Stops existing container
+5. Builds new Docker image
+6. Starts new container
+7. Verifies container health
+8. Creates GitHub Release with auto-generated notes
+9. Cleans up `.env` file
+
+**Viewing Deployment:**
+
+- **GitHub Actions:** Check workflow runs in the **Actions** tab
+- **Releases:** View created releases in the **Releases** section
+- **Logs:** Check deployment summary in workflow run details
+
+### Release Versioning
+
+Instead of semantic versioning, this project uses **commit-based versioning**:
+
+- **Format:** `release-YYYY-MM-DD-<short-sha>`
+- **Example:** `release-2026-01-24-abc1234`
+- **Benefits:**
+  - No merge conflicts
+  - Unique tags per deployment
+  - Easy to track deployment date and commit
+
+### Troubleshooting CI/CD
+
+### Troubleshooting CI/CD
+
+**Workflow fails to start:**
+- Check if self-hosted runner is online
+- Verify environment `hrms-backend` exists
+- Check repository permissions
+
+**Container fails to start:**
+- Verify all required secrets are set
+- Check Docker logs: `docker logs hrms-backend`
+- Verify database connectivity
+
+**Database connection errors:**
+- Ensure database host is accessible from runner
+- Verify database credentials in GitHub secrets/variables
+- Check if database exists
+
+**Permission errors:**
+- Ensure runner user has Docker permissions
+- Check file system permissions
 
 ---
 

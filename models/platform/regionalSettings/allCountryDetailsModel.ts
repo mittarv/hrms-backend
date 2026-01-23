@@ -1,6 +1,5 @@
 import { DataTypes, Model, Sequelize } from "sequelize";
-import { AllCountryDetailsAttributes } from "../../../interfaces/platformInterfaces/interfaces/regionalSettingsInterface";
-
+import { AllCountryDetailsAttributes } from "../../../interfaces/platformInterfaces/interfaces/userControllerInterface";
 
 export class AllCountryDetails
     extends Model<AllCountryDetailsAttributes, Partial<AllCountryDetailsAttributes>>

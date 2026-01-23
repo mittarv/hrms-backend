@@ -56,7 +56,7 @@ export const initEmployeeHolidayDetails = (sequelize: Sequelize, dataTypes: type
         allowNull: true,
       },
       createdBy: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
     },

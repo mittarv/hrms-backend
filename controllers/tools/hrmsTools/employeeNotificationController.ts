@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { fetchAllNotificationsService } from "../../../utilities/hrmsUtilities/dbCalls";
 
 export const getCurrentEmployeeNotifications = async (req: Request, res: Response) => {
-    const { empUuid } = req.params;
+    const empUuid = req.params.empUuid as string;
 
     if(!empUuid) {
         res.status(400).json({

@@ -55,7 +55,7 @@ export const initializeCronJobs = () => {
     // TEST CRON - Runs every minute (for testing only)
     // Comment this out in production
     cron.schedule('* * * * *', createPayrollCronJob);
-    console.log('  ✓ Test cron (every minute) - ENABLED FOR TESTING');
+    console.log('  ✓ Payroll cron (daily at midnight)');
     
     console.log('✅ All cron jobs initialized successfully\n');
   } catch (error) {

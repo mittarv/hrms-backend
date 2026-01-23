@@ -102,7 +102,7 @@ export const registerAttendance = async (req: Request, res: Response) => {
         }
 
         // Get employee UUID from params and leave/attendance details from body
-        const employeeId = req.params.empUuid;
+        const employeeId = req.params.empUuid as string;
         
         // Allow users to register their own attendance without permission
         // But require permission to register attendance for other employees
@@ -699,7 +699,7 @@ export const registerAttendance = async (req: Request, res: Response) => {
  */
 export const getEmployeeAttendance = async (req: Request, res: Response) => {
     try {
-        const employeeId: string = req.params.empUuid;
+        const employeeId: string = req.params.empUuid as string;
         const { month, year } = req.query as {
             month: string,
             year: string
@@ -859,7 +859,7 @@ export const deleteEmployeeLeaveRequest = async (req: Request, res: Response) =>
  */
 export const getEmployeeLeaveHistory = async (req: Request, res: Response) => {
     try {
-        const employeeId: string = req.params.empUuid;
+        const employeeId: string = req.params.empUuid as string;
 
         const employeeLeaveHistory: EmployeeLeaveRequestAttributes = await fetchEmployeeLeaveHistory(employeeId);
 
@@ -949,7 +949,7 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
         const toolName = hrmsConstants.HR_REPOSITORY;
 
         // Approver employee ID
-        const employeeId: string = req.params.empUuid;
+        const employeeId: string = req.params.empUuid as string;
         const {
             leaveRequestIds,
             action,
@@ -1113,7 +1113,7 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
  */
 export const getEmployeeLeaveBalance = async (req: Request, res: Response) => {
     try {
-        const employeeId: string = req.params.empUuid;
+        const employeeId: string = req.params.empUuid as string;
 
         const jobDetails = await fetchEmployeeCurrentJobDetails(employeeId);
 
@@ -1153,7 +1153,7 @@ export const requireProofForLeave  = async (req: Request, res: Response) => {
         return;
     }
 
-    const LeaveRequestId:string = req.params.leaveRequestId;
+    const LeaveRequestId:string = req.params.leaveRequestId as string;
 
     try {
 
@@ -1202,7 +1202,7 @@ export const requireProofForLeave  = async (req: Request, res: Response) => {
  * Updates the leave request with the provided attachments and remarks, and sets status to pending.
  */
 export const uploadProofDocuments = async (req: Request, res: Response) => {
-    const LeaveRequestId: string = req.params.leaveRequestId;
+    const LeaveRequestId: string = req.params.leaveRequestId as string;
     const { files, remarks } = req.body; 
 
     try {
@@ -1267,7 +1267,7 @@ export const deleteEmployeeAttendance = async (req: Request, res: Response) => {
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
     const toolName = hrmsConstants.HR_REPOSITORY;
 
-    const attendanceId: string = req.params.attendanceId;
+    const attendanceId: string = req.params.attendanceId as string;
 
     if(!attendanceId){
         sendError(res, "Attendance id is required");
@@ -2345,7 +2345,7 @@ export const updateEmployeeOutstandingCheckout = async (req: Request, res: Respo
 export const getLeavesEligibility = async (req: Request, res: Response) => {
     try {
         const { requestDate } = req.query as { requestDate?: string };
-        const  employeeId: string  = req.params.empUuid;
+        const  employeeId: string  = req.params.empUuid as string;
 
         // Validation of request date
         if (!requestDate || !isValidDate(requestDate)) {
@@ -2416,7 +2416,7 @@ export const getAccrualLeaveBalance = async (req: Request, res: Response) => {
             return;
         }
         
-        const employeeId = req.params.empUuid;
+        const employeeId = req.params.empUuid as string;
         const { leaveConfigId, asOfDate } = req.query as { leaveConfigId?: string, asOfDate?: string };
 
         // Get user's own UUID for permission check
@@ -2950,7 +2950,7 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
     const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
 
         // Get employee UUID from params and leave details from body
-        const employeeId = req.params.empUuid;
+        const employeeId = req.params.empUuid as string;
         const leaveDetails = req.body as EmployeeAttendanceRequestPayload;
         const {
             attendanceStatus,

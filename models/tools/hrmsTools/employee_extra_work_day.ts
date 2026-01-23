@@ -40,7 +40,7 @@ export const initEmployeeExtraWorkDay = (sequelize: Sequelize, dataTypes: typeof
         allowNull: false,
       },
       leaveConfigId: {
-        type: dataTypes.CHAR(36),
+        type: dataTypes.UUID,
         allowNull: false,
         references: {
             model: "employeeleaveconfigurators",
@@ -117,8 +117,7 @@ export const initEmployeeExtraWorkDay = (sequelize: Sequelize, dataTypes: typeof
       timestamps: true,
       createdAt: "createdAt",
       updatedAt: "updatedAt",
-      charset: 'utf8mb3',
-      collate: 'utf8mb3_general_ci',
+      // Removed charset/collate to match parent table and prevent BINARY issue
     }
   );
   return employeeExtraWorkDay;

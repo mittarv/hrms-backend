@@ -38,6 +38,7 @@ import { initUamToolsDetails } from "./tools/uam/uamToolDetailsModel";
 import { initUamToolsUser } from "./tools/uam/uamToolUsersModel";
 import { initImportantLinkList } from "./tools/hrRepository/importantLinkList";
 import { initPolicyList } from "./tools/hrRepository/policyList";
+import { initAllCountryDetails } from "./platform/regionalSettings/allCountryDetailsModel";
 
 
 export function initializeHrmsModels(dbOutput: any, outputSequelize: Sequelize, dataTypes: typeof DataTypes) {
@@ -90,4 +91,7 @@ export function initializeHrmsModels(dbOutput: any, outputSequelize: Sequelize, 
   dbOutput.uamToolUsers = initUamToolsUser(outputSequelize, dataTypes);
   dbOutput.importantLinkList = initImportantLinkList(outputSequelize, dataTypes);
   dbOutput.policyList = initPolicyList(outputSequelize, dataTypes);
+
+  // ====================================partner feature tool models ============================================================
+dbOutput.allCountryDetails = initAllCountryDetails(outputSequelize, DataTypes);
 }

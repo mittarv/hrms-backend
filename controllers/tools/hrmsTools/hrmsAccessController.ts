@@ -115,7 +115,7 @@ export const getRoleById = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const { roleId } = req.params;
+    const roleId = req.params.roleId as string;
 
     if (!roleId) {
       res.status(400).json({
@@ -271,7 +271,7 @@ export const updateRole = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const { roleId } = req.params;
+    const roleId = req.params.roleId as string;
     const { roleName, description, permissionIds } = req.body;
 
     if (!roleId) {
@@ -388,7 +388,7 @@ export const deleteRole = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const { roleId } = req.params;
+    const roleId = req.params.roleId as string;
 
     if (!roleId) {
       await transaction.rollback();
@@ -504,7 +504,7 @@ export const getEmployeeRoles = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const { empUuid } = req.params;
+    const empUuid = req.params.empUuid as string;
 
     if (!empUuid) {
       res.status(400).json({
@@ -662,7 +662,7 @@ export const revokeEmployeeAccess = async (req: Request, res: Response): Promise
       return;
     }
 
-    const { empUuid } = req.params;
+    const empUuid = req.params.empUuid as string;
 
     if (!empUuid) {
       res.status(400).json({

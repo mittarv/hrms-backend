@@ -21,7 +21,7 @@ export const initHrmsEmployeeRole = (sequelize: Sequelize, dataTypes: typeof Dat
         autoIncrement: true,
       },
       empUuid: {
-        type: dataTypes.CHAR(36),
+        type: dataTypes.UUID,
         allowNull: false,
         references: {
           model: "employeebasicdetails",
@@ -56,8 +56,6 @@ export const initHrmsEmployeeRole = (sequelize: Sequelize, dataTypes: typeof Dat
       timestamps: true,
       createdAt: "createdAt",
       updatedAt: "updatedAt",
-      charset: 'utf8mb3',
-      collate: 'utf8mb3_general_ci',
       indexes: [
         {
           unique: true,
