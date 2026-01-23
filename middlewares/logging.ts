@@ -167,8 +167,21 @@ type ResponseBody = string | Buffer | object | null;
  */
 const createLoggingMiddleware = () => {
     if (!HAS_SERVICEBUS_CREDENTIALS) {
-        logger.warn('Service Bus credentials not found. Logging middleware disabled.');
-        return (_req: Request, _res: Response, next: NextFunction): void => next();
+        logger.warn('Service Bus credentials not found. Logging to console and file only.');
+        // Return a simple console logger when Service Bus is not configured
+        return (req: Request, res: Response, next: NextFunction): void => {
+            const start = Date.now();
+            res.on('finish', () => {
+                const duration = Date.now() - start;
+                const timestamp = new Date().toISOString();
+                const statusColor = res.statusCode >= 400 ? '\x1b[31m' : res.statusCode >= 300 ? '\x1b[33m' : '\x1b[32m';
+                const resetColor = '\x1b[0m';
+                console.log(
+                    `${timestamp} ${statusColor}[${res.statusCode}]${resetColor} ${req.method} ${req.originalUrl} - ${duration}ms`
+                );
+            });
+            next();
+        };
     }
 
     flushTimeout = setTimeout(flushBuffer, FLUSH_INTERVAL);

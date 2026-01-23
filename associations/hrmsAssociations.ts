@@ -338,4 +338,75 @@ export const setupHrmsAssociations = (): void => {
             onUpdate: 'CASCADE'
         });
     }
+
+    // ================================================================= HR Repository Associations =================================================================
+    // PolicyList Associations
+    if (dbOutput.policyList && dbOutput.tmsUsers) {
+        // Many-to-One: PolicyList -> TmsUser (creator)
+        dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
+            foreignKey: 'createdBy',
+            targetKey: 'userId',
+            as: 'creator',
+            onDelete: 'SET NULL',
+            onUpdate: 'CASCADE'
+        });
+
+        // Many-to-One: PolicyList -> TmsUser (modifier)
+        dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
+            foreignKey: 'lastModifiedBy',
+            targetKey: 'userId',
+            as: 'modifier',
+            onDelete: 'SET NULL',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: TmsUser -> PolicyList (created)
+        dbOutput.tmsUsers.hasMany(dbOutput.policyList, {
+            foreignKey: 'createdBy',
+            sourceKey: 'userId',
+            as: 'createdPolicies'
+        });
+
+        // One-to-Many: TmsUser -> PolicyList (modified)
+        dbOutput.tmsUsers.hasMany(dbOutput.policyList, {
+            foreignKey: 'lastModifiedBy',
+            sourceKey: 'userId',
+            as: 'modifiedPolicies'
+        });
+    }
+
+    // ImportantLinkList Associations
+    if (dbOutput.importantLinkList && dbOutput.tmsUsers) {
+        // Many-to-One: ImportantLinkList -> TmsUser (creator)
+        dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
+            foreignKey: 'createdBy',
+            targetKey: 'userId',
+            as: 'creator',
+            onDelete: 'SET NULL',
+            onUpdate: 'CASCADE'
+        });
+
+        // Many-to-One: ImportantLinkList -> TmsUser (modifier)
+        dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
+            foreignKey: 'lastModifiedBy',
+            targetKey: 'userId',
+            as: 'modifier',
+            onDelete: 'SET NULL',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: TmsUser -> ImportantLinkList (created)
+        dbOutput.tmsUsers.hasMany(dbOutput.importantLinkList, {
+            foreignKey: 'createdBy',
+            sourceKey: 'userId',
+            as: 'createdImportantLinks'
+        });
+
+        // One-to-Many: TmsUser -> ImportantLinkList (modified)
+        dbOutput.tmsUsers.hasMany(dbOutput.importantLinkList, {
+            foreignKey: 'lastModifiedBy',
+            sourceKey: 'userId',
+            as: 'modifiedImportantLinks'
+        });
+    }
 };

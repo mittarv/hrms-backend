@@ -7,6 +7,7 @@ import path from "path";
 
 import { registerHrms } from "./routes/hrms.routes";
 import { logExecutionTime, registerHealth } from "./routes/health.routes";
+import { createLoggingMiddleware } from "./middlewares/logging";
 
 export function createApp() {
     const app = express();
@@ -19,10 +20,14 @@ export function createApp() {
     app.disable("x-powered-by");
     app.use("/images", express.static(path.join(__dirname, "/public/images")));
 
+    // API logging middleware (logs to console/file/Service Bus)
+    app.use(createLoggingMiddleware());
+
+    // Execution time logging - must be before routes to catch all requests
+    app.use(logExecutionTime);
+
     registerHrms(app);
     registerHealth(app);
-
-    app.use(logExecutionTime);
 
     return app;
 }

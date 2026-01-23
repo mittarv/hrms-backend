@@ -24,29 +24,25 @@ exports.tmsUserGoogleLogin = async (req, res) => {
     // If user doesn't exist and we have name/profilePic, auto-create the user
     if (!user && name && profilePic) {
       try {
-        var userType = 100;
-        
-        await TmsUsers.create({
-          email,
-          name,
-          userType,
-          profilePic,
+        // Use findOrCreate to prevent duplicate creation in case of race conditions
+        const [newUser, created] = await TmsUsers.findOrCreate({
+          where: { email: email, isDeleted: false },
+          defaults: {
+            email,
+            name,
+            userType: 100,
+            profilePic,
+          }
         });
 
-        // Fetch the newly created user
+        // If user was just created or already existed, use it
+        user = newUser;
+      } catch (createError) {
+        // If creation fails, try to fetch the user again (might have been created by another request)
+        console.error("Error auto-creating user:", createError);
         user = await TmsUsers.findOne({
           where: { email: email, isDeleted: false },
         });
-
-        if (!user) {
-          return res.status(400).json({ 
-            success: false, 
-            message: "User creation failed" 
-          });
-        }
-      } catch (createError) {
-        // If creation fails, continue to return "user does not exist" message
-        console.error("Error auto-creating user:", createError);
       }
     }
 
@@ -91,6 +87,31 @@ exports.createTmsUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Please fill all the details" });
     } else {
+      // Check if user already exists
+      const existingUser = await TmsUsers.findOne({
+        where: { email: email, isDeleted: false },
+      });
+
+      if (existingUser) {
+        // User already exists, return token for existing user
+        const token = jwt.sign(
+          { 
+            id: existingUser.userId,
+            email: existingUser.email,
+            env: process.env.NODE_ENV,
+          },
+          process.env.SECRET_KEY,
+          {
+            expiresIn: "30d",
+          }
+        );
+        return res.status(200).json({
+          success: true,
+          token: token,
+          message: "User already exists, logged in successfully",
+        });
+      }
+
       var userType = 100;
       await TmsUsers.create({
         email,
