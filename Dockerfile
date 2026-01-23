@@ -16,7 +16,7 @@ RUN npm ci --no-audit && npm cache clean --force
 
 # Copy source code and build
 COPY . .
-RUN tsc --outDir dist && \
+RUN npx tsc --outDir dist && \
     cp -r views dist/ && \
     mkdir -p dist/keys dist/config && \
     (cp -r keys dist/ 2>/dev/null || true) && \
