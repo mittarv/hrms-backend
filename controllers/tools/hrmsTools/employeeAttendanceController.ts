@@ -28,11 +28,13 @@ import {
     LeaveApprovalStatus 
 } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 import { 
+    AuthenticatedUser,
     EmployeeAttendanceAttributes, 
     EmployeeAttendanceRequestPayload, 
     EmployeeHolidayDetailsAttributes, 
     EmployeeLeaveBalanceAttributes, 
     EmployeeLeaveRequestAttributes, 
+    extraWorkDayAttributes, 
     LeaveConfigWithAccrual 
 } from "../../../interfaces/hrmsTool/interface/hrmsInterface";
 import { 
@@ -63,9 +65,13 @@ import {
     findHRRepositoryToolAdminUsers,
     findEmployeeDetailsByUuid,
     fetchUsedLeavesTillDate,
-    fetchEmployeeCurrentJobDetails
+    fetchEmployeeCurrentJobDetails,
+    createWorkRequestService,
+    fetchExtraWorkLogRequestsService,
+    updateExtraWorkLogRequestStatusService,
 } from "../../../utilities/hrmsUtilities/dbCalls";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
+import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 const employeeLeaveRequest = dbOutput.employeeLeaveRequestDetails;
 import { LeaveRequestMail } from "../../../middlewares/sendEmail";
 import { Op } from "sequelize";
@@ -87,12 +93,49 @@ export const registerAttendance = async (req: Request, res: Response) => {
     try {
         // Extract user info from request (for permission checks)
         const { user } = req as AuthenticatedRequest;
-        const { email, toolsAccess } = user as { email: string, toolsAccess: unknown }
+        const { email, toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
 
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        if (!email) {
+            sendError(res, "User email is required");
+            return;
+        }
 
         // Get employee UUID from params and leave/attendance details from body
         const employeeId = req.params.empUuid;
+        
+        // Allow users to register their own attendance without permission
+        // But require permission to register attendance for other employees
+        const isRegisteringOwnAttendance = employeeUuid === employeeId;
+        
+        if (!isRegisteringOwnAttendance) {
+            const hasPermission = await checkHrmsPermission(
+                employeeUuid,
+                "LeaveAttendance_write",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            
+            if (!hasPermission) {
+                sendError(
+                    res,
+                    "You don't have permission to register attendance for other employees"
+                );
+                return;
+            }
+        }
+        
+        // Get user access level for use throughout the function
+        const userAccessLevel = (toolsAccess as Record<string, number> | undefined)?.[hrmsConstants.HR_REPOSITORY] || 0;
+        
+        // Check if user is admin: has LeaveAttendance_write permission OR access level >= 900
+        const isAdmin = userAccessLevel >= 900 || await checkHrmsPermission(
+            employeeUuid,
+            "LeaveAttendance_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+        
         const leaveDetails = req.body as EmployeeAttendanceRequestPayload;
         const {
             attendanceStatus,
@@ -107,19 +150,26 @@ export const registerAttendance = async (req: Request, res: Response) => {
             attachmentPath
         } = leaveDetails;
 
+        // Fetch employee details before transaction for email (needed outside transaction)
+        const basicDetailsForEmail = await fetchEmployeeBasicDetails(employeeId);
+        const configDetailsForEmail = await fetchLeaveConfigDetails(leaveConfigId!);
+        
+        if (!configDetailsForEmail) {
+            sendError(res, "Leave configuration not found");
+            return;
+        }
+        
+        let isPendingForEmail: boolean = false;
+        const startForEmail: Date | null = null as Date | null;
+        const endForEmail: Date | null = null as Date | null;
+
         // Start a DB transaction for atomicity
         await outputSequelize.transaction(async (transaction) => {
             // Get the UUID of the user making the request
             const { empUuid }: { empUuid: string } = await fetchEmployeeContactDetailsFromEmail(email);
-
-            // Only admin/super admin can register attendance for other employees
-            if (userType < 500 && empUuid !== employeeId) {
-                sendError(
-                    res,
-                    "You do not have the access. Only admin and super admin can change attendance of other employees",
-                );
-                return;
-            }
+            
+            // Permission check is already done above (before transaction)
+            // Users can register their own attendance without permission
 
             // Validate required fields based on attendance type
             const required = ["attendanceStatus"];
@@ -238,7 +288,8 @@ export const registerAttendance = async (req: Request, res: Response) => {
             const {overlappingLeaveAttendances, overlappingLeaveRequests}  = overlappingLeaves;
 
             // Notice period validation (not for admin/super admin, except sick leave)
-            if(userType < 500) {
+            // Admin: has LeaveAttendance_write OR access level >= 900
+            if(!isAdmin) {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
@@ -457,7 +508,7 @@ export const registerAttendance = async (req: Request, res: Response) => {
             let isProofRequired: boolean = false;
 
             // Check if leave type is sick leave
-            if(configDetails.leaveType.toLowerCase() === "sick") isSickLeave = true;
+            if(configDetailsForEmail.leaveType.toLowerCase() === "sick") isSickLeave = true;
 
             // used to check if the leave are in a continous manner
             // total leaves in past N days (N - continuousLeaveLimit)
@@ -467,7 +518,7 @@ export const registerAttendance = async (req: Request, res: Response) => {
             const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === leaveConfigId);
 
             // Check if user is admin (for CDL bypass)
-            const isAdmin = userType >= 500;
+            // Admin: has LeaveAttendance_write OR access level >= 900 (already checked above)
 
             // If requested days exceed continuous leave limit, handle accordingly
             if(totalDays > continuousLeavesLimit || sameTypeLeaves.length >= continuousLeavesLimit) {
@@ -576,66 +627,13 @@ export const registerAttendance = async (req: Request, res: Response) => {
             // Admin bypass for CDL is already handled above in the CDL logic
             const isPending: boolean = isProofRequired;
             
+            // Capture isPending for email (outside transaction)
+            isPendingForEmail = isPending;
+            
             // Create leave requests (paid and/or unpaid) as needed
             if(paidLeaveData.totalDays > 0) await createLeaveRequestHelper(paidLeaveData, excludePaidWeekend, jobDetails, isPending, transaction);
             if(unpaidLeaveData.totalDays > 0) await createLeaveRequestHelper(unpaidLeaveData, excludePaidWeekend, jobDetails, isPending, transaction);
 
-            if(!isPending){
-               const hrAdmin =  await findHRRepositoryToolAdminUsers();
-               const emailRecipients = await Promise.all(
-                   hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
-               );
-               
-               // Send email to each HR admin
-               await Promise.all(
-                   emailRecipients.map(async (recipient) => {
-                       if (recipient?.empOfficialEmail) {
-                           const startDateStr = start.toISOString().split('T')[0];
-                           const endDateStr = end.toISOString().split('T')[0];
-                           const finalEndDate = startDateStr === endDateStr ? null : endDateStr;
-                           
-                           return LeaveRequestMail(
-                               recipient.empOfficialEmail,
-                               recipient.empUuid,
-                               `${basicDetails.empFirstName} ${basicDetails.empLastName}`,
-                               startDateStr,
-                               finalEndDate,   
-                               configDetails.leaveType,            
-                               true,                               
-                               transaction                         
-                           );
-                       }
-                       return Promise.resolve();
-                   })
-               );
-            } else {
-               const hrAdmin =  await findHRRepositoryToolAdminUsers();
-               const emailRecipients = await Promise.all(
-                   hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
-               );
-               
-               await Promise.all(
-                   emailRecipients.map(async (recipient) => {
-                       if (recipient?.empOfficialEmail) {
-                           const startDateStr = start.toISOString().split('T')[0];
-                           const endDateStr = end.toISOString().split('T')[0];
-                           const finalEndDate = startDateStr === endDateStr ? null : endDateStr;
-                           
-                           return LeaveRequestMail(
-                               recipient.empOfficialEmail,
-                               recipient.empUuid,
-                               `${basicDetails.empFirstName} ${basicDetails.empLastName}`,
-                               startDateStr,
-                               finalEndDate,   
-                               configDetails.leaveType,            
-                               false,                               
-                               transaction                         
-                           );
-                       }
-                       return Promise.resolve();
-                   })
-               );
-            }
             // If unpaid days exist, check and mark employee payslip as pending
             await updateEmployeePayslipStatusForUnpaidLeave(employeeId, paidLeaveData, unpaidLeaveData, transaction); //todo: adjust for unpaid leave total days
 
@@ -647,6 +645,45 @@ export const registerAttendance = async (req: Request, res: Response) => {
             });
             return;
         });
+
+        // Send email notification to HR admins asynchronously (after transaction commits)
+        if (startForEmail && endForEmail && configDetailsForEmail) {
+            // Capture values in const to help TypeScript understand the types
+            const finalStartForEmail: Date = startForEmail;
+            const finalEndForEmail: Date = endForEmail;
+            const finalIsPendingForEmail: boolean = isPendingForEmail;
+            
+            setImmediate(async () => {
+                try {
+                    const hrAdmin = await findHRRepositoryToolAdminUsers();
+               const emailRecipients = await Promise.all(
+                   hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
+               );
+               
+                    // Send email to each HR admin (not blocking, no transaction)
+                    emailRecipients.forEach(async (recipient) => {
+                       if (recipient?.empOfficialEmail) {
+                            const startDateStr = finalStartForEmail.toISOString().split('T')[0];
+                            const endDateStr = finalEndForEmail.toISOString().split('T')[0];
+                           const finalEndDate = startDateStr === endDateStr ? null : endDateStr;
+                           
+                            LeaveRequestMail(
+                               recipient.empOfficialEmail,
+                               recipient.empUuid,
+                                `${basicDetailsForEmail.empFirstName} ${basicDetailsForEmail.empLastName}`,
+                               startDateStr,
+                               finalEndDate,   
+                                configDetailsForEmail.leaveType,
+                                !finalIsPendingForEmail, // true if approved, false if pending
+                                undefined // no transaction
+                            ).catch(err => console.error("Error sending leave registration email:", err));
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error sending leave registration notification emails:", err);
+                }
+            });
+        }
 
         return;
     } catch (err) {
@@ -670,12 +707,13 @@ export const getEmployeeAttendance = async (req: Request, res: Response) => {
 
         // Extract user info for permission checks
         const { user } = req as AuthenticatedRequest;
-        const { toolsAccess, email } = user as {
-            toolsAccess: unknown,
-            email: string
-        };
+        const { toolsAccess, email, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
 
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        if (!email) {
+            sendError(res, "User email is required");
+            return;
+        }
 
         const [empContactDetails, empJobDetails] = await Promise.all([
             // Fetch employee details for the logged-in user
@@ -684,11 +722,36 @@ export const getEmployeeAttendance = async (req: Request, res: Response) => {
             fetchEmployeeCurrentJobDetails(employeeId),
         ]);
 
-        const { empUuid } = empContactDetails as {
+        const { empUuid: loggedInEmpUuid } = empContactDetails as {
             empUuid: string
         }
         
         const conversionDate = new Date(empJobDetails.empConversionDate);
+
+        // Allow users to view their own attendance without permission
+        // But require permission to view other employees' attendance
+        const isViewingOwnAttendance = employeeUuid === employeeId || loggedInEmpUuid === employeeId;
+        
+        if (!isViewingOwnAttendance) {
+            // Check for either read or write permission (users who can edit should be able to view)
+            const hasReadPermission = await checkHrmsPermission(
+                employeeUuid || loggedInEmpUuid,
+                "LeaveAttendanceAdmin_read",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            const hasWritePermission = await checkHrmsPermission(
+                employeeUuid || loggedInEmpUuid,
+                "LeaveAttendance_write",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            
+            if (!hasReadPermission && !hasWritePermission) {
+                sendError(res, "You don't have permission to view other employees' attendance");
+                return;
+            }
+        }
 
         // Fetch all leave types applicable to the current employment type
         const applicableLeaveTypes = await dbOutput.employeeLeaveConfigurator.findAll({
@@ -701,12 +764,6 @@ export const getEmployeeAttendance = async (req: Request, res: Response) => {
 
         // Extract leaveConfigId from applicableLeaveTypes
         const applicableLeaveTypeIds = applicableLeaveTypes.map((leaveType) => leaveType.leaveConfigId);
-
-        // Only admin/super admin can view other employees' attendance
-        if(userType < 500 && employeeId !== empUuid) {
-            sendError(res, "You do not have the access. Only admin and super admin can view attendance of other employees");
-            return;
-        }
 
         // Convert month and year to numbers and validate
         const numericMonth: number = Number(month);
@@ -830,11 +887,22 @@ export const getEmployeeLeaveHistory = async (req: Request, res: Response) => {
 export const getAllPendingLeaveRequests = async (req: Request, res: Response) => {
     try {
         const { user } = req as AuthenticatedRequest;
-        const { toolsAccess} = user as { toolsAccess: unknown};
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
 
-        if(userType < 500){
-            sendError(res, "You are not allowed to do this action");
+        // Check permission: admin access (>= 900) OR LeaveRequest_read permission
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveRequest_read",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to view leave requests"
+            });
             return;
         }
 
@@ -877,8 +945,8 @@ export const getAllPendingLeaveRequests = async (req: Request, res: Response) =>
 export const reviewLeaveRequest = async (req: Request, res: Response) => {
     try {
         const { user } = req as AuthenticatedRequest;
-        const { toolsAccess } = user as { toolsAccess: unknown };
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
 
         // Approver employee ID
         const employeeId: string = req.params.empUuid;
@@ -890,10 +958,26 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
             action: LeaveApprovalStatus;
         } = req.body;
 
-        if (userType < 500) {
-            sendError(res, "You are not allowed to do this action");
+        // Check permission: admin access (>= 900) OR LeaveRequest_write permission
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveRequest_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to approve or reject leave requests"
+            });
             return;
         }
+
+        // Capture variables for email (outside transaction)
+        let leaveRequestsForEmail: EmployeeLeaveRequestAttributes[] = [];
+        let employeeDetailsForEmail: Array<Record<string, unknown>> = [];
+        const actionForEmail: LeaveApprovalStatus = action;
 
         await outputSequelize.transaction(async (transaction) => {
             const empUuidList: string[] = [];
@@ -910,6 +994,10 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
             }
 
             const employeeDetails = await findEmployeeDetailsByUuid(empUuidList);
+            
+            // Capture for email (outside transaction)
+            leaveRequestsForEmail = leaveRequests;
+            employeeDetailsForEmail = employeeDetails;
 
             // Update the status of the leave requests
             await updatePendingLeaveRequest(employeeId, leaveRequestIds, action, transaction);
@@ -954,8 +1042,6 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
 
             // Save all attendance records in bulk
             await createEmployeeAttendanceRecord(attendanceRecords, transaction);
-            //generate email notification on leave approval
-            await approvedRejectedMailHelper(employeeDetails, leaveRequests, transaction, true);
 
             // map empUuid to job details
             const empJobDetailsCache = new Map();
@@ -989,6 +1075,25 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
 
             res.status(200).json({ success: true, message: "Leave approved successfully" });
             return;
+        });
+
+        // Send email notifications asynchronously (after transaction commits)
+        setImmediate(async () => {
+            try {
+                const actionLower = actionForEmail.toLocaleLowerCase();
+                
+                if (actionLower === LeaveApprovalStatus.REJECTED) {
+                    // Send rejection emails
+                    approvedRejectedMailHelper(employeeDetailsForEmail, leaveRequestsForEmail, undefined, false)
+                        .catch(err => console.error("Error sending leave rejection emails:", err));
+                } else if (actionLower === LeaveApprovalStatus.APPROVED) {
+                    // Send approval emails
+                    approvedRejectedMailHelper(employeeDetailsForEmail, leaveRequestsForEmail, undefined, true)
+                        .catch(err => console.error("Error sending leave approval emails:", err));
+                }
+            } catch (err) {
+                console.error("Error sending leave review notification emails:", err);
+            }
         });
 
         return;
@@ -1159,13 +1264,8 @@ export const uploadProofDocuments = async (req: Request, res: Response) => {
  */
 export const deleteEmployeeAttendance = async (req: Request, res: Response) => {
     const { user } = req as AuthenticatedRequest;
-    const { toolsAccess, email} = user as { toolsAccess: unknown, email: string};
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
-
-    if(userType < 500 ){
-        sendError(res, "You are not allowed to do this action");
-        return;
-    }
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
 
     const attendanceId: string = req.params.attendanceId;
 
@@ -1187,17 +1287,25 @@ export const deleteEmployeeAttendance = async (req: Request, res: Response) => {
         return;
     }
 
-    // Only admin/super admin can delete attendance for other employees
-    const { empUuid } = (await fetchEmployeeContactDetailsFromEmail(
-        email,
-    )) as { empUuid: string };
-
-    if (userType < 500 && empUuid !== attendanceDetails.empUuid) {
-        sendError(
-            res,
-            "You are not allowed to do this action",
+    // Allow users to delete their own attendance without permission
+    // But require permission to delete other employees' attendance
+    const isDeletingOwnAttendance = employeeUuid === attendanceDetails.empUuid;
+    
+    if (!isDeletingOwnAttendance) {
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveAttendance_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
         );
-        return;
+        
+        if (!hasPermission) {
+            sendError(
+                res,
+                "You don't have permission to delete other employees' attendance"
+            );
+            return;
+        }
     }
 
     try {
@@ -1229,12 +1337,56 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
     try {
         // Extract user info from request (for permission checks)
         const { user } = req as AuthenticatedRequest;
-        const { toolsAccess, email } = user as { toolsAccess: unknown; email: string };
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        const { toolsAccess, email, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+
+        if (!email) {
+            sendError(res, "User email is required");
+            return;
+        }
 
         // Extract attendanceId from params and attendance update payload from body
         const { attendanceId } = req.params as { attendanceId: string };
         const attendanceDetails: EmployeeAttendanceRequestPayload = req.body;
+        
+        // Fetch attendance to get employee UUID before permission check
+        const existingAttendance = await fetchEmployeeAttendanceDetailsById(attendanceId);
+        if (!existingAttendance) {
+            sendError(res, "Attendance not found");
+            return;
+        }
+        
+        // Allow users to update their own attendance without permission
+        // But require permission to update other employees' attendance
+        const isUpdatingOwnAttendance = employeeUuid === existingAttendance.empUuid;
+        
+        if (!isUpdatingOwnAttendance) {
+            const hasPermission = await checkHrmsPermission(
+                employeeUuid,
+                "LeaveAttendance_write",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            
+            if (!hasPermission) {
+                sendError(
+                    res,
+                    "You don't have permission to update other employees' attendance"
+                );
+                return;
+            }
+        }
+
+        // Get user access level for use throughout the function
+        const userAccessLevel = (toolsAccess as Record<string, number> | undefined)?.[hrmsConstants.HR_REPOSITORY] || 0;
+
+        // Check if user is admin: has LeaveAttendance_write permission OR access level >= 900
+        const isAdmin = userAccessLevel >= 900 || await checkHrmsPermission(
+            employeeUuid,
+            "LeaveAttendance_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
 
         // Destructure relevant fields from the request body
         const {
@@ -1250,22 +1402,26 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
             unpaidLeaveConfigId
         } = attendanceDetails;
 
+        // Capture variables for email (outside transaction)
+        let employeeIdForEmail: string | null = null;
+        let startDateForEmail: string | null = null;
+        let endDateForEmail: string | null = null;
+        let leaveConfigIdForEmail: string | null = null;
+        let isPendingForEmail: boolean = false;
+
         // Start a DB transaction for atomicity
         await outputSequelize.transaction(async (transaction) => {
             // Fetch the current attendance record and employee UUID
             const attendanceDetails: EmployeeAttendanceAttributes = await fetchEmployeeAttendanceDetailsById(attendanceId, transaction);
             const employeeId = attendanceDetails.empUuid;
+            
+            // Capture for email (outside transaction)
+            employeeIdForEmail = employeeId;
             // Get the UUID of the user making the request
             const { empUuid }: { empUuid: string } = await fetchEmployeeContactDetailsFromEmail(email);
-
-            // Only admin/super admin can update attendance for other employees
-            if (userType < 500 && attendanceDetails.attendanceStatus !== AttendanceStatusType.WORKING) {
-                sendError(
-                    res,
-                    "You do not have the access. Only admin and super admin can change attendance of other employees",
-                );
-                return;
-            }
+            
+            // Permission check is already done above (before transaction)
+            // Users can update their own attendance without permission
 
             // Fetch employee job and basic details for eligibility checks
             const [
@@ -1298,8 +1454,9 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 const workHours: number = getHourDifference(checkIn!, checkOut!);
 
                 // Prepare attendance update data
+                // Set leaveRequestId to null when changing from leave/half_day to working
                 const attendanceUpdateData: Partial<EmployeeAttendanceAttributes> = {
-                    checkIn, checkOut, workHours, attendanceStatus, remarks 
+                    checkIn, checkOut, workHours, attendanceStatus, remarks, leaveRequestId: null as unknown as string | undefined
                 };
 
                 // Update attendance
@@ -1315,6 +1472,51 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                     // Determine if the original leave was half day or full day
                     const isHalfDay = attendanceDetails.attendanceStatus === AttendanceStatusType.HALF_DAY;
                     const daysDeduced: number = isHalfDay ? 0.5 : 1;
+
+                    // Check if it's a comp off leave and restore comp off balance
+                    const existingLeaveConfig = await fetchLeaveConfigDetails(existingLeaveConfigId);
+                    const isCompOffLeave = existingLeaveConfig?.leaveType?.toLowerCase().includes('comp') || 
+                                         existingLeaveConfig?.leaveType?.toLowerCase().includes('comp off');
+
+                    if (isCompOffLeave) {
+                        // Restore comp off balance (newest first - reverse order)
+                        const usedCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+                            where: {
+                                empUuid: employeeId,
+                                approvalStatus: LeaveApprovalStatus.APPROVED,
+                                isDeleted: false,
+                                totalCompOffUsed: {
+                                    [Op.gt]: 0
+                                }
+                            },
+                            order: [['workDate', 'DESC'], ['createdAt', 'DESC']], // Newest first
+                            raw: true,
+                            transaction
+                        });
+
+                        let remainingDaysToRestore = daysDeduced;
+                        for (const compOffLeave of usedCompOffLeaves) {
+                            if (remainingDaysToRestore <= 0) break;
+
+                            const used = compOffLeave.totalCompOffUsed || 0;
+                            if (used > 0) {
+                                const toRestore = Math.min(remainingDaysToRestore, used);
+                                const newTotalCompOffUsed = used - toRestore;
+                                
+                                await dbOutput.employeeExtraWorkDay.update(
+                                    { totalCompOffUsed: newTotalCompOffUsed },
+                                    {
+                                        where: {
+                                            extraWorkDayId: compOffLeave.extraWorkDayId
+                                        },
+                                        transaction
+                                    }
+                                );
+                                
+                                remainingDaysToRestore -= toRestore;
+                            }
+                        }
+                    }
 
                     // fiscal year based on attendance date
                     const fiscalYear = getFiscalYearForLeave(jobDetails?.empConversionDate, new Date(attendanceDate!));
@@ -1385,7 +1587,8 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
             }
 
             // --- Notice period validation (skip for admin/super admin, except for sick leave) ---
-            if(userType < 500) {
+            // Admin: has LeaveAttendance_write OR access level >= 900
+            if(!isAdmin) {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
 
@@ -1597,7 +1800,7 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
             const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === leaveConfigId);
 
             // check if the user is an admin
-            const isAdmin = userType >= 500
+            // Admin: has LeaveAttendance_write OR access level >= 900 (already checked above)
 
             // --- Handle continuous leave limit and proof requirement for sick leave ---
             if(totalDays > continuousLeavesLimit || sameTypeLeaves.length >= continuousLeavesLimit) {
@@ -1710,9 +1913,65 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 leaveRequestDetails = await fetchLeaveRequestDetailsFromLeaveId([attendanceDetails.leaveRequestId]);
             }
 
+            // Check if existing leave is comp off and restore comp off balance if changing to different leave type
+            if (leaveRequestDetails.length > 0 && leaveConfigId && leaveConfigId !== leaveRequestDetails[0].leaveConfigId) {
+                const existingLeaveConfigId = leaveRequestDetails[0].leaveConfigId;
+                const existingLeaveConfig = await fetchLeaveConfigDetails(existingLeaveConfigId);
+                const isCompOffLeave = existingLeaveConfig?.leaveType?.toLowerCase().includes('comp') || 
+                                     existingLeaveConfig?.leaveType?.toLowerCase().includes('comp off');
+
+                if (isCompOffLeave) {
+                    const daysToRestore = leaveRequestDetails[0].totalDays;
+                    
+                    // Restore comp off balance (newest first - reverse order)
+                    const usedCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+                        where: {
+                            empUuid: employeeId,
+                            approvalStatus: LeaveApprovalStatus.APPROVED,
+                            isDeleted: false,
+                            totalCompOffUsed: {
+                                [Op.gt]: 0
+                            }
+                        },
+                        order: [['workDate', 'DESC'], ['createdAt', 'DESC']], // Newest first
+                        raw: true,
+                        transaction
+                    });
+
+                    let remainingDaysToRestore = daysToRestore;
+                    for (const compOffLeave of usedCompOffLeaves) {
+                        if (remainingDaysToRestore <= 0) break;
+
+                        const used = compOffLeave.totalCompOffUsed || 0;
+                        if (used > 0) {
+                            const toRestore = Math.min(remainingDaysToRestore, used);
+                            const newTotalCompOffUsed = used - toRestore;
+                            
+                            await dbOutput.employeeExtraWorkDay.update(
+                                { totalCompOffUsed: newTotalCompOffUsed },
+                                {
+                                    where: {
+                                        extraWorkDayId: compOffLeave.extraWorkDayId
+                                    },
+                                    transaction
+                                }
+                            );
+                            
+                            remainingDaysToRestore -= toRestore;
+                        }
+                    }
+                }
+            }
+
             // --- Leave goes into pending for users who violate CDL ---
             // Admin bypass for CDL is already handled above in the CDL logic
             const isPending: boolean = isProofRequired;
+            
+            // Capture for email (outside transaction)
+            startDateForEmail = startDate!;
+            endDateForEmail = endDate!;
+            leaveConfigIdForEmail = leaveConfigId!;
+            isPendingForEmail = isPending;
 
             // --- Update attendance and leave balances for paid and unpaid portions ---
             if(paidLeaveData.totalDays > 0) await updateAttendanceAndBalance(paidLeaveData, leaveRequestDetails[0], isPending, attendanceDetails, jobDetails, transaction);
@@ -1727,6 +1986,51 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
             });
             return;
         });
+
+        // Send email notification to HR admins asynchronously (after transaction commits)
+        if (employeeIdForEmail && startDateForEmail && endDateForEmail && leaveConfigIdForEmail) {
+            // Capture values in const to help TypeScript understand the types
+            const finalEmployeeIdForEmail: string = employeeIdForEmail;
+            const finalStartDateForEmail: string = startDateForEmail;
+            const finalEndDateForEmail: string = endDateForEmail;
+            const finalLeaveConfigIdForEmail: string = leaveConfigIdForEmail;
+            const finalIsPendingForEmail: boolean = isPendingForEmail;
+            
+            setImmediate(async () => {
+                try {
+                    // Fetch employee details for email (outside transaction)
+                    const employeeBasicDetails = await fetchEmployeeBasicDetails(finalEmployeeIdForEmail);
+                    const leaveConfig = await fetchLeaveConfigDetails(finalLeaveConfigIdForEmail);
+                    
+                    const hrAdmin = await findHRRepositoryToolAdminUsers();
+                    const emailRecipients = await Promise.all(
+                        hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
+                    );
+
+                    // Send email to each HR admin (not blocking, no transaction)
+                    emailRecipients.forEach(async (recipient) => {
+                        if (recipient?.empOfficialEmail) {
+                            const startDateStr = new Date(finalStartDateForEmail).toISOString().split('T')[0];
+                            const endDateStr = new Date(finalEndDateForEmail).toISOString().split('T')[0];
+                            const finalEndDate = startDateStr === endDateStr ? null : endDateStr;
+
+                            LeaveRequestMail(
+                                recipient.empOfficialEmail,
+                                recipient.empUuid,
+                                `${employeeBasicDetails.empFirstName} ${employeeBasicDetails.empLastName}`,
+                                startDateStr,
+                                finalEndDate,
+                                leaveConfig?.leaveType || "Leave",
+                                !finalIsPendingForEmail, // true if approved, false if pending
+                                undefined // no transaction
+                            ).catch(err => console.error("Error sending attendance update email:", err));
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error sending attendance update notification emails:", err);
+                }
+            });
+        }
 
         return;
     } catch (error) {
@@ -2062,7 +2366,7 @@ export const getLeavesEligibility = async (req: Request, res: Response) => {
         ]);
 
         // Filter leave configs applicable to employee's type
-        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender);
+        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender,jobDetails.empConversionDate);
 
         // Run async calls in parallel with Promise.all
         await Promise.all(
@@ -2104,19 +2408,43 @@ export const getLeavesEligibility = async (req: Request, res: Response) => {
 export const getAccrualLeaveBalance = async (req: Request, res: Response) => {
     try {
         const { user } = req as AuthenticatedRequest;
-        const { email, toolsAccess } = user as { email: string, toolsAccess: unknown };
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+        const { email, toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+        
+        if (!email) {
+            sendError(res, "User email is required");
+            return;
+        }
         
         const employeeId = req.params.empUuid;
         const { leaveConfigId, asOfDate } = req.query as { leaveConfigId?: string, asOfDate?: string };
 
         // Get user's own UUID for permission check
-        const { empUuid } = await fetchEmployeeContactDetailsFromEmail(email) as { empUuid: string };
+        const { empUuid: loggedInEmpUuid } = await fetchEmployeeContactDetailsFromEmail(email) as { empUuid: string };
 
-        // Only admin/super admin can view other employees' balance
-        if (userType < 500 && employeeId !== empUuid) {
-            sendError(res, "You can only view your own leave balance");
-            return;
+        // Allow users to view their own leave balance without permission
+        // But require permission to view other employees' balance
+        const isViewingOwnBalance = employeeUuid === employeeId || loggedInEmpUuid === employeeId;
+        
+        if (!isViewingOwnBalance) {
+            // Check for either read or write permission (users who can edit should be able to view)
+            const hasReadPermission = await checkHrmsPermission(
+                employeeUuid || loggedInEmpUuid,
+                "LeaveAttendanceAdmin_read",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            const hasWritePermission = await checkHrmsPermission(
+                employeeUuid || loggedInEmpUuid,
+                "LeaveAttendance_write",
+                toolName,
+                toolsAccess as Record<string, number> | undefined
+            );
+            
+            if (!hasReadPermission && !hasWritePermission) {
+                sendError(res, "You don't have permission to view other employees' leave balance");
+                return;
+            }
         }
 
         // Fetch employee job details and leave configurations
@@ -2134,7 +2462,7 @@ export const getAccrualLeaveBalance = async (req: Request, res: Response) => {
         const conversionDate = new Date(jobDetails.empConversionDate);
 
         // Filter leave configs applicable to employee's type
-        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender);
+        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender, jobDetails.empConversionDate);
 
         // If specific leave config requested, filter further
         const leaveConfigs = leaveConfigId 
@@ -2359,5 +2687,1211 @@ export const getAccrualLeaveBalance = async (req: Request, res: Response) => {
             message: "Internal Server Error. Please try again later.",
             error: error instanceof Error ? error.message : error,
         });
+    }
+};
+
+
+export const extraWorkLogRequest = async (req: Request, res: Response) => {
+    const { user } = req as AuthenticatedRequest;
+    const requestedData = req.body;
+
+    try {
+        await outputSequelize.transaction(async (transaction) => {
+        const createWorkLogData: Partial<extraWorkDayAttributes>= await createWorkRequestService(requestedData, user, transaction);
+        res.status(200).json({
+            success: true,
+            message: "Extra work log request created successfully",
+            data: createWorkLogData
+        });
+    });       
+    } catch (error) {
+         res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : error,
+        });
+        return;
+    }
+}
+
+export const getExtraWorkLogRequests = async (req: Request, res: Response) => {
+        const { user } = req as AuthenticatedRequest;
+        
+        // Check user permissions
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+        
+        // Check permission: admin access (>= 900) OR ExtraWorkDayRequests_read permission
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "ExtraWorkDayRequests_read",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to view extra work day requests"
+            });
+            return;
+        }
+
+        const {startDate, endDate} = req.query as {startDate?: string, endDate?: string};
+        try {
+            const extraWorkLogRequests = await fetchExtraWorkLogRequestsService(startDate, endDate);
+            res.status(200).json({
+                success: true,
+                message: "Extra work log requests fetched successfully",
+                workLogRequests: extraWorkLogRequests
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: "Internal Server Error. Please try again later.",
+                error: error instanceof Error ? error.message : error,
+            });
+            return;       
+        }
+}
+
+export const updateExtraWorkLogRequestStatus = async (req: Request, res: Response) => {
+        const { user } = req as AuthenticatedRequest;
+        
+        // Check user permissions
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+        
+        // Check permission: admin access (>= 900) OR ExtraWorkDayRequests_write permission
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "ExtraWorkDayRequests_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to approve or reject extra work day requests"
+            });
+            return;
+        }
+        const { requestIds, action } = req.body;
+
+        try {
+            const updatedExtraWorkLogRequest = await updateExtraWorkLogRequestStatusService(requestIds, action, user);
+            res.status(200).json({
+                success: true,
+                message: `Extra work log request status ${action} successfully`,
+                updatedData: updatedExtraWorkLogRequest
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: "Internal Server Error. Please try again later.",
+                error: error instanceof Error ? error.message : error,
+            });
+            return;       
+        }
+}
+
+/**
+ * API to get comp off balance for an employee.
+ * Calculates allotted leaves from employee_extra_work_day table based on:
+ * - If credit exists and not expired: count full credit as allotted
+ * - If used and expired: count only used amount as allotted
+ * - If not used and expired: don't count (0)
+ * Also returns total leave taken from employeeLeaveBalanceDetails.
+ */
+export const getCompOffleaveBalance = async (req: Request, res: Response) => {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    const {empUuid} = req.query as {empUuid: string};
+
+    if (!empUuid) {
+        res.status(400).json({
+            status: "error",
+            message: "Employee UUID is required"
+        });
+        return;
+    }
+
+    // Allow users to view their own comp off balance without permission
+    // But require permission to view other employees' balance
+    const isViewingOwnBalance = employeeUuid === empUuid;
+    
+    if (!isViewingOwnBalance) {
+        // Check for either read or write permission (users who can edit should be able to view)
+        const hasReadPermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveAttendanceAdmin_read",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+        const hasWritePermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveAttendance_write",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+        
+        if (!hasReadPermission && !hasWritePermission) {
+            res.status(403).json({
+                status: "error",
+                message: "You don't have permission to view other employees' comp off balance"
+            });
+            return;
+        }
+    }
+
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Fetch all comp off leaves (approved, not deleted)
+        const allCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+            where: {
+                empUuid,
+                approvalStatus: LeaveApprovalStatus.APPROVED,
+                isDeleted: false
+            },
+            order: [['workDate', 'ASC'], ['createdAt', 'ASC']],
+            raw: true
+        });
+
+        // Calculate allotted leaves based on the logic
+        let totalAllotted = 0;
+        const compOffDetails = allCompOffLeaves.map((leave: extraWorkDayAttributes) => {
+            const credit = leave.totalCompOffCredit || 0;
+            const used = leave.totalCompOffUsed || 0;
+            const expiryDate = leave.compOffExpiryDate ? new Date(leave.compOffExpiryDate) : null;
+            const isExpired = expiryDate ? expiryDate < today : false;
+
+            let allotted = 0;
+            const usedNum = typeof used === 'string' ? parseFloat(used) || 0 : (used || 0);
+            if (!isExpired) {
+                // Not expired: count full credit as allotted
+                allotted = credit;
+            } else {
+                // Expired: count only used amount if used, otherwise 0
+                if (usedNum > 0) {
+                    allotted = usedNum;
+                } else {
+                    allotted = 0;
+                }
+            }
+
+            totalAllotted += allotted;
+
+            return {
+                ...leave,
+                allotted,
+                isExpired
+            };
+        });
+
+        // Fetch job details for fiscal year calculation
+        const jobDetails = await fetchEmployeeCurrentJobDetails(empUuid);
+        const { fiscalYearStart } = getFiscalYearStartAndEndDate(jobDetails?.empConversionDate, today);
+
+        // Fetch total leave taken from employeeLeaveBalanceDetails for comp off leave type
+        // First, find comp off leave config ID
+        const compOffLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
+            where: {
+                leaveType: { [Op.like]: '%comp%' },
+                isActive: true
+            },
+            raw: true
+        });
+
+        let totalLeaveTaken = 0;
+        if (compOffLeaveConfig) {
+            const leaveBalance = await fetchLeaveBalanceDetails(jobDetails, fiscalYearStart, [compOffLeaveConfig.leaveConfigId]);
+            if (leaveBalance && leaveBalance.length > 0) {
+                totalLeaveTaken = leaveBalance[0].totalLeaveUsed || 0;
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Comp off leave balance fetched successfully",
+            compOffleaveBalance: {
+                totalAllotted,
+                totalLeaveTaken,
+                compOffDetails
+            }
+        });
+    } catch (error) {
+        console.error("Error in getCompOffleaveBalance:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : error,
+        });
+        return;
+    }
+}
+
+/**
+ * API to register comp off leave for an employee.
+ * Similar to registerAttendance but with direct approval flow and no accrual rate logic.
+ * Updates employeeleaverequestdetails, employeeleavebalancedetails, employeeattendancedetails,
+ * and marks isCompOffUsed in employee_extra_work_day for oldest non-expired comp off leaves.
+ */
+export const registerCompOffLeave = async (req: Request, res: Response) => {
+    try {
+        // Extract user info from request (for permission checks)
+    const { user } = req as AuthenticatedRequest;
+        const { email, toolsAccess } = user as { email: string, toolsAccess: unknown };
+
+    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+
+        // Get employee UUID from params and leave details from body
+        const employeeId = req.params.empUuid;
+        const leaveDetails = req.body as EmployeeAttendanceRequestPayload;
+        const {
+            attendanceStatus,
+            startDate,
+            endDate,
+            leaveConfigId,
+            remarks,
+            attachmentPath
+        } = leaveDetails;
+
+        // Fetch employee details and config before transaction for email (needed outside transaction)
+        const basicDetailsForEmail = await fetchEmployeeBasicDetails(employeeId);
+        const configDetailsForEmail = await fetchLeaveConfigDetails(leaveConfigId!);
+        
+        if (!configDetailsForEmail) {
+            sendError(res, "Leave configuration not found");
+            return;
+        }
+
+        // Start a DB transaction for atomicity
+        await outputSequelize.transaction(async (transaction) => {
+            // Get the UUID of the user making the request
+            const { empUuid }: { empUuid: string } = await fetchEmployeeContactDetailsFromEmail(email);
+
+            // Only admin/super admin can register comp off leave for other employees
+            if (userType < 500 && empUuid !== employeeId) {
+                sendError(
+                    res,
+                    "You do not have the access. Only admin and super admin can register comp off leave for other employees",
+                );
+                return;
+            }
+
+            // Validate required fields
+            const required = ["attendanceStatus", "leaveConfigId", "startDate", "endDate"];
+            const missingFields = required.filter(
+                (field) => !leaveDetails?.[field],
+            );
+            if (missingFields.length > 0) {
+                sendError(
+                    res,
+                    `Missing required data: ${missingFields.join(", ")}`,
+                );
+                return;
+            }
+
+            // Validate leave dates
+            if (!isValidDate(startDate!) || !isValidDate(endDate!)) {
+                sendError(res, "Invalid startDate or endDate format");
+                return;
+            }
+
+            if (new Date(startDate!) > new Date(endDate!)) {
+                sendError(res, "Start date cannot be after end date");
+                return;
+            }
+
+            // Fetch mandatory holidays in the range
+            const mandatoryLeaves = await fetchMandatoryLeavesInRange(new Date(startDate!), new Date(endDate!));
+
+            // Prepare list of holiday dates for exclusion logic
+            const holidayDatesList = mandatoryLeaves.map((holiday: EmployeeHolidayDetailsAttributes) => holiday.eventDate);
+            const {
+                excludePaidWeekend,
+                employeeType: employeeTypeRaw,
+                appliedGender: appliedGenderRaw,
+                isActive,
+                isHalfDayAllowed,
+                continuousLeavesLimit,
+            } = configDetailsForEmail;
+
+            // Parse JSON strings for employeeType and appliedGender
+            const employeeType = typeof employeeTypeRaw === 'string' 
+                ? JSON.parse(employeeTypeRaw || '[]') 
+                : employeeTypeRaw || [];
+            const appliedGender = typeof appliedGenderRaw === 'string'
+                ? JSON.parse(appliedGenderRaw || '[]')
+                : appliedGenderRaw || [];
+
+            // Adjust start and end dates to skip holidays/weekends if needed
+            const { start, end } = adjustStartAndEndDate(startDate!, endDate!, excludePaidWeekend, holidayDatesList);
+
+            // Fetch overlapping leaves, job details, and basic details in parallel
+            const [
+                overlappingLeaves,
+                jobDetails,
+                basicDetails,
+            ] = await Promise.all([
+                fetchOverLappingLeaves(employeeId, start, end),
+                fetchEmployeeCurrentJobDetails(employeeId, transaction),
+                fetchEmployeeBasicDetails(employeeId),
+            ]);
+
+            const {overlappingLeaveAttendances, overlappingLeaveRequests} = overlappingLeaves;
+
+            // Determine if this is a half-day leave
+            const isHalfDay = attendanceStatus === AttendanceStatusType.HALF_DAY;
+
+            // Calculate total leave days (excluding weekends/holidays if needed)
+            let totalDays: number = isHalfDay
+                ? 0.5
+                : Math.floor(
+                      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+                  ) + 1;
+            if (!isHalfDay && excludePaidWeekend) {
+                totalDays = countWeekdays(start, end);
+                totalDays -= mandatoryLeaves.length;
+            }
+
+            // Config and business validations
+            if (!isActive) {
+                sendError(res, "This leave is not active");
+                return;
+            }
+            if (isHalfDay && !isHalfDayAllowed) {
+                sendError(res, "Half day not allowed for this leave");
+                return;
+            }
+            if (!employeeType.includes(jobDetails.empType)) {
+                sendError(res, "Leave not applicable to your position");
+                return;
+            }
+            if (!appliedGender.includes(basicDetails.empGender)) {
+                sendError(res, "Leave not applicable to your gender");
+                return;
+            }
+
+            // Check for overlapping leaves
+            if (overlappingLeaveAttendances.length > 0 || overlappingLeaveRequests.length > 0) {
+                // Fetch leaveRequestIds from overlappingLeaveAttendances
+                const leaveRequestIds = overlappingLeaveAttendances
+                    .map(a => a.leaveRequestId)
+                    .filter(Boolean);
+
+                // leaveRequestDetails - already approved leaves
+                // applicableLeaveTypes - leave types applicable to the employee
+                const [leaveRequestDetails, applicableLeaveTypes] = await Promise.all([
+                    fetchLeaveRequestDetailsFromLeaveId(leaveRequestIds as string[]),
+                    dbOutput.employeeLeaveConfigurator.findAll({
+                        where: {
+                            employeeType: { [Op.like]: `%${jobDetails.empType}%` },
+                            isActive: true
+                        },
+                        raw: true
+                    })
+                ]);
+
+                // Create a set of leaveConfigIds from both existing leaves and overlapping requests
+                const leaveConfigIds = new Set([
+                    ...leaveRequestDetails.map(r => r?.leaveConfigId).filter(Boolean),
+                    ...overlappingLeaveRequests.map(r => r?.leaveConfigId).filter(Boolean)
+                ]);
+
+                // If any overlapping leaves exist, check if they are of the same leave type
+                const hasOverlap = applicableLeaveTypes.some(type => leaveConfigIds.has(type.leaveConfigId));
+
+                // If there is an overlap, return an error
+                if (hasOverlap) {
+                    sendError(res, "Leave overlaps with existing ones");
+                    return;
+                }
+            }
+
+            // Fetch available comp off leaves (oldest non-expired first)
+            // Include leaves that are partially used (totalCompOffUsed < totalCompOffCredit)
+            const availableCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+                where: {
+                    empUuid: employeeId,
+                    approvalStatus: LeaveApprovalStatus.APPROVED,
+                    isDeleted: false,
+                    compOffExpiryDate: {
+                        [Op.gte]: new Date()
+                    },
+                    [Op.or]: [
+                        { totalCompOffUsed: null },
+                        { totalCompOffUsed: 0 },
+                        {
+                            [Op.and]: [
+                                { totalCompOffUsed: { [Op.ne]: null } },
+                                outputSequelize.literal('totalCompOffUsed < totalCompOffCredit')
+                            ]
+                        }
+                    ]
+                },
+                order: [['workDate', 'ASC'], ['createdAt', 'ASC']], // Oldest workDate first, then oldest createdAt
+                raw: true
+            });
+
+            // Calculate total available comp off credit (considering partial usage)
+            const totalAvailableCredit = availableCompOffLeaves.reduce(
+                (sum, leave) => {
+                    const credit = leave.totalCompOffCredit || 0;
+                    const used = leave.totalCompOffUsed || 0;
+                    return sum + (credit - used);
+                },
+                0
+            );
+
+            // Calculate paid and unpaid days
+            const paidDays = Math.min(totalDays, totalAvailableCredit);
+            const unpaidDays = Math.max(0, totalDays - paidDays);
+
+            // Check continuous leave limit (CDL)
+            const previousLeaveDetails = await getLeavesDetailsOfPastDays(employeeId, start, continuousLeavesLimit);
+            const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === leaveConfigId);
+            const isAdmin = userType >= 500;
+
+            // Apply CDL restrictions for non-admin users
+            let finalPaidDays = paidDays;
+            let finalUnpaidDays = unpaidDays;
+            
+            if (!isAdmin && (totalDays > continuousLeavesLimit || sameTypeLeaves.length >= continuousLeavesLimit)) {
+                const maxContinuousPaid = Math.min(paidDays, continuousLeavesLimit);
+                const excessDays = paidDays - maxContinuousPaid;
+                
+                // Adjust paid/unpaid based on CDL
+                finalPaidDays = maxContinuousPaid;
+                finalUnpaidDays = unpaidDays + excessDays;
+            }
+
+            // Mark comp off leaves as used, starting from oldest, with partial usage tracking
+            let remainingDays = finalPaidDays; // Only use comp off for paid days
+            const compOffLeavesToUpdate: Array<{ extraWorkDayId: string; newTotalCompOffUsed: number }> = [];
+
+            for (const compOffLeave of availableCompOffLeaves) {
+                if (remainingDays <= 0) break;
+
+                const credit = compOffLeave.totalCompOffCredit || 0;
+                const used = compOffLeave.totalCompOffUsed || 0;
+                const available = credit - used;
+
+                if (available > 0) {
+                    const toUse = Math.min(remainingDays, available);
+                    const newTotalCompOffUsed = used + toUse;
+                    
+                    compOffLeavesToUpdate.push({
+                        extraWorkDayId: compOffLeave.extraWorkDayId,
+                        newTotalCompOffUsed: newTotalCompOffUsed
+                    });
+                    
+                    remainingDays -= toUse;
+                }
+            }
+
+            // Update comp off leaves with new totalCompOffUsed values
+            for (const updateItem of compOffLeavesToUpdate) {
+                await dbOutput.employeeExtraWorkDay.update(
+                    { totalCompOffUsed: updateItem.newTotalCompOffUsed },
+                    {
+                        where: {
+                            extraWorkDayId: updateItem.extraWorkDayId
+                        },
+                        transaction
+                    }
+                );
+            }
+
+            // Find unpaid leave config if unpaid days exist
+            let unpaidLeaveConfigId: string | undefined;
+            if (finalUnpaidDays > 0) {
+                const unpaidLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
+                    where: {
+                        leaveType: { [Op.like]: '%unpaid%' },
+                        isActive: true
+                    },
+                    attributes: ['leaveConfigId'],
+                    raw: true
+                });
+                
+                if (!unpaidLeaveConfig) {
+                    sendError(res, "Unpaid leave configuration not found");
+                    return;
+                }
+                unpaidLeaveConfigId = unpaidLeaveConfig.leaveConfigId;
+            }
+
+            // Prepare paid leave request data (comp off)
+            let paidLeaveData: EmployeeLeaveRequestAttributes | null = null;
+            if (finalPaidDays > 0) {
+                // For half-day, endDate should be same as startDate
+                const paidEndDate = isHalfDay ? start : (finalUnpaidDays > 0 ? addDays(start, finalPaidDays - 1) : end);
+                paidLeaveData = {
+                    leaveRequestId: await createUUIDV4(),
+                    empUuid: employeeId,
+                    leaveConfigId: leaveConfigId!,
+                    startDate: start,
+                    endDate: paidEndDate,
+                    totalDays: finalPaidDays,
+                    isHalfDay: isHalfDay && finalPaidDays === 0.5,
+                    remarks,
+                    attachmentPath,
+                    approvalStatus: LeaveApprovalStatus.APPROVED,
+                    approvedBy: empUuid,
+                    approvalDate: new Date()
+                };
+            }
+
+            // Prepare unpaid leave request data
+            let unpaidLeaveData: EmployeeLeaveRequestAttributes | null = null;
+            if (finalUnpaidDays > 0 && unpaidLeaveConfigId) {
+                // For half-day unpaid, endDate should be same as startDate
+                const unpaidStartDate = isHalfDay ? start : (finalUnpaidDays > 0 ? addDays(start, finalPaidDays) : start);
+                const unpaidEndDate = isHalfDay ? start : end;
+                unpaidLeaveData = {
+                    leaveRequestId: await createUUIDV4(),
+                    empUuid: employeeId,
+                    leaveConfigId: unpaidLeaveConfigId,
+                    startDate: unpaidStartDate,
+                    endDate: unpaidEndDate,
+                    totalDays: finalUnpaidDays,
+                    isHalfDay: isHalfDay && finalUnpaidDays === 0.5,
+                    remarks,
+                    attachmentPath,
+                    approvalStatus: LeaveApprovalStatus.APPROVED,
+                    approvedBy: empUuid,
+                    approvalDate: new Date()
+                };
+            }
+
+            // Create leave requests (paid and/or unpaid) as needed
+            if (paidLeaveData && paidLeaveData.totalDays > 0) {
+                await createLeaveRequestHelper(
+                    paidLeaveData,
+                    excludePaidWeekend,
+                    jobDetails,
+                    false, // isPending = false (direct approval)
+                    transaction
+                );
+            }
+            
+            if (unpaidLeaveData && unpaidLeaveData.totalDays > 0) {
+                await createLeaveRequestHelper(
+                    unpaidLeaveData,
+                    excludePaidWeekend,
+                    jobDetails,
+                    false, // isPending = false (direct approval)
+                    transaction
+                );
+            }
+
+            // Update employee payslip status for unpaid leave if needed
+            if (finalUnpaidDays > 0 && paidLeaveData && unpaidLeaveData) {
+                await updateEmployeePayslipStatusForUnpaidLeave(employeeId, paidLeaveData, unpaidLeaveData, transaction);
+            }
+
+            res.status(200).json({
+                success: true,
+                message: "Comp off leave applied and approved successfully",
+            });
+            return;
+        });
+
+        // Send email notification to HR admins asynchronously (after transaction commits)
+        setImmediate(async () => {
+            try {
+                const hrAdmin = await findHRRepositoryToolAdminUsers();
+                const emailRecipients = await Promise.all(
+                    hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
+                );
+
+                // Send email to each HR admin (not blocking, no transaction)
+                emailRecipients.forEach(async (recipient) => {
+                    if (recipient?.empOfficialEmail) {
+                        const startDateStr = new Date(startDate!).toISOString().split('T')[0];
+                        const endDateStr = new Date(endDate!).toISOString().split('T')[0];
+                        const finalEndDate = startDateStr === endDateStr ? null : endDateStr;
+
+                        LeaveRequestMail(
+                            recipient.empOfficialEmail,
+                            recipient.empUuid,
+                            `${basicDetailsForEmail.empFirstName} ${basicDetailsForEmail.empLastName}`,
+                            startDateStr,
+                            finalEndDate,
+                            configDetailsForEmail.leaveType,
+                            true, // approved
+                            undefined // no transaction
+                        ).catch(err => console.error("Error sending comp off leave email:", err));
+                    }
+                });
+            } catch (err) {
+                console.error("Error sending comp off leave notification emails:", err);
+            }
+        });
+
+        return;
+    } catch (err) {
+        console.error("Error in registerCompOffLeave", err);
+        sendError(res, "An unexpected error occurred");
+        return;
+    }
+};
+
+/**
+ * API to get comp off leave eligibility for a date range.
+ * Calculates paid (from available comp off) and unpaid days.
+ * Checks CDL, notice period, and other validations.
+ */
+export const getCompOffLeaveEligibility = async (req: Request, res: Response) => {
+    try {
+        const { user } = req as AuthenticatedRequest;
+        const { toolsAccess, email } = user as { toolsAccess: unknown; email: string };
+        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+
+        const { empUuid, startDate, endDate, isHalfDay: isHalfDayParam } = req.query as {
+            empUuid: string;
+            startDate: string;
+            endDate?: string;
+            isHalfDay?: string;
+        };
+
+        if (!empUuid || !startDate) {
+        res.status(400).json({
+                success: false,
+                message: "Employee UUID and start date are required"
+        });
+        return;
+    }
+
+        // Validate start date
+        if (!isValidDate(startDate)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid start date format"
+            });
+            return;
+        }
+
+        // If endDate is not provided, default to startDate
+        const finalEndDate = endDate || startDate;
+
+        // Validate end date if provided
+        if (endDate && !isValidDate(endDate)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid end date format"
+            });
+            return;
+        }
+
+        if (new Date(startDate) > new Date(finalEndDate)) {
+            res.status(400).json({
+                success: false,
+                message: "Start date cannot be after end date"
+            });
+            return;
+        }
+
+        // Get the UUID of the user making the request
+        const { empUuid: requestorEmpUuid } = await fetchEmployeeContactDetailsFromEmail(email);
+
+        // Only admin/super admin can check eligibility for other employees
+        if (userType < 500 && requestorEmpUuid !== empUuid) {
+        res.status(403).json({
+                success: false,
+                message: "You do not have access to check eligibility for other employees"
+        });
+        return;
+    }
+
+        const start = new Date(startDate);
+        const end = new Date(finalEndDate);
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+
+        // Determine if this is a half-day leave
+        const isHalfDay = isHalfDayParam === 'true' || isHalfDayParam === '1';
+
+        // Fetch employee details and comp off leave config in parallel
+        const [jobDetails, basicDetails, compOffLeaveConfig] = await Promise.all([
+            fetchEmployeeCurrentJobDetails(empUuid),
+            fetchEmployeeBasicDetails(empUuid),
+            dbOutput.employeeLeaveConfigurator.findOne({
+                where: {
+                    leaveType: { [Op.like]: '%comp%' },
+                    isActive: true
+                },
+                raw: true
+            })
+        ]);
+
+        if (!compOffLeaveConfig) {
+            res.status(400).json({
+                success: false,
+                message: "Comp off leave configuration not found"
+            });
+            return;
+        }
+
+        // Fetch mandatory holidays in the range
+        const mandatoryLeaves = await fetchMandatoryLeavesInRange(new Date(startDate), new Date(finalEndDate));
+        const holidayDatesList = mandatoryLeaves.map((holiday: EmployeeHolidayDetailsAttributes) => holiday.eventDate);
+        
+        // Get excludePaidWeekend from config
+        const excludePaidWeekend = compOffLeaveConfig.excludePaidWeekend || false;
+
+        // Adjust start and end dates to skip holidays/weekends if needed
+        const { start: adjustedStart, end: adjustedEnd } = adjustStartAndEndDate(startDate, finalEndDate, excludePaidWeekend, holidayDatesList);
+
+        // Calculate total days requested (excluding weekends/holidays if needed)
+        let totalDays: number;
+        if (isHalfDay) {
+            totalDays = 0.5;
+        } else {
+            totalDays = Math.floor((adjustedEnd.getTime() - adjustedStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+            if (excludePaidWeekend) {
+                totalDays = countWeekdays(adjustedStart, adjustedEnd);
+                totalDays -= mandatoryLeaves.length;
+            }
+        }
+
+        // Parse employeeType and appliedGender
+        const employeeType = typeof compOffLeaveConfig.employeeType === 'string'
+            ? JSON.parse(compOffLeaveConfig.employeeType || '[]')
+            : compOffLeaveConfig.employeeType || [];
+        const appliedGender = typeof compOffLeaveConfig.appliedGender === 'string'
+            ? JSON.parse(compOffLeaveConfig.appliedGender || '[]')
+            : compOffLeaveConfig.appliedGender || [];
+
+        // Check if comp off is applicable to employee
+        if (!employeeType.includes(jobDetails.empType)) {
+            res.status(400).json({
+                success: false,
+                message: "Comp off leave not applicable to your position"
+            });
+            return;
+        }
+        if (!appliedGender.includes(basicDetails.empGender)) {
+            res.status(400).json({
+                success: false,
+                message: "Comp off leave not applicable to your gender"
+            });
+            return;
+        }
+
+        // Fetch available comp off balance (not expired, not fully used)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const availableCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+            where: {
+                empUuid,
+                approvalStatus: LeaveApprovalStatus.APPROVED,
+                isDeleted: false,
+                compOffExpiryDate: {
+                    [Op.gte]: today
+                },
+                [Op.or]: [
+                    { totalCompOffUsed: null },
+                    { totalCompOffUsed: 0 },
+                    {
+                        [Op.and]: [
+                            { totalCompOffUsed: { [Op.ne]: null } },
+                            outputSequelize.literal('totalCompOffUsed < totalCompOffCredit')
+                        ]
+                    }
+                ]
+            },
+            order: [['workDate', 'ASC'], ['createdAt', 'ASC']],
+            raw: true
+        });
+
+        // Calculate available comp off credit
+        const availableCompOffCredit = availableCompOffLeaves.reduce(
+            (sum, leave) => {
+                const credit = leave.totalCompOffCredit || 0;
+                const used = leave.totalCompOffUsed || 0;
+                return sum + (credit - used);
+            },
+            0
+        );
+
+        // Calculate paid and unpaid days based on available comp off credit
+        const paidDays = Math.min(totalDays, availableCompOffCredit);
+        const unpaidDays = Math.max(0, totalDays - paidDays);
+
+        // Check notice period (use original start date from user input, not adjusted)
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        const originalStart = new Date(startDate);
+        originalStart.setHours(0, 0, 0, 0);
+        const startDiffDays = getDateDiffInDays(todayDate, originalStart);
+        const minimumNoticePeriod = compOffLeaveConfig.minimumNoticePeriod || 0;
+        const maximumNoticePeriod = compOffLeaveConfig.maximumNoticePeriod || 365;
+
+        let noticePeriodValid = true;
+        let noticePeriodMessage = '';
+        if (userType < 500) {
+            if (originalStart.getTime() >= todayDate.getTime() && startDiffDays < minimumNoticePeriod) {
+                noticePeriodValid = false;
+                noticePeriodMessage = `Minimum notice period of ${minimumNoticePeriod} days not satisfied`;
+            } else if (originalStart.getTime() < todayDate.getTime() && startDiffDays > maximumNoticePeriod) {
+                noticePeriodValid = false;
+                noticePeriodMessage = `Maximum notice period of ${maximumNoticePeriod} days not satisfied`;
+            }
+        }
+
+        // Check continuous leave limit (CDL) - use adjusted start date
+        const continuousLeavesLimit = compOffLeaveConfig.continuousLeavesLimit || 0;
+        const previousLeaveDetails = await getLeavesDetailsOfPastDays(empUuid, adjustedStart, continuousLeavesLimit);
+        const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === compOffLeaveConfig.leaveConfigId);
+        const isAdmin = userType >= 500;
+        
+        // Apply CDL restrictions for non-admin users
+        // If totalDays exceeds CDL or previous leaves + current request would exceed CDL, adjust paid/unpaid
+        let cdlValid = true;
+        let cdlMessage = '';
+        let finalPaidDays = paidDays;
+        let finalUnpaidDays = unpaidDays;
+        
+        if (!isAdmin && continuousLeavesLimit > 0) {
+            // Check if current request exceeds CDL
+            if (totalDays > continuousLeavesLimit || sameTypeLeaves.length >= continuousLeavesLimit) {
+                const maxContinuousPaid = Math.min(paidDays, continuousLeavesLimit);
+                const excessDays = paidDays - maxContinuousPaid;
+                
+                // Adjust paid/unpaid based on CDL
+                finalPaidDays = maxContinuousPaid;
+                finalUnpaidDays = unpaidDays + excessDays;
+                
+                if (totalDays > continuousLeavesLimit) {
+                    cdlValid = false;
+                    cdlMessage = `Continuous leave limit of ${continuousLeavesLimit} days exceeded. Only ${maxContinuousPaid} days will be paid, rest will be unpaid.`;
+                } else if (sameTypeLeaves.length >= continuousLeavesLimit) {
+                    cdlValid = false;
+                    cdlMessage = `Continuous leave limit of ${continuousLeavesLimit} days already used. All ${totalDays} days will be unpaid.`;
+                    // If previous leaves already hit the limit, all current days should be unpaid
+                    finalPaidDays = 0;
+                    finalUnpaidDays = totalDays;
+                }
+            } else if (sameTypeLeaves.length + totalDays > continuousLeavesLimit) {
+                // Current request + previous leaves would exceed CDL
+                const remainingCDL = continuousLeavesLimit - sameTypeLeaves.length;
+                const maxContinuousPaid = Math.min(paidDays, remainingCDL);
+                const excessDays = paidDays - maxContinuousPaid;
+                
+                finalPaidDays = maxContinuousPaid;
+                finalUnpaidDays = unpaidDays + excessDays;
+                
+                cdlValid = false;
+                cdlMessage = `Continuous leave limit of ${continuousLeavesLimit} days will be exceeded. Only ${maxContinuousPaid} days will be paid, rest will be unpaid.`;
+            }
+        }
+
+        // Check overlapping leaves (use adjusted dates)
+        const overlappingLeaves = await fetchOverLappingLeaves(empUuid, adjustedStart, adjustedEnd);
+        const hasOverlap = overlappingLeaves.overlappingLeaveAttendances.length > 0 || 
+                          overlappingLeaves.overlappingLeaveRequests.length > 0;
+
+        res.status(200).json({
+            success: true,
+            message: "Comp off leave eligibility calculated successfully",
+            data: {
+                totalDays,
+                paidDays: finalPaidDays,
+                unpaidDays: finalUnpaidDays,
+                availableCompOffCredit,
+                isEligible: noticePeriodValid && cdlValid && !hasOverlap,
+                validations: {
+                    noticePeriod: {
+                        valid: noticePeriodValid,
+                        message: noticePeriodMessage
+                    },
+                    continuousLeaveLimit: {
+                        valid: cdlValid,
+                        message: cdlMessage,
+                        limit: continuousLeavesLimit,
+                        used: sameTypeLeaves.length
+                    },
+                    overlappingLeaves: {
+                        valid: !hasOverlap,
+                        message: hasOverlap ? "Leave overlaps with existing leaves" : ""
+                    }
+                }
+            }
+        });
+        return;
+
+    } catch (error) {
+        console.error("Error in getCompOffLeaveEligibility:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : error,
+        });
+        return;
+    }
+};
+
+/**
+ * API to update comp off leave when changed to another leave type or working status.
+ * Restores comp off balance by updating totalCompOffUsed (newest first - reverse order).
+ * Handles half day vs full day properly.
+ */
+export const updateCompOffLeave = async (req: Request, res: Response) => {
+    try {
+        // Extract user info from request (for permission checks)
+        const { user } = req as AuthenticatedRequest;
+        const { email, toolsAccess } = user as { email: string, toolsAccess: unknown };
+
+        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+
+        // Get attendanceId from params and update details from body
+        const { attendanceId } = req.params as { attendanceId: string };
+        const attendanceDetails: EmployeeAttendanceRequestPayload = req.body;
+        const {
+            attendanceStatus,
+            leaveConfigId
+        } = attendanceDetails;
+
+        // Capture variables for email (outside transaction)
+        let employeeIdForEmail: string | null = null;
+        let existingLeaveConfigIdForEmail: string | null = null;
+        let attendanceDateForEmail: Date | null = null;
+        let attendanceStatusForEmail: string | null = null;
+
+        // Start a DB transaction for atomicity
+        await outputSequelize.transaction(async (transaction) => {
+            // Get the UUID of the user making the request
+            const { empUuid }: { empUuid: string } = await fetchEmployeeContactDetailsFromEmail(email);
+
+            // Fetch the current attendance record
+            const currentAttendance: EmployeeAttendanceAttributes = await fetchEmployeeAttendanceDetailsById(attendanceId, transaction);
+            const employeeId = currentAttendance.empUuid;
+            
+            // Capture for email (outside transaction)
+            employeeIdForEmail = employeeId;
+            attendanceDateForEmail = currentAttendance.attendanceDate;
+            attendanceStatusForEmail = attendanceStatus;
+
+            // Only admin/super admin can update comp off leave for other employees
+            if (userType < 500 && empUuid !== employeeId) {
+                sendError(
+                    res,
+                    "You do not have the access. Only admin and super admin can update comp off leave for other employees",
+                );
+                return;
+            }
+
+            // Must have a leave request to update
+            if (!currentAttendance.leaveRequestId) {
+                sendError(res, "Leave request not found");
+                return;
+            }
+
+            // Fetch the existing leave request details
+            const existingLeaveRequestDetails: EmployeeLeaveRequestAttributes[] = await fetchLeaveRequestDetailsFromLeaveId([currentAttendance.leaveRequestId]);
+            if (!existingLeaveRequestDetails || existingLeaveRequestDetails.length === 0) {
+                sendError(res, "Leave request details not found");
+                return;
+            }
+
+            const existingLeaveRequest = existingLeaveRequestDetails[0];
+            const existingLeaveConfigId = existingLeaveRequest.leaveConfigId;
+            
+            // Capture for email (outside transaction)
+            existingLeaveConfigIdForEmail = existingLeaveConfigId;
+
+            // Fetch leave config to check if it's a comp off leave
+            const existingLeaveConfig = await fetchLeaveConfigDetails(existingLeaveConfigId);
+            if (!existingLeaveConfig) {
+                sendError(res, "Existing leave configuration not found");
+                return;
+            }
+
+            // Check if the existing leave is a comp off leave (case-insensitive)
+            const isCompOffLeave = existingLeaveConfig.leaveType?.toLowerCase().includes('comp') || 
+                                   existingLeaveConfig.leaveType?.toLowerCase().includes('comp off');
+
+            // Only proceed if it's a comp off leave being changed
+            if (!isCompOffLeave) {
+                sendError(res, "This is not a comp off leave");
+                return;
+            }
+
+            // Get days to restore from the existing leave request
+            const daysToRestore = existingLeaveRequest.totalDays;
+
+            // Fetch job details for fiscal year calculation
+            const jobDetails = await fetchEmployeeCurrentJobDetails(employeeId, transaction);
+
+            // Fetch used comp off leaves (newest first - reverse order for restoration)
+            const usedCompOffLeaves = await dbOutput.employeeExtraWorkDay.findAll({
+                where: {
+                    empUuid: employeeId,
+                    approvalStatus: LeaveApprovalStatus.APPROVED,
+                    isDeleted: false,
+                    totalCompOffUsed: {
+                        [Op.gt]: 0
+                    }
+                },
+                order: [['workDate', 'DESC'], ['createdAt', 'DESC']], // Newest first (reverse of registration)
+                raw: true
+            });
+
+            // Calculate total used comp off credit
+            const totalUsedCredit = usedCompOffLeaves.reduce(
+                (sum, leave) => sum + (leave.totalCompOffUsed || 0),
+                0
+            );
+
+            // Check if we have enough used credit to restore
+            if (totalUsedCredit < daysToRestore) {
+                sendError(
+                    res,
+                    `Insufficient used comp off credit to restore. Used: ${totalUsedCredit}, Required: ${daysToRestore}`
+                );
+                return;
+            }
+
+            // Restore comp off leaves, starting from newest (reverse order)
+            let remainingDaysToRestore = daysToRestore;
+            const compOffLeavesToUpdate: Array<{ extraWorkDayId: string; newTotalCompOffUsed: number }> = [];
+
+            for (const compOffLeave of usedCompOffLeaves) {
+                if (remainingDaysToRestore <= 0) break;
+
+                const used = compOffLeave.totalCompOffUsed || 0;
+                if (used > 0) {
+                    const toRestore = Math.min(remainingDaysToRestore, used);
+                    const newTotalCompOffUsed = used - toRestore;
+                    
+                    compOffLeavesToUpdate.push({
+                        extraWorkDayId: compOffLeave.extraWorkDayId,
+                        newTotalCompOffUsed: newTotalCompOffUsed
+                    });
+                    
+                    remainingDaysToRestore -= toRestore;
+                }
+            }
+
+            // Update comp off leaves with restored values
+            for (const updateItem of compOffLeavesToUpdate) {
+                await dbOutput.employeeExtraWorkDay.update(
+                    { totalCompOffUsed: updateItem.newTotalCompOffUsed },
+                    {
+                        where: {
+                            extraWorkDayId: updateItem.extraWorkDayId
+                        },
+                        transaction
+                    }
+                );
+            }
+
+            // If changing to working status, restore leave balance for comp off and update attendance
+            if (attendanceStatus === AttendanceStatusType.WORKING) {
+                const fiscalYear = getFiscalYearForLeave(jobDetails?.empConversionDate, currentAttendance.attendanceDate);
+                const { fiscalYearStart, fiscalYearEnd } = getFiscalYearStartAndEndDate(jobDetails?.empConversionDate, currentAttendance.attendanceDate);
+
+                // Restore leave balance (negative value to restore)
+                await updateEmployeeLeaveBalance({
+                    jobDetails: jobDetails,
+                    leaveConfigId: existingLeaveConfigId,
+                    totalLeaveUsed: -daysToRestore,
+                    fiscalYear,
+                    fiscalYearStart,
+                    fiscalYearEnd,
+                    transaction
+                });
+
+                // Update attendance record: set leaveRequestId to null when changing to working
+                const { checkIn, checkOut, remarks } = attendanceDetails;
+                if (checkIn && checkOut) {
+                    const workHours: number = getHourDifference(checkIn, checkOut);
+                    const attendanceUpdateData: Partial<EmployeeAttendanceAttributes> = {
+                        checkIn,
+                        checkOut,
+                        workHours,
+                        attendanceStatus: AttendanceStatusType.WORKING,
+                        remarks: remarks || undefined,
+                        leaveRequestId: null as unknown as string | undefined
+                    };
+                    await updateEmployeeAttendanceDetails(attendanceUpdateData, attendanceId, transaction);
+                }
+            } else if (leaveConfigId && leaveConfigId !== existingLeaveConfigId) {
+                // Changing to a different leave type
+                // Restore comp off leave balance first
+                const fiscalYear = getFiscalYearForLeave(jobDetails?.empConversionDate, currentAttendance.attendanceDate);
+                const { fiscalYearStart, fiscalYearEnd } = getFiscalYearStartAndEndDate(jobDetails?.empConversionDate, currentAttendance.attendanceDate);
+
+                // Restore comp off leave balance
+                await updateEmployeeLeaveBalance({
+                    jobDetails: jobDetails,
+                    leaveConfigId: existingLeaveConfigId,
+                    totalLeaveUsed: -daysToRestore,
+                    fiscalYear,
+                    fiscalYearStart,
+                    fiscalYearEnd,
+                    transaction
+                });
+
+                // The new leave type will be handled by the existing updateEmployeeAttendance function
+                // which will be called after this function completes
+            }
+
+            res.status(200).json({
+                success: true,
+                message: "Comp off leave updated successfully",
+            });
+            return;
+        });
+
+        // Send email notification to HR admins asynchronously (after transaction commits)
+        if (employeeIdForEmail && existingLeaveConfigIdForEmail && attendanceDateForEmail && attendanceStatusForEmail) {
+            setImmediate(async () => {
+                try {
+                    // Fetch employee details for email
+                    const employeeBasicDetails = await fetchEmployeeBasicDetails(employeeIdForEmail!);
+                    const existingLeaveConfig = await fetchLeaveConfigDetails(existingLeaveConfigIdForEmail!);
+                    
+                    const hrAdmin = await findHRRepositoryToolAdminUsers();
+                    const emailRecipients = await Promise.all(
+                        hrAdmin.map(async (admin) => await fetchEmployeeContactDetailsFromEmail(admin.email))
+                    );
+
+                    // Send email to each HR admin (not blocking, no transaction)
+                    emailRecipients.forEach(async (recipient) => {
+                        if (recipient?.empOfficialEmail) {
+                            const attendanceDateStr = attendanceDateForEmail!.toISOString().split('T')[0];
+                            
+                            LeaveRequestMail(
+                                recipient.empOfficialEmail,
+                                recipient.empUuid,
+                                `${employeeBasicDetails.empFirstName} ${employeeBasicDetails.empLastName}`,
+                                attendanceDateStr,
+                                null, // single day
+                                existingLeaveConfig?.leaveType || "Comp Off",
+                                attendanceStatusForEmail === AttendanceStatusType.WORKING ? false : true, // false if changed to working, true if changed to another leave
+                                undefined // no transaction
+                            ).catch(err => console.error("Error sending comp off update email:", err));
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error sending comp off update notification emails:", err);
+                }
+            });
+        }
+
+        return;
+    } catch (err) {
+        console.error("Error in updateCompOffLeave", err);
+        sendError(res, "An unexpected error occurred");
+        return;
     }
 };

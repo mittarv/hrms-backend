@@ -20,7 +20,7 @@ export class hrmsNotificationLogs extends Model<
     declare updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initHrmsNotificationLogs = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
     hrmsNotificationLogs.init(
         {
             notificationId: {

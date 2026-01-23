@@ -15,7 +15,7 @@ implements employeePayslipItemAttributes
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeePayslipItems = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
     employeePayslipItems.init(
       {
         payrollItemId: {

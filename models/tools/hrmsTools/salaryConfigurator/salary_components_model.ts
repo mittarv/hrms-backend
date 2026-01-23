@@ -26,7 +26,7 @@ export class salaryComponents
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initSalaryComponents = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   salaryComponents.init(
     {
       componentId: {
@@ -37,7 +37,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       salaryCategoryId: {
         type: dataTypes.STRING,
         references: {
-                model: 'salaryCategories',
+                model: 'salarycategories',
                 key: 'salaryCategoryId'
         },
         allowNull: false,

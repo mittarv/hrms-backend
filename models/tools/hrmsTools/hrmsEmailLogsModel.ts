@@ -19,16 +19,16 @@ export class hrmsEmailLogs
   public readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initHrmsEmailLogs = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   hrmsEmailLogs.init(
     {
       email_log_id: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         primaryKey: true,
         allowNull: false,
       },
       recipient_employee_id: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: true,
         // references: {
         //   model: "employeebasicdetails",

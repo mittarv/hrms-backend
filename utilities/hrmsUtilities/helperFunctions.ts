@@ -1,6 +1,6 @@
 import { Op, Transaction } from "sequelize";
 import { AttendanceStatusType, payrollStatus } from "../../interfaces/hrmsTool/enum/hrmsEnum";
-import { EmployeeAttendanceAttributes, EmployeeLeaveAttendanceAttributes, EmployeeLeaveBalanceAttributes, EmployeeLeaveRequestAttributes, employeePayslipAttributes, employeePayslipItemAttributes, LeaveConfigWithAccrual } from "../../interfaces/hrmsTool/interface/hrmsInterface";
+import { EmployeeAttendanceAttributes, EmployeeLeaveAttendanceAttributes, EmployeeLeaveBalanceAttributes, EmployeeLeaveRequestAttributes, employeePayslipAttributes, employeePayslipItemAttributes, LeaveConfigWithAccrual , EmployeeLeaveConfiguratorAttributes } from "../../interfaces/hrmsTool/interface/hrmsInterface";
 import { createUUIDV4 } from "../uuidV4Generator";
 import { createEmployeeAttendanceRecord, createLeaveRequest, fetchAllLeaveConfigDetails, fetchEmployeeCurrentJobDetails, fetchEmployeeLeavesData, updateEmployeeAttendanceDetails, updateEmployeeLeaveBalance, } from "./dbCalls";
 import { apporveRejectLeaveRequestMail } from "../../middlewares/sendEmail";
@@ -885,18 +885,102 @@ export const generatePayrollCSV = (payslips): string => {
 
     return `${header.join(',')}\n${rows.map(row => row.join(',')).join('\n')}\n`;
 };
-export const fetchApplicableLeaveConfigs = async (employeeType: string, empGender: string) => {
+
+
+
+export const isEmployeeEligible = (
+    conversionDate: Date, 
+    config: EmployeeLeaveConfiguratorAttributes, 
+    empType: string
+): boolean => {
+    
+    if (!config.leaveApplicableTo || config.leaveApplicableTo === 'null') {
+        return true;
+    }
+
+    try {
+        
+        const rules = typeof config.leaveApplicableTo === 'string' 
+            ? JSON.parse(config.leaveApplicableTo) 
+            : config.leaveApplicableTo;
+
+        
+        if (!rules || typeof rules !== 'object') {
+            return true; 
+        }
+
+        const rule = rules[empType];
+
+        
+
+        const today = new Date();
+        const { value, unit } = rule;
+        const eligibilityDate = new Date(conversionDate);
+
+        
+        if (unit === 'Days') {
+            eligibilityDate.setDate(eligibilityDate.getDate() + value);
+        } else if (unit === 'Weeks') {
+            eligibilityDate.setDate(eligibilityDate.getDate() + (value * 7));
+        } else if (unit === 'Months') {
+            eligibilityDate.setMonth(eligibilityDate.getMonth() + value);
+        }
+
+        
+        
+        return today >= eligibilityDate;
+
+    } catch (error) {
+        
+        console.error("Eligibility parsing error:", error);
+        return true;
+    }
+};
+
+
+
+export const fetchApplicableLeaveConfigs = async (employeeType: string, empGender: string, conversionDate: Date) => {
   // Fetch all leave configurations
   const allLeaveConfigs = await fetchAllLeaveConfigDetails();
 
   // Filter leave configs applicable to employee's type
+  
   const applicableLeaveConfigs = allLeaveConfigs.filter(config => {
       const employeeTypes = JSON.parse(config.employeeType || '[]');
       const appliedGenders = JSON.parse(config.appliedGender || '[]');
 
       // Check if config is applicable to employee
-      return employeeTypes.includes(employeeType) && appliedGenders.includes(empGender) && config.isActive;
+      const isBasicMatch = employeeTypes.includes(employeeType) && appliedGenders.includes(empGender) && config.isActive;
+
+      if (!isBasicMatch) return false;
+
+      
+        return isEmployeeEligible(conversionDate, config, employeeType);
   });
 
   return applicableLeaveConfigs;
 };
+
+
+
+
+
+export const getEmployeeUuid = async (tmsUser) => {
+  console.log("iddd", tmsUser)
+    try {
+
+    //Fetching the employeeUuid based on email
+    // const employeeUuid = await dbOutput.employeeContactDetails.findOne({
+    //   attributes : ['empUuid'],
+    //   where: { empOfficialEmail: tmsUser.email},
+    // });
+
+    //Adding the employeeUuid to the response
+    // const response = {employeeUuid: employeeUuid?.empUuid || null }
+    
+    return null;
+
+  } catch (error) {
+    return `Error fetching employee UUID: ${error.message}`;
+  }
+}

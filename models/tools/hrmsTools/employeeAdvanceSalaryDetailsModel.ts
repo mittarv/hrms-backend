@@ -15,16 +15,16 @@ export class employeeAdvanceSalaryDetails
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeAdvanceSalaryDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeAdvanceSalaryDetails.init(
     {
       advanceSalaryId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       empUuid: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       empCurrentAdvanceSalaryAmount: {

@@ -19,7 +19,7 @@ export class UamToolsDetails
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initUamToolsDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   UamToolsDetails.init(
     {
       toolId: {

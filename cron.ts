@@ -1,5 +1,7 @@
 import os from 'os';
 import dotenv from 'dotenv';
+import { createPayrollCronJob } from './controllers/tools/hrmsTools/PayrollController';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -52,8 +54,8 @@ export const initializeCronJobs = () => {
     
     // TEST CRON - Runs every minute (for testing only)
     // Comment this out in production
-    // cron.schedule('* * * * *', testCronJob);
-    // console.log('  ✓ Test cron (every minute) - ENABLED FOR TESTING');
+    cron.schedule('* * * * *', createPayrollCronJob);
+    console.log('  ✓ Test cron (every minute) - ENABLED FOR TESTING');
     
     console.log('✅ All cron jobs initialized successfully\n');
   } catch (error) {

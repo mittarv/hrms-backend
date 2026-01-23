@@ -21,24 +21,24 @@ export class employeeDataRequest
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeDataRequest = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeDataRequest.init(
     {
       requestId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       requestedFor: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       requestedBy: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       actionedBy: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: true,
       },
       oldData: {

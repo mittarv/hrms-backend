@@ -219,4 +219,123 @@ export const setupHrmsAssociations = (): void => {
             onDelete: 'RESTRICT'
         });
     }
+
+    if (dbOutput.employeeLeaveConfigurator && dbOutput.employeeExtraWorkDay) {
+        // One-to-Many: employeeLeaveConfigurator -> employeeExtraWorkDay
+        dbOutput.employeeLeaveConfigurator.hasMany(dbOutput.employeeExtraWorkDay, {
+            foreignKey: 'leaveConfigId',
+            sourceKey: 'leaveConfigId',
+            as: 'extraWorkDays',
+            onUpdate: 'CASCADE',
+            onDelete: 'RESTRICT'
+        });
+
+        // Many-to-One: employeeExtraWorkDay -> employeeLeaveConfigurator
+        dbOutput.employeeExtraWorkDay.belongsTo(dbOutput.employeeLeaveConfigurator, {
+            foreignKey: 'leaveConfigId',
+            targetKey: 'leaveConfigId',
+            as: 'leaveConfig',
+            onUpdate: 'CASCADE',
+            onDelete: 'RESTRICT'
+        });
+    }
+
+    // =========================================== HRMS Access Management Associations ===========================================
+    if (dbOutput.hrmsAccessRole && dbOutput.hrmsAccessPermission && dbOutput.hrmsAccessRolePermission) {
+        // Many-to-Many: Role ↔ Permission through RolePermission
+        dbOutput.hrmsAccessRole.belongsToMany(dbOutput.hrmsAccessPermission, {
+            through: dbOutput.hrmsAccessRolePermission,
+            foreignKey: 'roleId',
+            otherKey: 'permissionId',
+            as: 'permissions',
+            constraints: true,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        dbOutput.hrmsAccessPermission.belongsToMany(dbOutput.hrmsAccessRole, {
+            through: dbOutput.hrmsAccessRolePermission,
+            foreignKey: 'permissionId',
+            otherKey: 'roleId',
+            as: 'roles',
+            constraints: true,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: Role -> RolePermission
+        dbOutput.hrmsAccessRole.hasMany(dbOutput.hrmsAccessRolePermission, {
+            foreignKey: 'roleId',
+            sourceKey: 'roleId',
+            as: 'rolePermissions',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: Permission -> RolePermission
+        dbOutput.hrmsAccessPermission.hasMany(dbOutput.hrmsAccessRolePermission, {
+            foreignKey: 'permissionId',
+            sourceKey: 'permissionId',
+            as: 'rolePermissions',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // Many-to-One: RolePermission -> Role
+        dbOutput.hrmsAccessRolePermission.belongsTo(dbOutput.hrmsAccessRole, {
+            foreignKey: 'roleId',
+            targetKey: 'roleId',
+            as: 'role',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // Many-to-One: RolePermission -> Permission
+        dbOutput.hrmsAccessRolePermission.belongsTo(dbOutput.hrmsAccessPermission, {
+            foreignKey: 'permissionId',
+            targetKey: 'permissionId',
+            as: 'permission',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+    }
+
+    // HRMS Employee Role Associations
+    if (dbOutput.hrmsEmployeeRole && dbOutput.employeeBasicDetails && dbOutput.hrmsAccessRole) {
+        // Many-to-One: EmployeeRole -> Employee
+        dbOutput.hrmsEmployeeRole.belongsTo(dbOutput.employeeBasicDetails, {
+            foreignKey: 'empUuid',
+            targetKey: 'empUuid',
+            as: 'employee',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // Many-to-One: EmployeeRole -> Role
+        dbOutput.hrmsEmployeeRole.belongsTo(dbOutput.hrmsAccessRole, {
+            foreignKey: 'roleId',
+            targetKey: 'roleId',
+            as: 'role',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: Employee -> EmployeeRoles
+        dbOutput.employeeBasicDetails.hasMany(dbOutput.hrmsEmployeeRole, {
+            foreignKey: 'empUuid',
+            sourceKey: 'empUuid',
+            as: 'employeeRoles',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        // One-to-Many: Role -> EmployeeRoles
+        dbOutput.hrmsAccessRole.hasMany(dbOutput.hrmsEmployeeRole, {
+            foreignKey: 'roleId',
+            sourceKey: 'roleId',
+            as: 'employeeRoles',
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+    }
 };

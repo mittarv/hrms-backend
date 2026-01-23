@@ -1,10 +1,31 @@
 const { dbOutput } = require("../../../models/index");
 const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
+const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 
 const EmployeeLeaveConfigurator = dbOutput.employeeLeaveConfigurator;
 
 exports.createLeave = async (req, res) => {
   try {
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+    const employeeUuid = user?.employeeUuid;
+
+    // Check permission: admin access (>= 900) OR LeaveConfigurator_Create permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "LeaveConfigurator_Create",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to create leave configuration",
+      });
+    }
+
     let leaveConfigId = await createUUIDV4();
     const {
       leaveType,
@@ -93,6 +114,26 @@ exports.createLeave = async (req, res) => {
 // It is a patch request
 exports.updateLeaveConfiguration = async (req, res) => {
   try {
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+    const employeeUuid = user?.employeeUuid;
+
+    // Check permission: admin access (>= 900) OR LeaveConfigurator_update permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "LeaveConfigurator_update",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update leave configuration",
+      });
+    }
+
     const {
       leaveConfigId,
       leaveType,
@@ -201,6 +242,26 @@ exports.getAllLeaves = async (req, res) => {
 
 exports.getLeaveDetailsByUuid = async (req, res) => {
   try {
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+    const employeeUuid = user?.employeeUuid;
+
+    // Check permission: admin access (>= 900) OR LeaveConfigurator_Read permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "LeaveConfigurator_Read",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to view leave details",
+      });
+    }
+
     // Extract the employee UUID from the request parameters
     const leaveConfigId = req.params.id;
     if (!leaveConfigId) {

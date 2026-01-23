@@ -15,7 +15,7 @@ export class ImportantLinkList
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initImportantLinkList = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   ImportantLinkList.init(
     {
       id: {

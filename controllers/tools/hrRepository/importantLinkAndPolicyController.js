@@ -3,8 +3,9 @@ const { sequelize } = dbOutput;
 const ImportantLinkList = dbOutput.importantLinkList;
 const PolicyList = dbOutput.policyList;
 const TmsUser = dbOutput.tmsUsers;
-import { createHRMSNotification } from "../../../utilities/hrmsUtilities/dbCalls";
-import { hrmsNotificationTypes } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
+const { createHRMSNotification } = require("../../../utilities/hrmsUtilities/dbCalls");
+const { hrmsNotificationTypes } = require("../../../interfaces/hrmsTool/enum/hrmsEnum");
+const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 //===================fetching all the important links from the database and this function will be same for the every user=========================,
 //=============================================I mean super admin and normal admin============================================================================
 exports.getImportantLinkList = async (_, res) => {
@@ -54,7 +55,6 @@ exports.getPolicyList = async (_, res) => {
         },
       ],
     });
-    console.log(policyList)
     return res.status(200).send({
       success: true,
       message: "Policy List",
@@ -70,6 +70,25 @@ exports.addImportantLink = async (req, res) => {
   let transaction;
   try {
     const { toolArray, lastModifiedBy, createdBy, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR ImportantLink_create permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "ImportantLink_create",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to create important link",
+      });
+    }
+
     transaction = await sequelize.transaction();
 
     const allNotificationResults = [];
@@ -147,6 +166,32 @@ exports.addPolicy = async (req, res) => {
   try {
     //=============here the last modified by and created by will be the user id of the super admin or who is adding the policy===================
     const { policyArray, createdBy, lastModifiedBy, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR Policy_create permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "Policy_create",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to create policy",
+      });
+    }
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to create policy",
+      });
+    }
+
     transaction = await sequelize.transaction();
 
     const allNotificationResults = [];
@@ -235,7 +280,26 @@ exports.addPolicy = async (req, res) => {
 //===================updating a policy to the database and this function will be available only for super admin=========================,
 exports.updatePolicy = async (req, res) => {
   try {
-    const { policyArray, lastModifiedBy } = req.body;
+    const { policyArray, lastModifiedBy, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR Policy_update permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "Policy_update",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to update policy",
+      });
+    }
+
     for (var i = 0; i < policyArray.length; i++) {
       const policy = policyArray[i];
 
@@ -264,7 +328,26 @@ exports.updatePolicy = async (req, res) => {
 //===================updating a important link to the database and this function will be available only for super admin=========================,
 exports.updateImportantLink = async (req, res) => {
   try {
-    const { toolArray, lastModifiedBy } = req.body;
+    const { toolArray, lastModifiedBy, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR ImportantLink_update permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "ImportantLink_update",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to update important link",
+      });
+    }
+
     for (var i = 0; i < toolArray.length; i++) {
       const tool = toolArray[i];
       const { toolName, toolLink } = tool;
@@ -298,7 +381,26 @@ exports.updateImportantLink = async (req, res) => {
 //==============================deleting the policy from the database and this function will be available only for super admin=========================
 exports.deletePolicy = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR Policy_delete permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "Policy_delete",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to delete policy",
+      });
+    }
+
     if (!id || id === undefined) {
       return res
         .status(400)
@@ -313,7 +415,26 @@ exports.deletePolicy = async (req, res) => {
 //==============================deleting the important link from the database and this function will be available only for super admin=========================
 exports.deleteImportantLink = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, employeeUuid } = req.body;
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+
+    // Check permission: admin access (>= 900) OR ImportantLink_delete permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid || user?.employeeUuid,
+      "ImportantLink_delete",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).send({
+        success: false,
+        message: "You don't have permission to delete important link",
+      });
+    }
+
     if (!id || id === undefined) {
       return res
         .status(400)

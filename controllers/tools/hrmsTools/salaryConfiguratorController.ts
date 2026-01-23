@@ -1,5 +1,4 @@
 import { 
-    accessLevelConstant, 
     hrmsConstants,
     salaryConfigActions,
 } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
@@ -19,6 +18,7 @@ import {
     UpdateData,
     getRequestQuery,
 } from "../../../interfaces/hrmsTool/interface/hrmsInterface";
+import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
 /**
  * Get all salary configuration details.
@@ -26,18 +26,9 @@ import {
  * @param res - The response object to send the result.
  */
 export const getAllSalaryConfigDetails = async(req, res) => {
-    // Extract user and query parameters
-    const { user } = req as AuthenticatedRequest;
-
-    // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-
-    // Extract query parameters
+    // Extract query parameters from the request
     const { employeeType, employeeLocation, employeeLevel, department, yearOfStudy } = req.query as getRequestQuery; 
 
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
-    
     // Fetch salary configuration details
     try {
         const salaryConfigData = await getAllSalaryConfigService(employeeType, employeeLocation, employeeLevel, department, yearOfStudy);
@@ -75,15 +66,23 @@ export const createSalaryConfig = async(req, res) => {
     const { user } = req as AuthenticatedRequest;
     
     // Extract user details and request body
-    const { toolsAccess, email, userId } = user as AuthenticatedUser;
+    const { toolsAccess, email, userId, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
 
     const { createData } = req.body as { createData: CreateRequest[] };
 
-    // Check permissions
-    if (toolsAccess?.[hrmsConstants.HR_REPOSITORY] < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR ConfigureSalary_create permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "ConfigureSalary_create",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to create salary configuration"
         });
         return;
     }
@@ -183,13 +182,22 @@ export const createSalaryConfig = async(req, res) => {
  */
 export const deleteSalaryConfig = async(req, res) => {
     const { user } = req as AuthenticatedRequest;
-    const { toolsAccess, email, userId } = user as AuthenticatedUser;
+    const { toolsAccess, email, userId, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     const { deletedData } = req.body as { deletedData: DeleteData[] };
     
-    if (toolsAccess?.[hrmsConstants.HR_REPOSITORY] < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR ConfigureSalary_delete permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "ConfigureSalary_delete",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to delete salary configuration"
         });
         return;
     }
@@ -265,14 +273,22 @@ export const deleteSalaryConfig = async(req, res) => {
  */
 export const updateSalaryConfig = async(req, res) => {
     const { user } = req as AuthenticatedRequest;
-    const { toolsAccess, email, userId } = user as AuthenticatedUser;
+    const { toolsAccess, email, userId, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     const { editData } = req.body as { editData: UpdateData[] };
     
-    // Check permissions
-    if (toolsAccess?.[hrmsConstants.HR_REPOSITORY] < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR ConfigureSalary_update permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "ConfigureSalary_update",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to update salary configuration"
         });
         return;
     }

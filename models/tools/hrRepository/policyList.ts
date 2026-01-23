@@ -18,7 +18,7 @@ export class PolicyList
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initPolicyList = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   PolicyList.init(
     {
       id: {

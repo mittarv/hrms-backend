@@ -11,6 +11,7 @@ import { fetchEmployeeCurrentJobDetails, findHRRepositoryToolAdminUsers } from "
 import { createHRMSNotification } from "../../../utilities/hrmsUtilities/dbCalls";
 import { hrmsNotificationTypes } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 import { generateUpdateMessage, updateEmployeeLeaveBalanceOnTypeChange } from "../../../utilities/hrmsUtilities/helperFunctions";
+const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 const EmployeeBasicDetails = dbOutput.employeeBasicDetails;
 const EmployeeContactDetails = dbOutput.employeeContactDetails;
 const EmployeeJobDetails = dbOutput.employeeJobDetails;
@@ -25,6 +26,8 @@ const EmployeeAdvanceSalaryDetailHistory = dbOutput.employeeAdvanceSalaryDetailH
 const EmploymentHistory = dbOutput.employmentHistory;
 const EmployeeLoginHistory = dbOutput.employeeLoginHistory;
 const EmployeeDataRequest = dbOutput.employeeDataRequest;
+const hrmsEmployeeRole = dbOutput.hrmsEmployeeRole;
+const hrmsAccessRole = dbOutput.hrmsAccessRole;
 const TmsUsers = dbOutput.tmsUsers;
 
 const tableToFieldsMap = {
@@ -66,6 +69,26 @@ const tableToFieldsMap = {
 
 
 exports.createEmployeeData = async (req, res) => {
+  const { user } = req;
+  const toolsAccess = user?.toolsAccess || {};
+  const toolName = "HR Repository";
+  const employeeUuid = req.body?.employeeUuid || user?.employeeUuid;
+
+  // Check permission: admin access (>= 900) OR ActiveEmployee_onBoarding permission
+  const hasPermission = await checkHrmsPermission(
+    employeeUuid,
+    "ActiveEmployee_onBoarding",
+    toolName,
+    toolsAccess
+  );
+
+  if (!hasPermission) {
+    return res.status(403).json({
+      success: false,
+      message: "You don't have permission to onboard employee",
+    });
+  }
+
   const {
     emp_type,
     emp_first_name,
@@ -353,7 +376,7 @@ exports.getAllEmployees = async (req, res) => {
 
       // Fetch the employee's first name, last name, job type, and department
       const employeeBasicDetails = await EmployeeBasicDetails.findOne({
-        attributes: ['empFirstName', 'empLastName'],
+        attributes: ['empFirstName', 'empLastName', 'createdAt'],
         where: { empUuid: empUuid },
       });
 
@@ -370,13 +393,30 @@ exports.getAllEmployees = async (req, res) => {
       // Tms user profile image
       const employeeProfileImage = tmsUserDetails?.profilePic;
 
+      const employeeHrmsRoleDetails = await hrmsEmployeeRole.findOne({ 
+        where: { empUuid: empUuid, isDeleted: false },
+        include: [
+          {
+            model: hrmsAccessRole,
+            as: 'role',
+            attributes: ['roleId', 'roleName', 'description'],
+            where: {
+              isDeleted: false,
+            },
+          }
+        ]
+      });
+
       return {
         employeeUuid: empUuid,
         employeeFirstName: employeeBasicDetails ? employeeBasicDetails.empFirstName : null,
         employeeLastName: employeeBasicDetails ? employeeBasicDetails.empLastName : null,
         employeeJobType: employeeCurrentJobDetails ? employeeCurrentJobDetails.empType : null,
         employeeDepartment: employeeCurrentJobDetails ? employeeCurrentJobDetails.empDepartment : null,
-        employeeProfileImage: employeeProfileImage || null
+        employeeProfileImage: employeeProfileImage || null,
+        employeeOfficialEmail: employeeContactDetails ? employeeContactDetails.empOfficialEmail : null,
+        employeeAddedOn: employeeBasicDetails ? employeeBasicDetails.createdAt : null,
+        employeeHrmsRoleDetails: employeeHrmsRoleDetails ? employeeHrmsRoleDetails.role : null,
       };
     });
 
@@ -396,6 +436,32 @@ exports.getAllEmployees = async (req, res) => {
 
 // Function to update employee details by employee UUID
 exports.updateEmployeeDetailsByUuid = async (req, res) => {
+  const { user } = req;
+  const toolsAccess = user?.toolsAccess || {};
+  const toolName = "HR Repository";
+  const employeeUuid = user?.employeeUuid;
+  const targetEmployeeUuid = req.params.empUuid;
+
+  // Allow users to update their own details without permission check
+  const isUpdatingOwnProfile = employeeUuid && targetEmployeeUuid && employeeUuid === targetEmployeeUuid;
+
+  // If not updating own profile, check permission: admin access (>= 900) OR ActiveEmployee_update permission
+  if (!isUpdatingOwnProfile) {
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "ActiveEmployee_update",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update employee details",
+      });
+    }
+  }
+
   // Map table names to their corresponding fields
   const tableToFieldsMap = {
     EmployeeBasicDetails: [
@@ -774,6 +840,11 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
 
 exports.sendChangesToApprover = async (req, res) => {
   const { requestedFor, requestedBy, sectionChanged, userType } = req.body;
+  const { user } = req;
+  const toolsAccess = user?.toolsAccess || {};
+  const toolName = "HR Repository";
+  const employeeUuid = user?.employeeUuid;
+
   if (!requestedFor || !requestedBy || !userType) {
     return res
       .status(400)
@@ -783,6 +854,26 @@ exports.sendChangesToApprover = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "No changes to send for approval" });
+  }
+
+  // Allow users to send their own changes for approval without permission check
+  const isUpdatingOwnProfile = employeeUuid && requestedFor && employeeUuid === requestedFor;
+
+  // If not updating own profile, check permission: admin access (>= 900) OR ActiveEmployee_update permission
+  if (!isUpdatingOwnProfile) {
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "ActiveEmployee_update",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update employee details",
+      });
+    }
   }
 
   // Start a transaction
@@ -984,6 +1075,27 @@ exports.approveOrRejectRequest = async (req, res) => {
     return res
     .status(400)
     .json({ success: false, message: "Employee can't send request as it has been not onboarded" });
+  }
+
+  // Check permission: admin access (>= 900) OR EmployeeDetailsRequest_write permission
+  const { user } = req;
+  const toolsAccess = user?.toolsAccess || {};
+  const toolName = "HR Repository";
+  const employeeUuid = user?.employeeUuid;
+
+  const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
+  const hasPermission = await checkHrmsPermission(
+    employeeUuid,
+    "EmployeeDetailsRequest_write",
+    toolName,
+    toolsAccess
+  );
+
+  if (!hasPermission) {
+    return res.status(403).json({
+      success: false,
+      message: "You don't have permission to approve or reject employee detail requests",
+    });
   }
 
   // Start a transaction
@@ -1301,6 +1413,27 @@ try{
 
 exports.getPendingRequests = async (req, res) => {
   try {
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+    const employeeUuid = user?.employeeUuid;
+
+    // Check permission: admin access (>= 900) OR EmployeeDetailsRequest_read permission
+    const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "EmployeeDetailsRequest_read",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to view employee detail requests",
+      });
+    }
+
     const pendingRequests = await EmployeeDataRequest.findAll({
       where: {
         isApproved: 0,

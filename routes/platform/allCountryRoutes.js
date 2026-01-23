@@ -7,11 +7,12 @@ const {
     updateCountryByCountryIsoCode,
     deleteCountryByCountryIsoCode
 } = require("../../controllers/platform/allCountryController");
-const { isTmsUserAuthenticated } = require("../../middlewares/isAuthenticated");
+const { isAuthenticated } = require("../../middlewares/isAuthenticated");
+const { cache, clearCache } = require('../../middlewares/redis');
 
-router.route("/getAll").get(isTmsUserAuthenticated, getAllCountries);
-router.route("/addCountry").post(isTmsUserAuthenticated, addNewCountry);
-router.route("/updateCountry").patch(isTmsUserAuthenticated, updateCountryByCountryIsoCode);
-router.route("/deleteCountry").delete(isTmsUserAuthenticated, deleteCountryByCountryIsoCode);
+router.route("/getAll").get(cache(), getAllCountries);
+router.route("/addCountry").post(isAuthenticated, clearCache(), addNewCountry);
+router.route("/updateCountry").patch(isAuthenticated, clearCache(), updateCountryByCountryIsoCode);
+router.route("/deleteCountry").delete(isAuthenticated, clearCache(), deleteCountryByCountryIsoCode);
 
 module.exports = router;

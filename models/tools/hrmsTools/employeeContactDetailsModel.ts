@@ -19,16 +19,16 @@ export class employeContactDetails
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeContactDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeContactDetails.init(
     {
       contactId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       empUuid: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: true,
       },
       empPersonalPhone: {

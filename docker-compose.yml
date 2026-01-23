@@ -1,0 +1,29 @@
+services:
+  backend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: backend-${ENVIRONMENT:-dev}
+    container_name: backend-${ENVIRONMENT:-dev}
+    ports:
+      - "${HOST_PORT:-5000}:${HOST_PORT:-5000}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=${NODE_ENV:-dev}
+      - PORT=${HOST_PORT:-5000}
+  backend-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: backend-${ENVIRONMENT:-test}
+    container_name: backend-${ENVIRONMENT:-test}
+    ports:
+      - "${HOST_PORT:-5000}:${HOST_PORT:-5000}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - ENVIRONMENT=${NODE_ENV:-test}
+      - PORT=${HOST_PORT:-5000}

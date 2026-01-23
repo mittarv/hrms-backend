@@ -28,13 +28,13 @@ export class EmployeeBasicDetails
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeBasicDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   EmployeeBasicDetails.init(
     {
       empUuid: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       empCompanyId: {
         type: dataTypes.STRING,

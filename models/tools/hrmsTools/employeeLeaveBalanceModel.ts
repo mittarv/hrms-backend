@@ -18,21 +18,21 @@ export class employeeLeaveBalanceDetails extends Model<
   public readonly updatedAt?: Date;
 }
 
-// Factory function to initialize the model - using module.exports instead of export default
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+// Factory function to initialize the model
+export const initEmployeeLeaveBalanceDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeLeaveBalanceDetails.init(
     {
       balanceId: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         primaryKey: true,
         allowNull: false,
       },
       empUuid: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       leaveConfigId: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       totalLeaveUsed: {
@@ -52,10 +52,12 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
       },
       fiscalYearStart: {
         type: dataTypes.DATE,
+        defaultValue: 0,
         allowNull: false,
       },
       fiscalYearEnd: {
         type: dataTypes.DATE,
+        defaultValue: 0,
         allowNull: false,
       },
       isDeleted: {
