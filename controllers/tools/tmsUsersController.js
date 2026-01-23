@@ -25,9 +25,6 @@ exports.tmsUserGoogleLogin = async (req, res) => {
     if (!user && name && profilePic) {
       try {
         var userType = 100;
-        if (email.includes("vishal") || email.includes("ashwin")) {
-          userType = 900;
-        }
         
         await TmsUsers.create({
           email,
@@ -95,11 +92,6 @@ exports.createTmsUser = async (req, res) => {
         .json({ success: false, message: "Please fill all the details" });
     } else {
       var userType = 100;
-      if (email.includes("vishal") || email.includes("ashwin")) {
-        userType = 900;
-      } else {
-        userType = 100;
-      }
       await TmsUsers.create({
         email,
         name,

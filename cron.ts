@@ -27,23 +27,6 @@ const isCronJobMachine = (): boolean => {
   return isCronMachine;
 };
 
-/**
- * TEST CRON JOB - Runs every minute for testing
- * This helps you verify that cron jobs are working
- */
-const testCronJob = async () => {
-  try {
-    const shouldRun = isCronJobMachine();
-    if (!shouldRun) {
-      return;
-    }
-
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    console.log(`✅ [TEST CRON] Running at ${timestamp} on ${os.hostname()}`);
-  } catch (error) {
-    console.error('❌ Error in test cron job:', error);
-  }
-};
 
 /**
  * Initialize and schedule all cron jobs
@@ -54,7 +37,7 @@ export const initializeCronJobs = () => {
     
     // TEST CRON - Runs every minute (for testing only)
     // Comment this out in production
-    cron.schedule('* * * * *', createPayrollCronJob);
+    cron.schedule('0 0 * * *', createPayrollCronJob);
     console.log('  ✓ Payroll cron (daily at midnight)');
     
     console.log('✅ All cron jobs initialized successfully\n');
@@ -81,5 +64,4 @@ export const startCronJobs = () => {
 // Export individual functions if needed elsewhere
 export {
   isCronJobMachine,
-  testCronJob,
 };
