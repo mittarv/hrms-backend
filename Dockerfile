@@ -16,11 +16,11 @@ RUN npm ci --no-audit && npm cache clean --force
 
 # Copy source code and build
 COPY . .
-RUN npm run build || (tsc --outDir dist && \
-    shx cp -r views dist/ 2>/dev/null || true && \
+RUN tsc --outDir dist && \
+    cp -r views dist/ && \
     mkdir -p dist/keys dist/config && \
-    shx cp -r keys dist/ 2>/dev/null || true && \
-    shx cp config/*.p8 dist/config/ 2>/dev/null || true)
+    (cp -r keys dist/ 2>/dev/null || true) && \
+    (cp config/*.p8 dist/config/ 2>/dev/null || true)
 
 
 # ============================
@@ -41,9 +41,8 @@ RUN addgroup -S nodejs && adduser -S nodejs -G nodejs
 COPY package*.json ./
 RUN npm ci --no-audit && npm cache clean --force
 
-# Copy built artifacts from builder
+# Copy built artifacts from builder (everything is in dist now)
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist/
-COPY --from=builder --chown=nodejs:nodejs /app/views ./views/
 
 # Create writable dirs with correct ownership
 RUN mkdir -p /app/{arbFileUploads,logs} && chown -R nodejs:nodejs /app

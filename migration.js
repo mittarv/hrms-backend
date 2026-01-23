@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const { exec } = require('child_process');
 
-const dbs = ['output', 'payments', 'main'];
+const dbs = ['output'];
 
 // Run command
 function runCommand(cmd, contextLabel) {
