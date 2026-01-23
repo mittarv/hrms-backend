@@ -18,12 +18,12 @@ export class employeeHolidayDetails extends Model<
   public readonly updatedAt!: Date;
 }
 
-// Factory function to initialize the model - using module.exports instead of export default
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+// Factory function to initialize the model
+export const initEmployeeHolidayDetails = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeHolidayDetails.init(
     {
       holidayId: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         primaryKey: true,
         allowNull: false,
       },
@@ -56,7 +56,7 @@ module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
         allowNull: true,
       },
       createdBy: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
     },

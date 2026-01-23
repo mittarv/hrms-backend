@@ -1,6 +1,5 @@
 import { DataTypes, Model, Sequelize } from "sequelize";
-import { AllCountryDetailsAttributes } from "../../../interfaces/hrmsTool/interface/hrmsInterface";
-
+import { AllCountryDetailsAttributes } from "../../../interfaces/platformInterfaces/interfaces/userControllerInterface";
 
 export class AllCountryDetails
     extends Model<AllCountryDetailsAttributes, Partial<AllCountryDetailsAttributes>>
@@ -24,7 +23,7 @@ export class AllCountryDetails
     declare readonly updatedAt: Date;
 }
 
-module.exports = (sequelize: Sequelize, datatypes: typeof DataTypes) => {
+export const initAllCountryDetails = (sequelize: Sequelize, datatypes: typeof DataTypes) => {
     AllCountryDetails.init(
         {
             id: {

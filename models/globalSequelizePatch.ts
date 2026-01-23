@@ -28,6 +28,7 @@ const originalInit = Model.init;
   const pluralized = options.tableName ? options.tableName.toLowerCase() : pluralizeFn(options.modelName).toLowerCase();
   options.tableName = pluralized;
 
+
   return (originalInit as any).call(this, attributes, options);
 };
 

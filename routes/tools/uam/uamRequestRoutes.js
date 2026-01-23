@@ -19,4 +19,5 @@ router.route("/get/userId/:id").get(isTmsUserAuthenticated, getRequestByUserId);
 router.route("/update/:id").patch(isTmsUserAuthenticated, changRequestStatus);
 
 router.route("/getall/logs").get(isTmsUserAuthenticated, getAllActivityLogs);
+
 module.exports = router;

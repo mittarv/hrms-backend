@@ -18,7 +18,7 @@ export class uamUserGroups
     declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initUamUserGroups = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
     uamUserGroups.init(
         {
             id: {

@@ -18,7 +18,7 @@ export class TmsUsers
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initTmsUsers = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   TmsUsers.init(
     {
       userId: {

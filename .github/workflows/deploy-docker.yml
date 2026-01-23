@@ -1,0 +1,233 @@
+# GitHub Actions Workflow for Docker Deployment
+# 
+# This workflow:
+# 1. Creates release tags based on date and commit SHA
+# 2. Creates .env file from GitHub environment variables at runtime
+# 3. Builds and deploys using Docker Compose on self-hosted runner
+# 4. Creates a GitHub release with auto-generated notes
+# 5. Tags format: release-YYYY-MM-DD-<short-sha>
+#
+# SECURITY: All sensitive values should be stored as SECRETS, not variables
+# Required GitHub Secrets (Settings > Secrets and variables > Actions > Secrets):
+#   - SECRET_KEY: JWT secret key (SENSITIVE)
+#   - REFRESH_TOKEN_SECRET: Refresh token secret (SENSITIVE)
+#   - SMTP_PASS: SMTP password (SENSITIVE)
+#   - DATABASE_OUTPUT_PASSWORD: Database password (SENSITIVE)
+#   - EVENT_HUB_CONNECTION_STRING: Azure Event Hub connection string (SENSITIVE)
+#   - AZURE_SERVICE_BUS_CONNECTION_STRING: Azure Service Bus connection string (SENSITIVE)
+#
+# Required GitHub Variables (Settings > Secrets and variables > Actions > Variables):
+#   - PORT: Server port (default: 5000)
+#   - NODE_ENV: Node environment (default: production)
+#   - IP: Server IP address
+#   - SMTP_HOST: SMTP host (default: smtp.gmail.com)
+#   - SMTP_PORT: SMTP port (default: 587)
+#   - SMTP_USER: SMTP username
+#   - HRMS_SMTP_FROM: HRMS email from address
+#   - HRMS_DASHBOARD_URL: HRMS dashboard URL
+#   - EVENT_HUB_NAME: Azure Event Hub name
+#   - AZURE_SERVICE_BUS_QUEUE_NAME: Azure Service Bus queue name
+#   - DATABASE_OUTPUT_NAME: Database name
+#   - DATABASE_OUTPUT_USER: Database username
+#   - DATABASE_OUTPUT_PORT: Database port
+#   - DATABASE_OUTPUT_HOST: Database host
+#   - DATABASE_OUTPUT_DIALECT: Database dialect (default: mysql)
+#   - CRON_JOB_MACHINE_HOSTNAME: Cron job machine hostname
+#   - BATCH_SIZE: Batch size for logging (optional)
+#   - FLUSH_INTERVAL: Flush interval for logging (optional)
+#   - SLOW_THRESHOLD: Slow threshold for logging (optional)
+#   - HOST_PORT: Port to expose on host (optional, defaults to 5000)
+#
+# The workflow runs on:
+#   - Push to main branch
+#   - Manual trigger via workflow_dispatch
+#   - Requires self-hosted runner configured in repository
+
+name: Build, Deploy to Docker and Create Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_NAME: hrms-backend
+  DOCKER_CONTAINER_NAME: hrms-backend
+
+jobs:
+  build-and-deploy-using-docker:
+    name: Build and Deploy using Docker
+    environment: hrms-backend
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for versioning
+
+      - name: Generate release tag
+        id: tag
+        shell: cmd
+        run: |
+          @echo off
+          REM Get current date in YYYY-MM-DD format
+          for /f "tokens=1-3 delims=/ " %%a in ('%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command "Get-Date -Format 'yyyy-MM-dd'"') do set RELEASE_DATE=%%a
+          
+          REM Get short commit SHA
+          for /f %%i in ('git rev-parse --short HEAD') do set SHORT_SHA=%%i
+          
+          REM Create release tag
+          set RELEASE_TAG=release-%RELEASE_DATE%-%SHORT_SHA%
+          echo Release tag: %RELEASE_TAG%
+          
+          REM Set GitHub output and environment variables
+          echo release_tag=%RELEASE_TAG%>>%GITHUB_OUTPUT%
+          echo RELEASE_TAG=%RELEASE_TAG%>>%GITHUB_ENV%
+          
+          REM Configure git for tagging
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          REM Create and push git tag
+          git tag -a "%RELEASE_TAG%" -m "Release %RELEASE_TAG%"
+          git push origin "%RELEASE_TAG%"
+
+      - name: Create .env file from GitHub variables
+        shell: cmd
+        env:
+          PORT: ${{ vars.PORT }}
+          NODE_ENV: ${{ vars.NODE_ENV }}
+          IP: ${{ vars.IP }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          HRMS_SMTP_FROM: ${{ vars.HRMS_SMTP_FROM }}
+          HRMS_DASHBOARD_URL: ${{ vars.HRMS_DASHBOARD_URL }}
+          EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+          EVENT_HUB_NAME: ${{ vars.EVENT_HUB_NAME }}
+          AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+          AZURE_SERVICE_BUS_QUEUE_NAME: ${{ vars.AZURE_SERVICE_BUS_QUEUE_NAME }}
+          BATCH_SIZE: ${{ vars.BATCH_SIZE }}
+          FLUSH_INTERVAL: ${{ vars.FLUSH_INTERVAL }}
+          SLOW_THRESHOLD: ${{ vars.SLOW_THRESHOLD }}
+          DATABASE_OUTPUT_NAME: ${{ vars.DATABASE_OUTPUT_NAME }}
+          DATABASE_OUTPUT_USER: ${{ vars.DATABASE_OUTPUT_USER }}
+          DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+          DATABASE_OUTPUT_PORT: ${{ vars.DATABASE_OUTPUT_PORT }}
+          DATABASE_OUTPUT_HOST: ${{ vars.DATABASE_OUTPUT_HOST }}
+          DATABASE_OUTPUT_DIALECT: ${{ vars.DATABASE_OUTPUT_DIALECT }}
+          CRON_JOB_MACHINE_HOSTNAME: ${{ vars.CRON_JOB_MACHINE_HOSTNAME }}
+          HOST_PORT: ${{ vars.HOST_PORT }}
+        run: |
+          cd "${{ github.workspace }}"
+          (
+            echo PORT=%PORT%
+            echo NODE_ENV=%NODE_ENV%
+            echo IP=%IP%
+            echo SECRET_KEY=%SECRET_KEY%
+            echo REFRESH_TOKEN_SECRET=%REFRESH_TOKEN_SECRET%
+            echo SMTP_HOST=%SMTP_HOST%
+            echo SMTP_PORT=%SMTP_PORT%
+            echo SMTP_USER=%SMTP_USER%
+            echo SMTP_PASS=%SMTP_PASS%
+            echo HRMS_SMTP_FROM=%HRMS_SMTP_FROM%
+            echo HRMS_DASHBOARD_URL=%HRMS_DASHBOARD_URL%
+            echo EVENT_HUB_CONNECTION_STRING=%EVENT_HUB_CONNECTION_STRING%
+            echo EVENT_HUB_NAME=%EVENT_HUB_NAME%
+            echo AZURE_SERVICE_BUS_CONNECTION_STRING=%AZURE_SERVICE_BUS_CONNECTION_STRING%
+            echo AZURE_SERVICE_BUS_QUEUE_NAME=%AZURE_SERVICE_BUS_QUEUE_NAME%
+            echo BATCH_SIZE=%BATCH_SIZE%
+            echo FLUSH_INTERVAL=%FLUSH_INTERVAL%
+            echo SLOW_THRESHOLD=%SLOW_THRESHOLD%
+            echo DATABASE_OUTPUT_NAME=%DATABASE_OUTPUT_NAME%
+            echo DATABASE_OUTPUT_USER=%DATABASE_OUTPUT_USER%
+            echo DATABASE_OUTPUT_PASSWORD=%DATABASE_OUTPUT_PASSWORD%
+            echo DATABASE_OUTPUT_PORT=%DATABASE_OUTPUT_PORT%
+            echo DATABASE_OUTPUT_HOST=%DATABASE_OUTPUT_HOST%
+            echo DATABASE_OUTPUT_DIALECT=%DATABASE_OUTPUT_DIALECT%
+            echo CRON_JOB_MACHINE_HOSTNAME=%CRON_JOB_MACHINE_HOSTNAME%
+            echo HOST_PORT=%HOST_PORT%
+          ) > .env
+
+      - name: Stop and remove existing container
+        shell: cmd
+        run: |
+          cd "${{ github.workspace }}"
+          docker compose down
+        continue-on-error: true
+
+      - name: Build and deploy with Docker Compose
+        shell: cmd
+        run: |
+          cd "${{ github.workspace }}"
+          docker compose up -d --build hrms-backend
+        env:
+          # Mask secrets in logs
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+          EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+          AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+
+      - name: Verify container is running
+        shell: cmd
+        run: |
+          timeout /t 15 /nobreak
+          docker ps -f name=hrms-backend
+
+      - name: Clean up .env file
+        shell: cmd
+        run: |
+          cd "${{ github.workspace }}"
+          if exist .env del /f /q .env
+        continue-on-error: true
+        if: always()
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Release ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          body: |
+            ## Deployment Information
+            
+            - **Docker Image:** `${{ env.DOCKER_IMAGE_NAME }}:${{ env.RELEASE_TAG }}`
+            - **Container Name:** `${{ env.DOCKER_CONTAINER_NAME }}`
+            - **Port:** `${{ vars.HOST_PORT || 5000 }}`
+            - **Commit:** `${{ github.sha }}`
+            - **Branch:** `${{ github.ref_name }}`
+            - **Deployed by:** @${{ github.actor }}
+            - **Deployed at:** ${{ github.event.head_commit.timestamp }}
+            
+            ---
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deployment Summary
+        shell: cmd
+        run: |
+          @echo off
+          set PORT=${{ vars.HOST_PORT }}
+          if "%PORT%"=="" set PORT=5000
+          
+          (
+            echo ## Deployment Successful! :rocket:
+            echo.
+            echo **Release Tag:** ${{ env.RELEASE_TAG }}
+            echo **Docker Image:** ${{ env.DOCKER_IMAGE_NAME }}:${{ env.RELEASE_TAG }}
+            echo **Container:** ${{ env.DOCKER_CONTAINER_NAME }}
+            echo **Port:** %PORT%
+            echo.
+            echo **Commit:** ${{ github.sha }}
+            echo **Branch:** ${{ github.ref_name }}
+            echo **Release:** [${{ env.RELEASE_TAG }}](https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }})
+          )>>%GITHUB_STEP_SUMMARY%

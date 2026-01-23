@@ -4,6 +4,7 @@
  */
 
 import { Op, Transaction, WhereOptions } from "sequelize";
+import { sequelize } from "../../models";
 import { dbOutput } from "../../models";
 import { 
     EmployeeAttendanceAttributes, 
@@ -32,6 +33,7 @@ const employeeAttendance = dbOutput.employeeAttendanceDetails;
 const employeeContact = dbOutput.employeeContactDetails;
 const hrmsEmailLogs = dbOutput.hrmsEmailLogs;
 const employeeJobDetailHistory = dbOutput.employeeJobDetailHistory;
+const employeeExtraWorkLog = dbOutput.employeeExtraWorkDay;
 
 // UAM models
 const uamToolDetails = dbOutput.uamToolDetails;
@@ -467,7 +469,6 @@ export const updateEmployeeLeaveBalance = async (
       transaction?: Transaction;
     }
 ) => {
-    console.log("fiscalYearStart", fiscalYearStart);
     try {
         const [record, created] = await employeeLeaveBalance.findOrCreate({
             where: { leaveConfigId, empUuid: jobDetails?.empUuid, fiscalYear, fiscalYearStart, fiscalYearEnd, empType: jobDetails?.empType, isDeleted: false },
@@ -1389,3 +1390,159 @@ export const fetchEmployeeCurrentJobDetails = async (empUuid: string, transactio
         throw error;
     }
 };
+
+
+export const createWorkRequestService = async (requestedData, user, transaction) => {
+    try {
+        const extraWorkDayId = await createUUIDV4();
+        const totalCompOffCredit = requestedData.totalDuration > 7 ? 1 : 0.5;
+        const createWorkLogData = await employeeExtraWorkLog.create({
+            extraWorkDayId,
+            empUuid: requestedData.empUuid,
+            leaveConfigId: requestedData.leaveConfigId,
+            workDate: requestedData.workDate,
+            checkIn: requestedData.checkIn,
+            checkOut: requestedData.checkOut,
+            remarks: requestedData.remarks,
+            proof:requestedData.proof,
+            totalDuration: requestedData.totalDuration,
+            totalCompOffCredit,
+            requestBy: user.employeeUuid,
+            approvalStatus: LeaveApprovalStatus.PENDING,
+            isDeleted: false
+        }, 
+        { transaction });
+        return createWorkLogData;
+    } catch (error) {
+        console.error("Error creating work request:", error);
+        throw error;
+    }
+}
+
+export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDate?: string) => {
+    try {
+        const whereClause: any = {
+            approvalStatus: LeaveApprovalStatus.PENDING,
+            isDeleted: false
+        };
+
+        if (startDate && endDate) {
+            whereClause.createdAt = {
+                [Op.and]: [
+                    sequelize.where(sequelize.fn('DATE', sequelize.col('createdAt')), '>=', startDate),
+                    sequelize.where(sequelize.fn('DATE', sequelize.col('createdAt')), '<=', endDate)
+                ]
+            };
+        } else if (startDate) {
+            whereClause.createdAt = sequelize.where(
+                sequelize.fn('DATE', sequelize.col('createdAt')), 
+                '>=', 
+                startDate
+            );
+        } else if (endDate) {
+            whereClause.createdAt = sequelize.where(
+                sequelize.fn('DATE', sequelize.col('createdAt')), 
+                '<=', 
+                endDate
+            );
+        }
+
+        const workLogRequests = await employeeExtraWorkLog.findAll({
+            where: whereClause,
+            order: [['createdAt', 'DESC']],
+            raw: true
+        });
+
+        return workLogRequests;
+    } catch (error) {
+        console.error("Error fetching extra work log requests:", error);
+        throw error;
+    }
+}
+
+export const updateExtraWorkLogRequestStatusService = async (
+    extraWorkDayIds: string[], 
+    action: LeaveApprovalStatus, 
+    user, 
+    transaction?: Transaction
+) => { 
+    try {
+        if (!extraWorkDayIds || extraWorkDayIds.length === 0) {
+            throw new Error("No extra work day IDs provided");
+        }
+
+        if (![LeaveApprovalStatus.APPROVED, LeaveApprovalStatus.REJECTED].includes(action)) {
+            throw new Error("Invalid action. Must be approved or rejected");
+        }
+
+        const BATCH_SIZE = 50;
+        const totalIds = extraWorkDayIds.length;
+        let totalUpdated = 0;
+        
+        // Process in batches
+        for (let i = 0; i < totalIds; i += BATCH_SIZE) {
+            const batch = extraWorkDayIds.slice(i, i + BATCH_SIZE);
+            
+            // Build update data
+            const updateData: any = {
+                approvalStatus: action,
+                approvedBy: user.employeeUuid,
+                approvalDate: new Date()
+            };
+            
+            // Add expiry date only for approved requests
+            if (action === LeaveApprovalStatus.APPROVED) {
+                updateData.compOffExpiryDate = sequelize.literal("DATE_ADD(workDate, INTERVAL 90 DAY)");
+            }
+            
+            // Execute batch update
+            const [updatedCount] = await employeeExtraWorkLog.update(
+                updateData,
+                {
+                    where: {
+                        extraWorkDayId: {
+                            [Op.in]: batch
+                        },
+                        isDeleted: false
+                    },
+                    transaction
+                }
+            );
+            
+            totalUpdated += updatedCount;
+            console.log(`Processed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalIds / BATCH_SIZE)} - Updated: ${updatedCount} records`);
+        }
+        
+        return {
+            success: true,
+            totalRequested: totalIds,
+            totalUpdated: totalUpdated,
+            action: action,
+            message: `Successfully ${action} ${totalUpdated} out of ${totalIds} extra work log request(s)`
+        };
+    } catch (error) {
+        console.error("Error updating extra work log request status:", error);
+        throw error;
+    }
+}
+
+export const getCompOffleaveBalanceService = async (empUuid: string) => {
+    try {
+        const compOffleaveBalance = await employeeExtraWorkLog.findAll({
+            where: {
+                empUuid,
+                approvalStatus: LeaveApprovalStatus.APPROVED,
+                isDeleted: false,
+                compOffExpiryDate: {
+                    [Op.gte]: new Date()
+                }
+            },
+            order: [['createdAt', 'DESC']],
+            raw: true
+        });
+        return compOffleaveBalance;
+    } catch (error) {
+        console.error("Error getting comp off leave balance:", error);
+        throw error;
+    }
+}

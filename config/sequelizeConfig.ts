@@ -8,7 +8,7 @@ const sequelizeConfig: SequelizeConfig = {
     host: getEnv("DATABASE_OUTPUT_HOST"),
     port: 3306,
     migrationStorageTableName: 'sequelizemeta',
-  },
+  }
 };
 
 export = sequelizeConfig;

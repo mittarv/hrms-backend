@@ -13,7 +13,7 @@ export class EmployeeComponentConfigurator
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeComponentConfigurator = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   EmployeeComponentConfigurator.init(
     {
       id: {

@@ -73,33 +73,4 @@ export const setUamAssociations = (): void => {
         constraints: true,
         constraintName: "fk_uamRequest_uamUserGroups_requestedAccess"
     })
-
-    // HR Repository associations
-    //One to one - Policy List creator
-    dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
-        foreignKey: "createdBy",
-        as: "creator",
-        constraints: false
-    });
-
-    //One to one - Policy List modifier
-    dbOutput.policyList.belongsTo(dbOutput.tmsUsers, {
-        foreignKey: "lastModifiedBy",
-        as: "modifier",
-        constraints: false
-    });
-
-    //One to one - Important Link List creator
-    dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
-        foreignKey: "createdBy",
-        as: "creator",
-        constraints: false
-    });
-
-    //One to one - Important Link List modifier
-    dbOutput.importantLinkList.belongsTo(dbOutput.tmsUsers, {
-        foreignKey: "lastModifiedBy",
-        as: "modifier",
-        constraints: false
-    });
 }

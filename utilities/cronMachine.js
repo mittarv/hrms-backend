@@ -1,6 +1,6 @@
-const { db } = require("../models");
+const { dbOutput } = require("../models");
 
-const KeyValuePairs = db.keyValuePairs;
+const KeyValuePairs = dbOutput.keyValuePairs;
 const os = require("os");
 
 

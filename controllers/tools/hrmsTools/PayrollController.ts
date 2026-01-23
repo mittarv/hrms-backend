@@ -7,7 +7,6 @@ import {
     componentTypes,
     AttendanceStatusType, 
     hrmsConstants,
-    accessLevelConstant, 
     // AttendanceStatusType
 } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 import { 
@@ -28,122 +27,28 @@ import handlebars from 'handlebars';
 import { fetchEmployeeLeavesData } from "../../../utilities/hrmsUtilities/dbCalls";
 import { formatItems, generatePayrollCSV } from "../../../utilities/hrmsUtilities/helperFunctions";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
+import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
-
-export const createPayroll = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const payrollStartDate = new Date();
-        const month = payrollStartDate.getMonth() + 1;
-        const year = payrollStartDate.getFullYear();
-
-        await outputSequelize.transaction(async (transaction: Transaction) => {
-
-            // Fetch all active employees
-            const employees = await dbOutput.employeeBasicDetails.findAll({
-                where: { isDeleted: false },
-                attributes: ['empUuid'],
-                raw: true
-            });
-
-            if (!employees.length) {
-                res.status(200).json({
-                    success: true,
-                    message: "No active employees found to create payrolls.",
-                    data: {
-                        totalEmployees: 0,
-                        payrollsCreated: 0,
-                        createdPayrolls: []
-                    }
-                });
-                return;
-            }
-
-            const employeeIds: string[] = employees.map(e => e.empUuid);
-
-            // Fetch all existing payslips for the current month
-            const existingPayslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
-                where: {
-                    employeeId: { [Op.in]: employeeIds },
-                    [Op.and]: [
-                        sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), month),
-                        sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-                    ],
-                    isDeleted: false
-                },
-                attributes: ['employeeId'],
-                raw: true,
-                transaction
-            });
-
-            const existingEmpIds = new Set(existingPayslips.map(p => p.employeeId));
-
-            // Filter employees without payslip this month
-            const newEmployees = employeeIds.filter(id => !existingEmpIds.has(id));
-
-            if (!newEmployees.length) {
-                res.status(200).json({
-                    success: true,
-                    message: "No new payrolls to create. All employees already have payroll records for this month."
-                });
-                return;
-            }
-
-            // Bulk create new payrolls
-            const newPayslips = await Promise.all(newEmployees.map(async (empUuid) => ({
-                payslipId: await createUUIDV4(),
-                employeeId: empUuid,
-                payrollStartDate,
-                payrollEndDate: null,
-                status: payrollStatus.PENDING,
-                netPay: null,
-                isDeleted: false
-            })));
-
-            await dbOutput.employeePayslipRecords.bulkCreate(newPayslips, { transaction });
-
-            // Prepare response payload
-            const responsePayload = newPayslips.map(p => ({
-                payslipId: p.payslipId,
-                empUuid: p.employeeId,
-                status: p.status
-            }));
-
-            res.status(200).json({
-                success: true,
-                message: "Payroll created successfully",
-                data: {
-                    totalEmployees: employees.length,
-                    payrollsCreated: responsePayload.length,
-                    createdPayrolls: responsePayload
-                }
-            });
-
-            return;
-        });
-    } catch (error) {
-        console.error("Error creating payroll:", error);
-        res.status(500).json({
-            success: false,
-            message: "Internal server error while creating payroll",
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-};
 
 export const getAllEmployeePayrollDetails = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_read permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_read",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to view payroll"
         });
         return;
     }
@@ -338,19 +243,24 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
 
                 if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
                     whereClause.employeeLevel = empLevel || null;
-                    whereClause.department = null;
-                    whereClause.yearOfStudy = null;
+                    // Don't include department and yearOfStudy in where clause - they can be null or not null, doesn't matter
                 } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
                     whereClause.employeeLevel = empLevel || null;
                     whereClause.department = empDepartment || null;
                     whereClause.yearOfStudy = empYearOfStudy || null;
                 } else {
-                    whereClause.employeeLevel = null;
-                    whereClause.department = null;
-                    whereClause.yearOfStudy = null;
+                    // For other types: Only check empType and location (not level, department, or yearOfStudy)
+                    // Don't include these fields in where clause
                 }
 
-                return { empUuid: empData.empUuid, whereClause };
+                return { 
+                    empUuid: empData.empUuid, 
+                    whereClause,
+                    empType,
+                    empLevel,
+                    empDepartment,
+                    empYearOfStudy
+                };
             });
 
         // Fetch all salary categories in one query
@@ -365,13 +275,27 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // Map employees to their salary categories and filter valid ones
         const employeesWithValidCategories: string[] = [];
         salaryCategoryQueriesForFiltering.forEach(query => {
+            const wc = query.whereClause;
             const match = allSalaryCategoriesForFiltering.find(cat => {
-                const wc = query.whereClause;
-                return cat.employeeType === wc.employeeType &&
-                    cat.employeeLocation === wc.employeeLocation &&
-                    cat.employeeLevel === wc.employeeLevel &&
-                    cat.department === wc.department &&
-                    cat.yearOfStudy === wc.yearOfStudy;
+                // Base matching: always check empType and location
+                if (cat.employeeType !== wc.employeeType || cat.employeeLocation !== wc.employeeLocation) {
+                    return false;
+                }
+
+                // For FTE/OFTE/PTE: Only check empType, location, and level. Don't check department and yearOfStudy.
+                if (query.empType === 'fte_key' || query.empType === 'ofte_key' || query.empType === 'pte_key') {
+                    return cat.employeeLevel === (query.empLevel || null);
+                } 
+                // For interns: Check all fields including department and yearOfStudy
+                else if (query.empType === 'intern_key' || query.empType === 'extended_intern_key') {
+                    return cat.employeeLevel === (query.empLevel || null) &&
+                        cat.department === (query.empDepartment || null) &&
+                        cat.yearOfStudy === (query.empYearOfStudy || null);
+                } 
+                // For other types: Only check empType and location (not level, department, or yearOfStudy)
+                else {
+                    return true; // Already matched empType and location above
+                }
             });
             
             if (match) {
@@ -510,10 +434,9 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
 
                 // Different employee types have different applicable fields
                 if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
-                    // Full-time employees: have level but no department/year
+                    // Full-time employees: have level but don't check department/year (they can be null or not null)
                     whereClause.employeeLevel = empLevel || null;
-                    whereClause.department = null;
-                    whereClause.yearOfStudy = null;
+                    // Don't include department and yearOfStudy in where clause
                 } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
                     // Interns: have all fields
                     whereClause.employeeLevel = empLevel || null;
@@ -521,12 +444,17 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                     whereClause.yearOfStudy = empYearOfStudy || null;
                 } else {
                     // Other types (consultants, contractors): only type and location
-                    whereClause.employeeLevel = null;
-                    whereClause.department = null;
-                    whereClause.yearOfStudy = null;
+                    // Don't include level, department, or yearOfStudy in where clause
                 }
 
-                return { empUuid: emp.empUuid, whereClause };
+                return { 
+                    empUuid: emp.empUuid, 
+                    whereClause,
+                    empType,
+                    empLevel,
+                    empDepartment,
+                    empYearOfStudy
+                };
             });
 
         // Fetch all matching salary categories in one query
@@ -541,13 +469,27 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // Map employees to their salary categories
         const salaryCategoryMap = new Map<string, string>();
         salaryCategoryQueries.forEach(query => {
+            const wc = query.whereClause;
             const match = salaryCategories.find(cat => {
-                const wc = query.whereClause;
-                return cat.employeeType === wc.employeeType &&
-                    cat.employeeLocation === wc.employeeLocation &&
-                    cat.employeeLevel === wc.employeeLevel &&
-                    cat.department === wc.department &&
-                    cat.yearOfStudy === wc.yearOfStudy;
+                // Base matching: always check empType and location
+                if (cat.employeeType !== wc.employeeType || cat.employeeLocation !== wc.employeeLocation) {
+                    return false;
+                }
+
+                // For FTE/OFTE/PTE: Only check empType, location, and level. Don't check department and yearOfStudy.
+                if (query.empType === 'fte_key' || query.empType === 'ofte_key' || query.empType === 'pte_key') {
+                    return cat.employeeLevel === (query.empLevel || null);
+                } 
+                // For interns: Check all fields including department and yearOfStudy
+                else if (query.empType === 'intern_key' || query.empType === 'extended_intern_key') {
+                    return cat.employeeLevel === (query.empLevel || null) &&
+                        cat.department === (query.empDepartment || null) &&
+                        cat.yearOfStudy === (query.empYearOfStudy || null);
+                } 
+                // For other types: Only check empType and location (not level, department, or yearOfStudy)
+                else {
+                    return true; // Already matched empType and location above
+                }
             });
             if (match) {
                 salaryCategoryMap.set(query.empUuid, match.salaryCategoryId);
@@ -558,10 +500,31 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // 8. BATCH FETCH SALARY COMPONENTS
         // ============================================
         const categoriesWithSalary = Array.from(new Set(salaryCategoryMap.values()));
+        
+        // Calculate the requested month's date range for effectiveFrom filtering
+        const monthStartDate = new Date(year, month - 1, 1);
+        const monthEndDate = new Date(year, month, 0, 23, 59, 59, 999);
+        
         const allSalaryComponents = categoriesWithSalary.length > 0 ? await dbOutput.salaryComponents.findAll({
             where: {
                 salaryCategoryId: { [Op.in]: categoriesWithSalary },
-                isDeleted: false
+                isDeleted: false,
+                // Filter by effectiveFrom: include if effectiveFrom is null or <= month end
+                [Op.and]: [
+                    {
+                        [Op.or]: [
+                            { effectiveFrom: null },
+                            { effectiveFrom: { [Op.lte]: monthEndDate } }
+                        ]
+                    },
+                    // Filter by effectiveTill: include if effectiveTill is null or >= month start
+                    {
+                        [Op.or]: [
+                            { effectiveTill: null },
+                            { effectiveTill: { [Op.gte]: monthStartDate } }
+                        ]
+                    }
+                ]
             },
             raw: true
         }) : [];
@@ -602,10 +565,42 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
 
         // Filter adjustments based on frequency - only include if applicable for current month
         const filteredAdjustments = allAdjustments.filter(adj => {
-            // One-time adjustments: only include in the month they started
+            const startDate = new Date(adj.startDate);
+            const startYear = startDate.getFullYear();
+            const startMonth = startDate.getMonth() + 1;
+            
+            // Calculate the requested month's date range
+            const monthStartDate = new Date(year, month - 1, 1);
+            
+            // One-time adjustments: only include in the month they started (check month only, not year)
+            // If effectiveTill is set, show for whole month if effectiveTill >= month start
+            // e.g., if added in Jan 2025 with effectiveTill Jan 20, 2026, show in Jan 2026
             if (adj.adjustedFrequency === 'one_time_key') {
-                const startDate = new Date(adj.startDate);
-                return startDate.getFullYear() === year && (startDate.getMonth() + 1) === month;
+                // Check if startDate's month matches requested month (regardless of year)
+                const monthMatches = (startDate.getMonth() + 1) === month;
+                
+                if (!monthMatches) {
+                    return false; // Month doesn't match, don't show
+                }
+                
+                // If effectiveTill (endDate) is set, check if it's >= month start
+                // This allows showing one-time components in the same month across different years
+                if (adj.endDate) {
+                    const endDate = new Date(adj.endDate);
+                    // Show for whole month if effectiveTill is >= month start
+                    return endDate >= monthStartDate;
+                }
+                
+                // If no effectiveTill, show only if year also matches (original behavior for backward compatibility)
+                return startDate.getFullYear() === year;
+            }
+
+            // For other frequencies, check effectiveTill (endDate) - if set, must be >= month start
+            if (adj.endDate) {
+                const endDate = new Date(adj.endDate);
+                if (endDate < monthStartDate) {
+                    return false; // effectiveTill is before the requested month
+                }
             }
 
             // Calculate frequency interval (e.g., quarterly = every 3 months)
@@ -621,9 +616,6 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             }
             
             // Calculate months elapsed since adjustment started
-            const startDate = new Date(adj.startDate);
-            const startYear = startDate.getFullYear();
-            const startMonth = startDate.getMonth() + 1;
             const monthsElapsed = (year - startYear) * 12 + (month - startMonth);
             
             // Include if current month aligns with frequency interval
@@ -855,16 +847,21 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to edit payroll"
         });
         return;
     }
@@ -1076,16 +1073,21 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Generate permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Generate",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to generate payroll"
         });
         return;
     }
@@ -1208,16 +1210,14 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
 
                     if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
                         whereClause.employeeLevel = empLevel || null;
-                        whereClause.department = null;
-                        whereClause.yearOfStudy = null;
+                        // Don't include department and yearOfStudy in where clause - they can be null or not null, doesn't matter
                     } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
                         whereClause.employeeLevel = empLevel || null;
                         whereClause.department = empDepartment || null;
                         whereClause.yearOfStudy = empYearOfStudy || null;
                     } else {
-                        whereClause.employeeLevel = null;
-                        whereClause.department = null;
-                        whereClause.yearOfStudy = null;
+                        // For other types: Only check empType and location (not level, department, or yearOfStudy)
+                        // Don't include these fields in where clause
                     }
 
                     // Find salary category
@@ -1461,16 +1461,21 @@ export const finalizePayslips = async (req: Request, res: Response): Promise<voi
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_finalize permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_finalize",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to finalize payroll"
         });
         return;
     }
@@ -1562,16 +1567,21 @@ export const markPayslipsAsPending = async (req: Request, res: Response): Promis
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to edit payroll"
         });
         return;
     }
@@ -1714,16 +1724,21 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to export payroll"
         });
         return;
     }
@@ -2019,7 +2034,7 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
 export const downloadPayslip = async (req: Request, res: Response): Promise<void> => {
     try {
         const { payslipId } = req.query;
-        console.log(payslipId)
+ 
         if (!payslipId) {
             res.status(400).json({
                 success: false,
@@ -2214,9 +2229,17 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
         let netPayAmount = 0;
 
         if(isPayrollGenerated) {
-            netPayAmount = allPayslipRecords.reduce((total, payslip) => total + parseFloat(String(payslip.netPay)), 0);
+            netPayAmount = allPayslipRecords.reduce((total, payslip) => total + parseFloat(String(payslip.netPay || 0)), 0);
         } else {
-            const allAdjustedComponents = await dbOutput.employeeComponentAdjustments.findAll({
+            // Get employee IDs from payslip records
+            const employeeIds = allPayslipRecords.map(payslip => payslip.employeeId);
+            
+            // Calculate month start and end dates
+            const monthStartDate = new Date(year, month - 1, 1);
+            const monthEndDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+            // Fetch adjusted components only for employees with payslip records
+            const allAdjustedComponents = employeeIds.length > 0 ? await dbOutput.employeeComponentAdjustments.findAll({
                 include: [
                     {
                         model: dbOutput.salaryComponents,
@@ -2224,19 +2247,20 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                     }
                 ],
                 where: {
-                    startDate: { [Op.lte]: new Date(year, month, 0) },
+                    employeeId: { [Op.in]: employeeIds },
+                    startDate: { [Op.lte]: monthEndDate },
                     [Op.or]: [
-                        { endDate: { [Op.gte]: new Date(year, month - 1, 1) } },
+                        { endDate: { [Op.gte]: monthStartDate } },
                         { endDate: null }
                     ],
                     isDeleted: false
                 }
-            });
+            }) : [];
 
             const allAdjustedAdditions = allAdjustedComponents.filter(component => component.salaryComponent.componentType === componentTypes.ADDITION);
             const allAdjustedDeductions = allAdjustedComponents.filter(component => component.salaryComponent.componentType === componentTypes.DEDUCTION);
 
-            netPayAmount += allAdjustedAdditions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount)), 0) - allAdjustedDeductions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount)), 0);
+            netPayAmount += allAdjustedAdditions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0) - allAdjustedDeductions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0);
 
             const employeesWithJobDetails = await dbOutput.employeeBasicDetails.findAll({
                 include: [
@@ -2279,10 +2303,9 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
 
                     // Different employee types have different applicable fields
                     if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
-                        // Full-time employees: have level but no department/year
+                        // Full-time employees: have level but don't check department/year (they can be null or not null)
                         whereClause.employeeLevel = empLevel || null;
-                        whereClause.department = null;
-                        whereClause.yearOfStudy = null;
+                        // Don't include department and yearOfStudy in where clause
                     } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
                         // Interns: have all fields
                         whereClause.employeeLevel = empLevel || null;
@@ -2290,12 +2313,17 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                         whereClause.yearOfStudy = empYearOfStudy || null;
                     } else {
                         // Other types (consultants, contractors): only type and location
-                        whereClause.employeeLevel = null;
-                        whereClause.department = null;
-                        whereClause.yearOfStudy = null;
+                        // Don't include level, department, or yearOfStudy in where clause
                     }
 
-                    return { empUuid: emp.empUuid, whereClause };
+                    return { 
+                        empUuid: emp.empUuid, 
+                        whereClause,
+                        empType,
+                        empLevel,
+                        empDepartment,
+                        empYearOfStudy
+                    };
             });
 
             // Fetch all matching salary categories in one query
@@ -2310,13 +2338,27 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
             // Map employees to their salary categories
             const salaryCategoryMap = new Map<string, string>();
             salaryCategoryQueries.forEach(query => {
+                const wc = query.whereClause;
                 const match = salaryCategories.find(cat => {
-                    const wc = query.whereClause;
-                    return cat.employeeType === wc.employeeType &&
-                        cat.employeeLocation === wc.employeeLocation &&
-                        cat.employeeLevel === wc.employeeLevel &&
-                        cat.department === wc.department &&
-                        cat.yearOfStudy === wc.yearOfStudy;
+                    // Base matching: always check empType and location
+                    if (cat.employeeType !== wc.employeeType || cat.employeeLocation !== wc.employeeLocation) {
+                        return false;
+                    }
+
+                    // For FTE/OFTE/PTE: Only check empType, location, and level. Don't check department and yearOfStudy.
+                    if (query.empType === 'fte_key' || query.empType === 'ofte_key' || query.empType === 'pte_key') {
+                        return cat.employeeLevel === (query.empLevel || null);
+                    } 
+                    // For interns: Check all fields including department and yearOfStudy
+                    else if (query.empType === 'intern_key' || query.empType === 'extended_intern_key') {
+                        return cat.employeeLevel === (query.empLevel || null) &&
+                            cat.department === (query.empDepartment || null) &&
+                            cat.yearOfStudy === (query.empYearOfStudy || null);
+                    } 
+                    // For other types: Only check empType and location (not level, department, or yearOfStudy)
+                    else {
+                        return true; // Already matched empType and location above
+                    }
                 });
                 if (match) {
                     salaryCategoryMap.set(query.empUuid, match.salaryCategoryId);
@@ -2364,43 +2406,45 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                 },
                 attributes: ['leaveConfigId'],
                 raw: true
-            })
+            });
 
-            const allUnpaidLeaves = await dbOutput.employeeAttendanceDetails.findAll({
-                include: [
-                    {
-                        model: dbOutput.employeeLeaveRequestDetails,
-                        as: 'leaveRequest',
-                        where: {
-                            leaveConfigId: unpaidLeaveConfigDetails.leaveConfigId 
+            if (unpaidLeaveConfigDetails?.leaveConfigId) {
+                const allUnpaidLeaves = await dbOutput.employeeAttendanceDetails.findAll({
+                    include: [
+                        {
+                            model: dbOutput.employeeLeaveRequestDetails,
+                            as: 'leaveRequest',
+                            where: {
+                                leaveConfigId: unpaidLeaveConfigDetails.leaveConfigId 
+                            },
+                            attributes: [],
+                            required: true
+                        }
+                    ],
+                    where: {
+                        empUuid: { [Op.in]: employeeIds },
+                        attendanceStatus: {
+                            [Op.or]: [AttendanceStatusType.ON_LEAVE, AttendanceStatusType.HALF_DAY]
                         },
-                        attributes: [],
-                        required: true
-                    }
-                ],
-                where: {
-                    empUuid: { [Op.in]: allPayslipRecords.map(payslip => payslip.employeeId) },
-                    attendanceStatus: {
-                        [Op.or]: [AttendanceStatusType.ON_LEAVE, AttendanceStatusType.HALF_DAY]
+                        attendanceDate: {
+                            [Op.between]: [monthStartDate, monthEndDate]
+                        },
+                        isDeleted: false
                     },
-                    attendanceDate: {
-                        [Op.between]: [new Date(year, month - 1, 1), new Date(year, month, 0)]
-                    },
-                    isDeleted: false
-                },
-                raw: true
-            });
+                    raw: true
+                });
 
-            allUnpaidLeaves.forEach(leave => {
-                const employeeId = leave.empUuid;
-                const employeeDefaultComponents = defaultComponentMap.get(employeeId) || [];
-                const lopDeduction = employeeDefaultComponents.find(c => c.componentName.includes('Loss of Pay'));
+                allUnpaidLeaves.forEach(leave => {
+                    const employeeId = leave.empUuid;
+                    const employeeDefaultComponents = defaultComponentMap.get(employeeId) || [];
+                    const lopDeduction = employeeDefaultComponents.find(c => c.componentName.includes('Loss of Pay'));
 
-                const lopDeductionAmount = lopDeduction ? parseFloat(String(lopDeduction.amount)) : 0;
-                const unpaidLeaveAmount = leave.attendanceType === AttendanceStatusType.HALF_DAY ? lopDeductionAmount / 2 : lopDeductionAmount;
+                    const lopDeductionAmount = lopDeduction ? parseFloat(String(lopDeduction.amount || 0)) : 0;
+                    const unpaidLeaveAmount = leave.attendanceStatus === AttendanceStatusType.HALF_DAY ? lopDeductionAmount / 2 : lopDeductionAmount;
 
-                netPayAmount -= unpaidLeaveAmount;
-            });
+                    netPayAmount -= unpaidLeaveAmount;
+                });
+            }
         }
 
         res.json({
@@ -2417,3 +2461,413 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
         });
     }
 }
+
+/**
+ * Helper function to check if salary category exists for an employee
+ * Returns salary category if found, null otherwise
+ */
+const checkSalaryCategoryExists = async (
+    empType: string,
+    employeeLocation: string | null,
+    empLevel: string | null,
+    empDepartment: string | null,
+    empYearOfStudy: string | null
+): Promise<{ salaryCategoryId: string } | null> => {
+    const whereClause: Record<string, unknown> = {
+        employeeType: empType,
+        employeeLocation: employeeLocation,
+        isDeleted: false
+    };
+
+    // For FTE/PTE types: Only check empType, location, and level. Don't check department and yearOfStudy at all.
+    if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
+        whereClause.employeeLevel = empLevel || null;
+        // Don't include department and yearOfStudy in where clause - they can be null or not null, doesn't matter
+    } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
+        // For interns: Check all fields including department and yearOfStudy
+        whereClause.employeeLevel = empLevel || null;
+        whereClause.department = empDepartment || null;
+        whereClause.yearOfStudy = empYearOfStudy || null;
+    } else {
+        // For other types: Only check empType and location (not level, department, or yearOfStudy)
+        // Don't include these fields in where clause
+    }
+
+    const salaryCategory = await dbOutput.salaryCategories.findOne({
+        where: whereClause,
+        attributes: ['salaryCategoryId']
+    });
+
+    return salaryCategory ? { salaryCategoryId: salaryCategory.salaryCategoryId } : null;
+};
+
+/**
+ * Core function to create payroll for employees (used by both API and cron job)
+ * @param month - Month number (1-12), defaults to current month
+ * @param year - Year number, defaults to current year
+ * @param transaction - Optional transaction for database operations
+ * @returns Object with created payrolls and errors
+ */
+const createPayrollForEmployees = async (
+    month?: number,
+    year?: number,
+    transaction?: Transaction
+): Promise<{
+    totalEmployees: number;
+    payrollsCreated: number;
+    skippedCount: number;
+    errorCount: number;
+    createdPayrolls: Array<{ payslipId: string; empUuid: string; status: string }>;
+    skippedEmployees: Array<{ empUuid: string; reason: string }>;
+    errors: Array<{ empUuid: string; error: string }>;
+}> => {
+    const payrollStartDate = new Date();
+    const currentMonth = month || (payrollStartDate.getMonth() + 1);
+    const currentYear = year || payrollStartDate.getFullYear();
+
+    // Set payroll start date to first day of the specified month in UTC
+    // This ensures consistent date storage regardless of server timezone
+    const targetPayrollStartDate = new Date(Date.UTC(currentYear, currentMonth - 1, 1, 0, 0, 0, 0));
+
+    const result = {
+        totalEmployees: 0,
+        payrollsCreated: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        createdPayrolls: [] as Array<{ payslipId: string; empUuid: string; status: string }>,
+        skippedEmployees: [] as Array<{ empUuid: string; reason: string }>,
+        errors: [] as Array<{ empUuid: string; error: string }>
+    };
+
+    // Fetch all active employees with their job and address details
+    const employees = await dbOutput.employeeBasicDetails.findAll({
+        include: [
+            {
+                model: dbOutput.employeeJobDetails,
+                as: 'jobDetails',
+                required: true,
+                attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
+            },
+            {
+                model: dbOutput.employeeAddressDetails,
+                as: 'addressDetails',
+                required: false,
+                attributes: ['state']
+            }
+        ],
+        where: { isDeleted: false },
+        attributes: ['empUuid']
+    });
+
+    if (!employees.length) {
+        return result;
+    }
+
+    result.totalEmployees = employees.length;
+    const employeeIds: string[] = employees.map(e => e.empUuid);
+
+    // Calculate date range for the month (first day to last day)
+    // Create dates in UTC to avoid timezone conversion issues
+    // For January 2026: start = 2026-01-01 00:00:00 UTC, end = 2026-01-31 23:59:59 UTC
+    const monthStartDate = new Date(Date.UTC(currentYear, currentMonth - 1, 1, 0, 0, 0, 0));
+    const monthEndDate = new Date(Date.UTC(currentYear, currentMonth, 0, 23, 59, 59, 999));
+
+    console.log(`[${new Date().toISOString()}] Checking for existing payrolls for ${currentMonth}/${currentYear}`, {
+        monthStartDate: monthStartDate.toISOString(),
+        monthEndDate: monthEndDate.toISOString(),
+        monthStartDateLocal: monthStartDate.toString(),
+        monthEndDateLocal: monthEndDate.toString(),
+        employeeCount: employeeIds.length
+    });
+
+    // Fetch all existing payslips for the current month
+    // Use explicit date range with UTC dates to avoid timezone conversion issues
+    // The dates are stored in UTC in the database, so we compare UTC to UTC
+    const existingPayslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
+        where: {
+            employeeId: { [Op.in]: employeeIds },
+            payrollStartDate: {
+                [Op.gte]: monthStartDate,
+                [Op.lte]: monthEndDate
+            },
+            isDeleted: false
+        },
+        attributes: ['employeeId', 'status', 'payslipId', 'payrollStartDate'],
+        raw: true
+        // Don't use transaction here - we want to see all committed records
+    });
+
+    console.log(`[${new Date().toISOString()}] Found ${existingPayslips.length} existing payroll records for ${currentMonth}/${currentYear}`);
+    console.log(`[${new Date().toISOString()}] Query date range: ${monthStartDate.toISOString()} to ${monthEndDate.toISOString()}`);
+    if (existingPayslips.length > 0) {
+        console.log(`[${new Date().toISOString()}] Sample existing records (first 5):`, existingPayslips.slice(0, 5).map(p => {
+            const date = (p as any).payrollStartDate;
+            return {
+                employeeId: p.employeeId,
+                status: p.status,
+                payrollStartDateRaw: date,
+                payrollStartDateISO: date ? new Date(date).toISOString() : null,
+                payrollStartDateLocal: date ? new Date(date).toString() : null
+            };
+        }));
+    }
+
+    // Create a map of existing payslips by employeeId
+    const existingPayslipMap = new Map<string, string>();
+    existingPayslips.forEach(p => {
+        existingPayslipMap.set(p.employeeId, p.status);
+    });
+
+    // Process each employee
+    const newPayslips: Array<{
+        payslipId: string;
+        employeeId: string;
+        payrollStartDate: Date;
+        payrollEndDate: null;
+        status: string;
+        netPay: null;
+        isDeleted: boolean;
+    }> = [];
+
+    for (const employee of employees) {
+        const empUuid = employee.empUuid;
+        const emp = employee as any;
+        const jobDetails = emp.jobDetails;
+        const addressDetails = emp.addressDetails;
+
+        // Check if payroll already exists for this month
+        const existingStatus = existingPayslipMap.get(empUuid);
+        
+        if (existingStatus) {
+            // Skip if payroll is already generated or finalized
+            if (existingStatus === payrollStatus.PAYROLL_GENERATED || existingStatus === payrollStatus.PAYROLL_FINALIZED) {
+                result.skippedCount++;
+                result.skippedEmployees.push({
+                    empUuid,
+                    reason: `Payroll already ${existingStatus} for this month`
+                });
+                continue;
+            }
+            // If status is PENDING, skip (already exists)
+            if (existingStatus === payrollStatus.PENDING) {
+                result.skippedCount++;
+                result.skippedEmployees.push({
+                    empUuid,
+                    reason: "Payroll already exists with PENDING status"
+                });
+                continue;
+            }
+        }
+
+        // Check if job details exist
+        if (!jobDetails) {
+            result.errorCount++;
+            result.errors.push({
+                empUuid,
+                error: "Employee job details not found"
+            });
+            continue;
+        }
+
+        const { empType, empDepartment, empLevel, empYearOfStudy } = jobDetails;
+        const employeeLocation = addressDetails?.state || null;
+
+        // Check if salary category exists for this employee
+        try {
+            const salaryCategory = await checkSalaryCategoryExists(
+                empType,
+                employeeLocation,
+                empLevel,
+                empDepartment,
+                empYearOfStudy
+            );
+
+            if (!salaryCategory) {
+                result.skippedCount++;
+                const reasonParts: string[] = [];
+                if (empType) reasonParts.push(`Employee Type: ${empType}`);
+                if (employeeLocation) reasonParts.push(`Location: ${employeeLocation}`);
+                if (empLevel) reasonParts.push(`Level: ${empLevel}`);
+                if (empDepartment) reasonParts.push(`Department: ${empDepartment}`);
+                if (empYearOfStudy) reasonParts.push(`Year of Study: ${empYearOfStudy}`);
+                
+                const reason = reasonParts.length > 0 
+                    ? `Salary configuration not available for ${reasonParts.join(', ')}`
+                    : "Salary configuration not available (missing employee details)";
+                
+                result.skippedEmployees.push({
+                    empUuid,
+                    reason
+                });
+                continue;
+            }
+
+            // All checks passed - create payroll
+            newPayslips.push({
+                payslipId: await createUUIDV4(),
+                employeeId: empUuid,
+                payrollStartDate: targetPayrollStartDate,
+                payrollEndDate: null,
+                status: payrollStatus.PENDING,
+                netPay: null,
+                isDeleted: false
+            });
+        } catch (error) {
+            result.errorCount++;
+            result.errors.push({
+                empUuid,
+                error: error instanceof Error ? error.message : 'Unknown error while checking salary category'
+            });
+        }
+    }
+
+    // Bulk create new payrolls if any
+    if (newPayslips.length > 0) {
+        try {
+            console.log(`[${new Date().toISOString()}] Attempting to create ${newPayslips.length} payroll records for ${currentMonth}/${currentYear}`);
+            
+            const createdRecords = await dbOutput.employeePayslipRecords.bulkCreate(newPayslips, {
+                ...(transaction ? { transaction } : {}),
+                returning: true,
+                validate: true
+            });
+
+            result.payrollsCreated = createdRecords.length;
+            result.createdPayrolls = createdRecords.map(p => ({
+                payslipId: p.payslipId,
+                empUuid: p.employeeId,
+                status: p.status
+            }));
+
+            console.log(`[${new Date().toISOString()}] Successfully created ${createdRecords.length} payroll records for ${currentMonth}/${currentYear}`);
+            
+            // Verify records were actually saved (only if not in transaction, as transaction records aren't visible until commit)
+            if (!transaction) {
+                const verifyCount = await dbOutput.employeePayslipRecords.count({
+                    where: {
+                        employeeId: { [Op.in]: newPayslips.map(p => p.employeeId) },
+                        payrollStartDate: {
+                            [Op.gte]: monthStartDate,
+                            [Op.lte]: monthEndDate
+                        },
+                        isDeleted: false
+                    }
+                });
+                console.log(`[${new Date().toISOString()}] Verification: Found ${verifyCount} payroll records in database after creation for ${currentMonth}/${currentYear}`);
+            }
+        } catch (bulkCreateError) {
+            console.error(`[${new Date().toISOString()}] Error bulk creating payroll records:`, bulkCreateError);
+            result.errorCount += newPayslips.length;
+            newPayslips.forEach(p => {
+                result.errors.push({
+                    empUuid: p.employeeId,
+                    error: bulkCreateError instanceof Error ? bulkCreateError.message : 'Unknown error during bulk create'
+                });
+            });
+        }
+    } else {
+        console.log(`[${new Date().toISOString()}] No new payrolls to create for ${currentMonth}/${currentYear}. Skipped: ${result.skippedCount}, Errors: ${result.errorCount}`);
+    }
+
+    return result;
+};
+
+/**
+ * API endpoint to manually create payroll for employees
+ * Can be called via Postman or frontend if cron job misses
+ * Optional query params: month (1-12), year (e.g., 2026)
+ */
+export const createPayroll = async (req: Request, res: Response): Promise<void> => {
+    try {
+        // Extract optional month and year from query params
+        const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+        const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
+        // Validate month if provided
+        if (month !== undefined && (isNaN(month) || month < 1 || month > 12)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid month. Month must be between 1 and 12."
+            });
+            return;
+        }
+
+        // Validate year if provided
+        if (year !== undefined && (isNaN(year) || year < 2000 || year > 2100)) {
+            res.status(400).json({
+                success: false,
+                message: "Invalid year. Year must be between 2000 and 2100."
+            });
+            return;
+        }
+
+        const result = await outputSequelize.transaction(async (transaction: Transaction) => {
+            const payrollResult = await createPayrollForEmployees(month, year, transaction);
+            // Transaction will auto-commit if no error is thrown
+            return payrollResult;
+        });
+
+        if (result.totalEmployees === 0) {
+            res.status(200).json({
+                success: true,
+                message: "No active employees found to create payrolls.",
+                data: result
+            });
+            return;
+        }
+
+        if (result.payrollsCreated === 0 && result.skippedCount === 0 && result.errorCount === 0) {
+            res.status(200).json({
+                success: true,
+                message: "No new payrolls to create. All employees already have payroll records for this month.",
+                data: result
+            });
+            return;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Payroll creation completed. Created: ${result.payrollsCreated}, Skipped: ${result.skippedCount}, Errors: ${result.errorCount}`,
+            data: result
+        });
+    } catch (error) {
+        console.error("Error creating payroll:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal server error while creating payroll",
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+};
+
+/**
+ * Cron job function to automatically create payroll for employees
+ * Runs daily at midnight to check and create payroll for employees who don't have it
+ * Skips employees if:
+ * - Payroll is already generated or finalized for that month
+ * - Salary configuration is not available
+ */
+export const createPayrollCronJob = async (): Promise<void> => {
+    console.log(`[${new Date().toISOString()}] Starting automatic payroll creation cron job...`);
+    
+    try {
+        const result = await createPayrollForEmployees();
+        
+        console.log(`[${new Date().toISOString()}] Payroll creation cron job completed:`, {
+            totalEmployees: result.totalEmployees,
+            payrollsCreated: result.payrollsCreated,
+            skippedCount: result.skippedCount,
+            errorCount: result.errorCount
+        });
+
+        if (result.errors.length > 0) {
+            console.error(`[${new Date().toISOString()}] Errors during payroll creation:`, result.errors);
+        }
+
+        if (result.skippedEmployees.length > 0) {
+            console.log(`[${new Date().toISOString()}] Skipped employees (showing first 10):`, result.skippedEmployees.slice(0, 10));
+        }
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error in payroll creation cron job:`, error);
+    }
+};

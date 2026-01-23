@@ -6,6 +6,7 @@ import {
   hrmsNotificationTypes, 
   payrollStatus,
 } from "../enum/hrmsEnum";
+import { Transaction } from "sequelize";
 
 // Define the interface for the model attributes
 export interface EmployeeHolidayDetailsAttributes {
@@ -260,6 +261,7 @@ export interface AuthenticatedUser {
   email?: string;
   userId?: string;
   toolsAccess: unknown;
+  employeeUuid?: string | null;
 }
 
 export interface CategoryData {
@@ -619,21 +621,135 @@ export interface AdjustmentError {
     error: string;
 }
 
-//Interface for allCountryDetails
-export interface AllCountryDetailsAttributes {
-  id: number;
-  countryIsoCode: string;
-  countryIsoCodeAlpha3: string;
-  countryName: string;
-  countryPhoneCode: string;
-  countryFlagSvg: Buffer;
-  currencyName: string;
-  currencySymbol: string;
-  currencyCodeAlpha2: string;
-  currencyCodeAlpha3: string;
-  transactionCurrencySymbol?: string;
-  transactionCurrencyCodeAlpha3?: string;
-  ppp?: number;
+export interface extraWorkDayAttributes {
+    extraWorkDayId: string;
+    empUuid: string;
+    leaveConfigId: string;
+    workDate: Date;
+    checkIn: string;
+    checkOut: string;
+    remarks: string;
+    proof: string;
+    totalDuration: number;
+    totalCompOffCredit: number;
+    requestBy: string;
+    approvalStatus: LeaveApprovalStatus;
+    approvedBy?: string;
+    approvalDate?: Date;
+    compOffExpiryDate?: Date;
+    totalCompOffUsed?: string;
+    isDeleted?: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+}
+
+export interface hrmsAccessRoleAttributes {
+  roleId: number;
+  roleName: string;
+  description: string | null;
+  isDeleted: boolean;
+  updatedBy?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface hrmsAccessPermissionAttributes {
+  permissionId: number;
+  name: string;
+  displayName: string;
+  description: string | null;
+  category: string | null;
+  isDeleted: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface hrmsAccessRolePermissionAttributes {
+  rolePermissionId: number;
+  roleId: number;
+  permissionId: number;
+  lastActionBy?: string | null;
+  isDeleted: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface hrmsEmployeeRoleAttributes {
+  employeeRoleId: number;
+  empUuid: string;
+  roleId: number;
+  assignedBy?: string | null;
+  isDeleted: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Permission {
+  permissionId: number;
+  name: string;
+  displayName: string;
+  description?: string | null;
+  category?: string | null;
+}
+
+export interface GroupedPermissions {
+  [category: string]: Permission[];
+}
+
+export interface RolePermission {
+  permissionId: number;
+  name: string;
+  displayName: string;
+  category: string | null;
+}
+
+export interface FormattedRole {
+  roleId: number;
+  roleName: string;
+  description: string | null;
+  updatedBy: string | null;
+  permissions: RolePermission[];
+  allPermission?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RoleInstance {
+  roleId: number;
+  roleName: string;
+  description: string | null;
+  updatedBy: string | null;
+  permissions?: Permission[];
+  isDeleted?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  save: (options?: { transaction?: Transaction }) => Promise<void>;
+}
+
+export interface EmployeeRoleData {
+  employeeRoleId: number;
+  roleId: number;
+  roleName: string;
+  description: string | null;
+  assignedBy: string | null;
+  assignedAt: Date;
+}
+
+export interface EmployeeWithRoles {
+  empUuid: string;
+  empFirstName: string;
+  empLastName: string;
+  empCompanyId: string;
+  roles: EmployeeRoleData[];
+  role: {
+    roleId: number;
+    roleName: string;
+    description: string | null;
+  } | null;
+}
+
+export interface RolePermissionAssociation {
+  permissionId: number;
+  isDeleted: boolean;
+  lastActionBy?: string | null;
 }

@@ -14,16 +14,16 @@ export class employmentHistory
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmploymentHistory = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employmentHistory.init(
     {
       empHistoryId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       empUuid: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: true,
       },
       empStartDate: {

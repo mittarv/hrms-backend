@@ -4,6 +4,7 @@ const UamRequest = dbOutput.uamRequest;
 const UamToolUsers = dbOutput.uamToolUsers;
 const UserGroup = dbOutput.uamUserGroups;
 const TmsUsers = dbOutput.tmsUsers
+const UamToolDetails = dbOutput.uamToolDetails;
 exports.createRequest = async (req, res) => {
   try {
     const {

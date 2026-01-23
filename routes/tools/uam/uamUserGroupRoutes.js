@@ -7,7 +7,7 @@ const { isTmsUserAuthenticated } = require("../../../middlewares/isAuthenticated
 
 router.route('/add').post(isTmsUserAuthenticated, createNewUserGroup)
 router.route('/getall/').get(getAllUserGroups)
-// router.route('/get/:id').get(isAuthenticated, getUserDetailsById)
+// router.route('/get/:id').get(isTmsUserAuthenticated, getUserDetailsById)
 router.route('/update').patch(isTmsUserAuthenticated, updateUserGroupById)
 //now updating the isDeleted column to true, so that we can delete the data
 router.route('/delete').patch(isTmsUserAuthenticated, deleteUserGroupsByIds)

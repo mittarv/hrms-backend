@@ -21,7 +21,7 @@ export class UamRequestModel
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initUamRequest = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   UamRequestModel.init(
     {
       id: {

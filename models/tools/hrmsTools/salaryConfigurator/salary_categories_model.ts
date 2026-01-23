@@ -15,7 +15,7 @@ export class salaryCategories
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initSalaryCategories = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   salaryCategories.init(
     {
       salaryCategoryId: {

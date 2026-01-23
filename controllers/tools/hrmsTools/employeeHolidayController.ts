@@ -1,11 +1,35 @@
 import { dbOutput } from "../../../models/index";
 import { createUUIDV4 } from "../../../utilities/uuidV4Generator";
 import { Request, Response } from "express";
+import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
+import { AuthenticatedUser } from "../../../interfaces/hrmsTool/interface/hrmsInterface";
+import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
+import { hrmsConstants } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 const employeeHoliday = dbOutput.employeeHolidayDetails;
 
 // Function to create a new holiday
 export const CreateHoliday = async (req: Request, res: Response) => {
   try {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    // Check permission: admin access (>= 900) OR Holiday_Create permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "Holiday_Create",
+      toolName,
+      toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
+      res.status(403).json({
+        success: false,
+        message: "You don't have permission to create holidays",
+      });
+      return;
+    }
+
     const requestData = req.body;
 
     // Check if request is an array or single object
@@ -98,6 +122,25 @@ export const CreateHoliday = async (req: Request, res: Response) => {
 // Function to get all holidays
 export const GetAllHolidays = async (req: Request, res: Response) => {
   try {
+    // Note: Everyone can view holidays (no permission check needed for viewing)
+    // If you want to restrict viewing, uncomment the following:
+    // const { user } = req as AuthenticatedRequest;
+    // const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    // const toolName = "HR Repository";
+    // const hasPermission = await checkHrmsPermission(
+    //   employeeUuid,
+    //   "HolidayAdmin_view",
+    //   toolName,
+    //   toolsAccess as Record<string, number> | undefined
+    // );
+    // if (!hasPermission) {
+    //   res.status(403).json({
+    //     success: false,
+    //     message: "You don't have permission to view holidays",
+    //   });
+    //   return;
+    // }
+
     const holidays = await employeeHoliday.findAll({
       where: {
         isDeleted: false,
@@ -131,6 +174,26 @@ export const GetAllHolidays = async (req: Request, res: Response) => {
 //function to Delete a Holiday
 export const DeleteHoliday = async (req: Request, res: Response) => {
   try {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    // Check permission: admin access (>= 900) OR Holiday_Delete permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "Holiday_Delete",
+      toolName,
+      toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
+      res.status(403).json({
+        success: false,
+        message: "You don't have permission to delete holidays",
+      });
+      return;
+    }
+
     const { holidayIds } = req.body;
     
     // Validate input
@@ -194,6 +257,26 @@ type HolidayUpdate = {
 
 export const UpdateHoliday = async (req: Request, res: Response) => {
   try {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    // Check permission: admin access (>= 900) OR Holiday_Update permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "Holiday_Update",
+      toolName,
+      toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
+      res.status(403).json({
+        success: false,
+        message: "You don't have permission to update holidays",
+      });
+      return;
+    }
+
     const holidaysData: HolidayUpdate[] = req.body;
 
     // Validate input

@@ -98,6 +98,30 @@ const leaveConfiguratorsData = [
     isDefault: 1,
     leaveApplicableTo: "null",
     allotAllLeaves: 1
+  },
+  {
+    leaveConfigId: "db48e78c-5a8e-46fb-a6f9-e47c0e5ea101",
+    leaveType: "Comp Off",
+    employeeType: "[\"fte_key\",\"pte_key\"]",
+    accuralFrequency: "1",
+    totalAllotedLeaves: 0,
+    accuralRate: 0,
+    minimumNoticePeriod: 10,
+    maximumNoticePeriod: 10,
+    continuousLeavesLimit: 5,
+    excludePaidWeekend: 1,
+    appliedGender: "[\"male_key\",\"female_key\"]",
+    isHalfDayAllowed: 1,
+    isProofRequired: 1,
+    isReasonRequired: 1,
+    effectiveDate: new Date("2025-12-16T05:51:19.000Z"),
+    terminationDate: null,
+    isActive: 1,
+    createdAt: new Date("2025-12-16T05:51:19.000Z"),
+    updatedAt: new Date("2026-01-20T09:17:55.000Z"),
+    isDefault: 1,
+    leaveApplicableTo: "null",
+    allotAllLeaves: 1
   }
 ];
 

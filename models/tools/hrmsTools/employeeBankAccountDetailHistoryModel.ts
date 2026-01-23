@@ -17,20 +17,20 @@ export class employeeBankAccountDetailHistory
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeBankAccountDetailHistory = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeBankAccountDetailHistory.init(
     {
       bankAccountHistoryId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       accountId: {
         allowNull: false,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       empUuid: {
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
         allowNull: false,
       },
       empIFSCCode: {

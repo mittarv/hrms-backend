@@ -17,7 +17,7 @@ implements employeeComponentAdjustmentsAttributes
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeComponentAdjustments = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
     employeeComponentAdjustments.init(
       {
         adjustmentId: {

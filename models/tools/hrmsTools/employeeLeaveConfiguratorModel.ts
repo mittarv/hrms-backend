@@ -29,13 +29,13 @@ export class employeeLeaveConfigurator
   declare readonly updatedAt?: Date;
 }
 
-module.exports = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
+export const initEmployeeLeaveConfigurator = (sequelize: Sequelize, dataTypes: typeof DataTypes) => {
   employeeLeaveConfigurator.init(
     {
       leaveConfigId: {
         allowNull: false,
         primaryKey: true,
-        type: dataTypes.STRING,
+        type: dataTypes.UUID,
       },
       leaveType: {
         type: dataTypes.STRING,
