@@ -7,7 +7,6 @@ import {
     componentTypes,
     AttendanceStatusType, 
     hrmsConstants,
-    accessLevelConstant, 
     // AttendanceStatusType
 } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 import { 
@@ -28,22 +27,28 @@ import handlebars from 'handlebars';
 import { fetchEmployeeLeavesData, fetchEmployeeCurrentJobDetails } from "../../../utilities/hrmsUtilities/dbCalls";
 import { formatItems, generatePayrollCSV } from "../../../utilities/hrmsUtilities/helperFunctions";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
+import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
 
 export const getAllEmployeePayrollDetails = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_read permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_read",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to view payroll"
         });
         return;
     }
@@ -856,16 +861,21 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to edit payroll"
         });
         return;
     }
@@ -1077,16 +1087,21 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Generate permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Generate",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to generate payroll"
         });
         return;
     }
@@ -1471,16 +1486,21 @@ export const finalizePayslips = async (req: Request, res: Response): Promise<voi
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_finalize permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_finalize",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to finalize payroll"
         });
         return;
     }
@@ -1572,16 +1592,21 @@ export const markPayslipsAsPending = async (req: Request, res: Response): Promis
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to edit payroll"
         });
         return;
     }
@@ -1724,16 +1749,21 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
     const { user } = req as AuthenticatedRequest;
     
     // Check user permissions
-    const { toolsAccess } = user as AuthenticatedUser;
-     
-    // Validate user access level
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
     
-    // Check user access level
-    if (userType < accessLevelConstant.TOOL_ADMIN) {
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         res.status(403).json({
             status: "error",
-            message: "Forbidden: You don't have access to this resource"
+            message: "You don't have permission to export payroll"
         });
         return;
     }
@@ -2010,7 +2040,7 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
 export const downloadPayslip = async (req: Request, res: Response): Promise<void> => {
     try {
         const { payslipId } = req.query;
-        console.log(payslipId)
+ 
         if (!payslipId) {
             res.status(400).json({
                 success: false,
