@@ -3,7 +3,7 @@
 # This workflow:
 # 1. Creates release tags based on date and commit SHA
 # 2. Creates .env file from GitHub environment variables at runtime
-# 3. Builds and deploys using Docker Compose on self-hosted runner
+# 3. Builds and deploys using Docker Compose on Ubuntu (Github-Unix-Runner)
 # 4. Creates a GitHub release with auto-generated notes
 # 5. Tags format: release-YYYY-MM-DD-<short-sha>
 #
@@ -41,7 +41,7 @@
 # The workflow runs on:
 #   - Push to main branch
 #   - Manual trigger via workflow_dispatch
-#   - Requires self-hosted runner configured in repository
+#   - Requires self-hosted runner "Github-Unix-Runner" (Ubuntu) configured in repository
 
 name: Build, Deploy to Docker and Create Release
 
@@ -59,7 +59,7 @@ jobs:
   build-and-deploy-using-docker:
     name: Build and Deploy using Docker
     environment: hrms-backend
-    runs-on: self-hosted
+    runs-on: Github-Unix-Runner
 
     steps:
       - name: Checkout code
@@ -69,33 +69,19 @@ jobs:
 
       - name: Generate release tag
         id: tag
-        shell: cmd
         run: |
-          @echo off
-          REM Get current date in YYYY-MM-DD format
-          for /f "tokens=1-3 delims=/ " %%a in ('%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command "Get-Date -Format 'yyyy-MM-dd'"') do set RELEASE_DATE=%%a
-          
-          REM Get short commit SHA
-          for /f %%i in ('git rev-parse --short HEAD') do set SHORT_SHA=%%i
-          
-          REM Create release tag
-          set RELEASE_TAG=release-%RELEASE_DATE%-%SHORT_SHA%
-          echo Release tag: %RELEASE_TAG%
-          
-          REM Set GitHub output and environment variables
-          echo release_tag=%RELEASE_TAG%>>%GITHUB_OUTPUT%
-          echo RELEASE_TAG=%RELEASE_TAG%>>%GITHUB_ENV%
-          
-          REM Configure git for tagging
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          RELEASE_TAG="release-${RELEASE_DATE}-${SHORT_SHA}"
+          echo "Release tag: ${RELEASE_TAG}"
+          echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          REM Create and push git tag
-          git tag -a "%RELEASE_TAG%" -m "Release %RELEASE_TAG%"
-          git push origin "%RELEASE_TAG%"
+          git tag -a "${RELEASE_TAG}" -m "Release ${RELEASE_TAG}"
+          git push origin "${RELEASE_TAG}"
 
       - name: Create .env file from GitHub variables
-        shell: powershell
         env:
           PORT: ${{ vars.PORT }}
           NODE_ENV: ${{ vars.NODE_ENV }}
@@ -124,50 +110,46 @@ jobs:
           CRON_JOB_MACHINE_HOSTNAME: ${{ vars.CRON_JOB_MACHINE_HOSTNAME }}
           HOST_PORT: ${{ vars.HOST_PORT }}
         run: |
-          $content = @(
-            "PORT=$env:PORT",
-            "NODE_ENV=$env:NODE_ENV",
-            "IP=$env:IP",
-            "SECRET_KEY=$env:SECRET_KEY",
-            "REFRESH_TOKEN_SECRET=$env:REFRESH_TOKEN_SECRET",
-            "SMTP_HOST=$env:SMTP_HOST",
-            "SMTP_PORT=$env:SMTP_PORT",
-            "SMTP_USER=$env:SMTP_USER",
-            "SMTP_PASS=$env:SMTP_PASS",
-            "HRMS_SMTP_FROM=$env:HRMS_SMTP_FROM",
-            "HRMS_DASHBOARD_URL=$env:HRMS_DASHBOARD_URL",
-            "EVENT_HUB_CONNECTION_STRING=$env:EVENT_HUB_CONNECTION_STRING",
-            "EVENT_HUB_NAME=$env:EVENT_HUB_NAME",
-            "AZURE_SERVICE_BUS_CONNECTION_STRING=$env:AZURE_SERVICE_BUS_CONNECTION_STRING",
-            "AZURE_SERVICE_BUS_QUEUE_NAME=$env:AZURE_SERVICE_BUS_QUEUE_NAME",
-            "BATCH_SIZE=$env:BATCH_SIZE",
-            "FLUSH_INTERVAL=$env:FLUSH_INTERVAL",
-            "SLOW_THRESHOLD=$env:SLOW_THRESHOLD",
-            "DATABASE_OUTPUT_NAME=$env:DATABASE_OUTPUT_NAME",
-            "DATABASE_OUTPUT_USER=$env:DATABASE_OUTPUT_USER",
-            "DATABASE_OUTPUT_PASSWORD=$env:DATABASE_OUTPUT_PASSWORD",
-            "DATABASE_OUTPUT_PORT=$env:DATABASE_OUTPUT_PORT",
-            "DATABASE_OUTPUT_HOST=$env:DATABASE_OUTPUT_HOST",
-            "DATABASE_OUTPUT_DIALECT=$env:DATABASE_OUTPUT_DIALECT",
-            "CRON_JOB_MACHINE_HOSTNAME=$env:CRON_JOB_MACHINE_HOSTNAME",
-            "HOST_PORT=$env:HOST_PORT"
-          )
-          $content | Set-Content -Path ".env" -Encoding UTF8
+          {
+            echo "PORT=${PORT}"
+            echo "NODE_ENV=${NODE_ENV}"
+            echo "IP=${IP}"
+            echo "SECRET_KEY=${SECRET_KEY}"
+            echo "REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}"
+            echo "SMTP_HOST=${SMTP_HOST}"
+            echo "SMTP_PORT=${SMTP_PORT}"
+            echo "SMTP_USER=${SMTP_USER}"
+            echo "SMTP_PASS=${SMTP_PASS}"
+            echo "HRMS_SMTP_FROM=${HRMS_SMTP_FROM}"
+            echo "HRMS_DASHBOARD_URL=${HRMS_DASHBOARD_URL}"
+            echo "EVENT_HUB_CONNECTION_STRING=${EVENT_HUB_CONNECTION_STRING}"
+            echo "EVENT_HUB_NAME=${EVENT_HUB_NAME}"
+            echo "AZURE_SERVICE_BUS_CONNECTION_STRING=${AZURE_SERVICE_BUS_CONNECTION_STRING}"
+            echo "AZURE_SERVICE_BUS_QUEUE_NAME=${AZURE_SERVICE_BUS_QUEUE_NAME}"
+            echo "BATCH_SIZE=${BATCH_SIZE}"
+            echo "FLUSH_INTERVAL=${FLUSH_INTERVAL}"
+            echo "SLOW_THRESHOLD=${SLOW_THRESHOLD}"
+            echo "DATABASE_OUTPUT_NAME=${DATABASE_OUTPUT_NAME}"
+            echo "DATABASE_OUTPUT_USER=${DATABASE_OUTPUT_USER}"
+            echo "DATABASE_OUTPUT_PASSWORD=${DATABASE_OUTPUT_PASSWORD}"
+            echo "DATABASE_OUTPUT_PORT=${DATABASE_OUTPUT_PORT}"
+            echo "DATABASE_OUTPUT_HOST=${DATABASE_OUTPUT_HOST}"
+            echo "DATABASE_OUTPUT_DIALECT=${DATABASE_OUTPUT_DIALECT}"
+            echo "CRON_JOB_MACHINE_HOSTNAME=${CRON_JOB_MACHINE_HOSTNAME}"
+            echo "HOST_PORT=${HOST_PORT}"
+          } > .env
 
       - name: Stop and remove existing container
-        shell: cmd
         run: |
           cd "${{ github.workspace }}"
           docker compose down
         continue-on-error: true
 
       - name: Build and deploy with Docker Compose
-        shell: cmd
         run: |
           cd "${{ github.workspace }}"
           docker compose up -d --build hrms-backend
         env:
-          # Mask secrets in logs
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
@@ -176,16 +158,14 @@ jobs:
           AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
 
       - name: Verify container is running
-        shell: cmd
         run: |
-          timeout /t 15 /nobreak
+          sleep 15
           docker ps -f name=hrms-backend
 
       - name: Clean up .env file
-        shell: cmd
         run: |
           cd "${{ github.workspace }}"
-          if exist .env del /f /q .env
+          rm -f .env
         continue-on-error: true
         if: always()
 
@@ -213,21 +193,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deployment Summary
-        shell: cmd
         run: |
-          @echo off
-          set PORT=${{ vars.HOST_PORT }}
-          if "%PORT%"=="" set PORT=5000
-          
-          (
-            echo ## Deployment Successful! :rocket:
-            echo.
-            echo **Release Tag:** ${{ env.RELEASE_TAG }}
-            echo **Docker Image:** ${{ env.DOCKER_IMAGE_NAME }}:${{ env.RELEASE_TAG }}
-            echo **Container:** ${{ env.DOCKER_CONTAINER_NAME }}
-            echo **Port:** %PORT%
-            echo.
-            echo **Commit:** ${{ github.sha }}
-            echo **Branch:** ${{ github.ref_name }}
-            echo **Release:** [${{ env.RELEASE_TAG }}](https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }})
-          )>>%GITHUB_STEP_SUMMARY%
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Deployment Successful! :rocket:
+
+          **Release Tag:** ${{ env.RELEASE_TAG }}
+
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          **Release:** [${{ env.RELEASE_TAG }}](https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }})
+          EOF
