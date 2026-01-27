@@ -24,7 +24,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import handlebars from 'handlebars';
-import { fetchEmployeeLeavesData } from "../../../utilities/hrmsUtilities/dbCalls";
+import { fetchEmployeeLeavesData, fetchEmployeeCurrentJobDetails } from "../../../utilities/hrmsUtilities/dbCalls";
 import { formatItems, generatePayrollCSV } from "../../../utilities/hrmsUtilities/helperFunctions";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
 import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
@@ -200,15 +200,9 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             return;
         }
 
-        // Step 2: Fetch employee details with job details to validate salary category existence
-        const employeesWithJobDetails = await dbOutput.employeeBasicDetails.findAll({
+        // Step 2: Fetch employee basic details and address details
+        const employeesBasicData = await dbOutput.employeeBasicDetails.findAll({
             include: [
-                {
-                    model: dbOutput.employeeJobDetails,
-                    as: 'jobDetails',
-                    required: true,
-                    attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
-                },
                 {
                     model: dbOutput.employeeAddressDetails,
                     as: 'addressDetails',
@@ -226,10 +220,23 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             nest: true
         });
 
+        // Step 2b: Fetch current job details using the helper function (handles conversion date logic)
+        const jobDetailsMap = await fetchEmployeeCurrentJobDetails(allEmpIdsWithPayslips);
+
+        // Step 2c: Combine employee basic data with job details
+        const employeesWithJobDetails = employeesBasicData.map(emp => {
+            const empData = emp as any;
+            const jobDetails = jobDetailsMap.get(empData.empUuid);
+            return {
+                ...empData,
+                jobDetails: jobDetails || null
+            };
+        });
+
         // Step 3: Pre-filter to include only employees with valid salary categories
         // Build all salary category queries first
         const salaryCategoryQueriesForFiltering = employeesWithJobDetails
-            .filter(e => (e as any).jobDetails)
+            .filter(e => e.jobDetails)
             .map(e => {
                 const empData = e as any;
                 const { empType, empDepartment, empLevel, empYearOfStudy } = empData.jobDetails;
@@ -343,15 +350,9 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             return;
         }
 
-        // Step 4: Fetch full employee details with relations for paginated employees
-        const employees = await dbOutput.employeeBasicDetails.findAll({
+        // Step 4: Fetch full employee details with address for paginated employees
+        const employeesBasicDataPaginated = await dbOutput.employeeBasicDetails.findAll({
             include: [
-                {
-                    model: dbOutput.employeeJobDetails,
-                    as: 'jobDetails',
-                    required: true,
-                    attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
-                },
                 {
                     model: dbOutput.employeeAddressDetails,
                     as: 'addressDetails',
@@ -367,6 +368,19 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             order: [['empFirstName', 'ASC'], ['empLastName', 'ASC']],
             raw: true,
             nest: true
+        });
+
+        // Step 4b: Fetch current job details using the helper function (handles conversion date logic)
+        const paginatedJobDetailsMap = await fetchEmployeeCurrentJobDetails(paginatedEmpUuids);
+
+        // Step 4c: Combine employee basic data with job details
+        const employees = employeesBasicDataPaginated.map(emp => {
+            const empData = emp as any;
+            const jobDetails = paginatedJobDetailsMap.get(empData.empUuid);
+            return {
+                ...empData,
+                jobDetails: jobDetails || null
+            };
         });
 
         const empUuids = employees.map(e => e.empUuid);
@@ -1150,15 +1164,9 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             // Get unique employeeIds
             const employeeIds = Array.from(payrollRecordMap.keys());
 
-            // Bulk fetch all employees with their details
-            const employees = await dbOutput.employeeBasicDetails.findAll({
+            // Bulk fetch all employees with their basic details and address
+            const employeesBasicDataForPayroll = await dbOutput.employeeBasicDetails.findAll({
                 include: [
-                    {
-                        model: dbOutput.employeeJobDetails,
-                        as: 'jobDetails',
-                        required: true,
-                        attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
-                    },
                     {
                         model: dbOutput.employeeAddressDetails,
                         as: 'addressDetails',
@@ -1171,6 +1179,23 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                     isDeleted: false 
                 },
                 attributes: ['empUuid', 'empFirstName', 'empLastName']
+            });
+
+            // Fetch current job details using the helper function (handles conversion date logic)
+            const payrollJobDetailsMap = await fetchEmployeeCurrentJobDetails(employeeIds, transaction);
+
+            // Combine employee basic data with job details
+            const employees = employeesBasicDataForPayroll.map(emp => {
+                const empData = emp as any;
+                const jobDetails = payrollJobDetailsMap.get(empData.empUuid);
+                return {
+                    ...empData,
+                    empUuid: empData.empUuid,
+                    empFirstName: empData.empFirstName,
+                    empLastName: empData.empLastName,
+                    addressDetails: empData.addressDetails,
+                    jobDetails: jobDetails || null
+                };
             });
 
             // Process each employee
@@ -1779,48 +1804,29 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
         // Fetch employee basic details for all payslips
         // Fetch employee attendance details for all payslips
         // Fetch unpaid leave config
-        const [employeeBasicDetails, employeeJobDetails, 
-            // unpaidLeaveConfig, 
-            // lopDeductionDetails
-        ] = await Promise.all([
+        const employeeUuidsForCSV = payslips.map(p => p.employeeId);
+        
+        const [employeeBasicDetails, employeeJobDetailsMapForCSV] = await Promise.all([
             dbOutput.employeeBasicDetails.findAll({
                 where: {
                     empUuid: {
-                        [Op.in]: payslips.map(p => p.employeeId)
+                        [Op.in]: employeeUuidsForCSV
                     },
                     isDeleted: false
                 },
                 attributes: ['empUuid', 'empFirstName', 'empLastName'],
                 raw: true,
             }),
-            dbOutput.employeeJobDetails.findAll({
-                where: {
-                    empUuid: {
-                        [Op.in]: payslips.map(p => p.employeeId)
-                    },
-                    isDeleted: false
-                },
-                attributes: ['empUuid', 'empConversionDate'],
-                raw: true,
-            }),
-            
-            // dbOutput.employeeLeaveConfigurator.findOne({
-            //     where: {
-            //         leaveType: { [Op.like]: '%unpaid%' },
-            //         isActive: true
-            //     },
-            //     attributes: ['leaveConfigId']
-            // }),
-            // dbOutput.salaryComponents.findOne({
-            //     where: {
-            //         componentName: {
-            //             [Op.like]: '%Loss of Pay%'
-            //         },
-            //         isDeleted: false
-            //     },
-            //     attributes: ['componentId', 'amount']
-            // }),
+            // Use fetchEmployeeCurrentJobDetails for proper conversion date handling
+            fetchEmployeeCurrentJobDetails(employeeUuidsForCSV)
         ]);
+
+        // Convert job details map to array format for compatibility
+        const employeeJobDetailsMapForCSVTyped = employeeJobDetailsMapForCSV as Map<string, any>;
+        const employeeJobDetails = Array.from(employeeJobDetailsMapForCSVTyped.entries()).map(([empUuid, job]: [string, any]) => ({
+            empUuid,
+            empConversionDate: job?.empConversionDate
+        }));
 
         // const employeeLeaveDetails = await dbOutput.employeeAttendanceDetails.findAll({
         //     include: [
@@ -2068,18 +2074,14 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             return;
         }
 
-        // Fetch employee details
+        // Fetch employee details - use fetchEmployeeCurrentJobDetails for proper conversion date handling
         const [employeeBasic, employeeJob, employeeBank] = await Promise.all([
             dbOutput.employeeBasicDetails.findOne({
                 where: { empUuid: payslip.employeeId, isDeleted: false },
                 attributes: ['empFirstName', 'empLastName', 'empCompanyId', 'empPanCard', 'empHireDate'],
                 raw: true
             }),
-            dbOutput.employeeJobDetails.findOne({
-                where: { empUuid: payslip.employeeId, isDeleted: false },
-                attributes: ['empTitle', 'empDepartment'],
-                raw: true
-            }),
+            fetchEmployeeCurrentJobDetails(payslip.employeeId),
             dbOutput.employeeBankAccountDetails.findOne({
                 where: { empUuid: payslip.employeeId, isDeleted: false },
                 attributes: ['empBenefeciaryName', 'empAccountNumber'],
@@ -2262,14 +2264,11 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
 
             netPayAmount += allAdjustedAdditions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0) - allAdjustedDeductions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0);
 
-            const employeesWithJobDetails = await dbOutput.employeeBasicDetails.findAll({
+            const employeeUuidsForNetPay = allPayslipRecords.map(payslip => payslip.employeeId);
+            
+            // Fetch employee basic details and address
+            const employeesBasicDataForNetPay = await dbOutput.employeeBasicDetails.findAll({
                 include: [
-                    {
-                        model: dbOutput.employeeJobDetails,
-                        as: 'jobDetails',
-                        required: true,
-                        attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
-                    },
                     {
                         model: dbOutput.employeeAddressDetails,
                         as: 'addressDetails',
@@ -2278,7 +2277,7 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                     }
                 ],
                 where: { 
-                    empUuid: { [Op.in]: allPayslipRecords.map(payslip => payslip.employeeId) },
+                    empUuid: { [Op.in]: employeeUuidsForNetPay },
                     isDeleted: false 
                 },
                 attributes: ['empUuid', 'empFirstName', 'empLastName'],
@@ -2287,8 +2286,21 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                 nest: true
             });
 
+            // Fetch current job details using the helper function (handles conversion date logic)
+            const netPayJobDetailsMap = await fetchEmployeeCurrentJobDetails(employeeUuidsForNetPay);
+
+            // Combine employee basic data with job details
+            const employeesWithJobDetails = employeesBasicDataForNetPay.map(emp => {
+                const empData = emp as any;
+                const jobDetails = netPayJobDetailsMap.get(empData.empUuid);
+                return {
+                    ...empData,
+                    jobDetails: jobDetails || null
+                };
+            });
+
             const salaryCategoryQueries = employeesWithJobDetails
-                .filter(e => (e as any).jobDetails)
+                .filter(e => e.jobDetails)
                 .map(e => {
                     const emp = e as any;
                     const { empType, empDepartment, empLevel, empYearOfStudy } = emp.jobDetails;
@@ -2539,15 +2551,9 @@ const createPayrollForEmployees = async (
         errors: [] as Array<{ empUuid: string; error: string }>
     };
 
-    // Fetch all active employees with their job and address details
-    const employees = await dbOutput.employeeBasicDetails.findAll({
+    // Fetch all active employees with their address details
+    const employeesBasicDataForCreate = await dbOutput.employeeBasicDetails.findAll({
         include: [
-            {
-                model: dbOutput.employeeJobDetails,
-                as: 'jobDetails',
-                required: true,
-                attributes: ['empType', 'empDepartment', 'empLevel', 'empYearOfStudy']
-            },
             {
                 model: dbOutput.employeeAddressDetails,
                 as: 'addressDetails',
@@ -2558,6 +2564,28 @@ const createPayrollForEmployees = async (
         where: { isDeleted: false },
         attributes: ['empUuid']
     });
+
+    if (!employeesBasicDataForCreate.length) {
+        return result;
+    }
+
+    const allEmployeeIds: string[] = employeesBasicDataForCreate.map(e => e.empUuid);
+
+    // Fetch current job details using the helper function (handles conversion date logic)
+    const createPayrollJobDetailsMap = await fetchEmployeeCurrentJobDetails(allEmployeeIds, transaction);
+
+    // Combine employee basic data with job details, filter out those without job details
+    const employees = employeesBasicDataForCreate
+        .map(emp => {
+            const empData = emp as any;
+            const jobDetails = createPayrollJobDetailsMap.get(empData.empUuid);
+            return {
+                empUuid: empData.empUuid,
+                addressDetails: empData.addressDetails,
+                jobDetails: jobDetails || null
+            };
+        })
+        .filter(emp => emp.jobDetails !== null);
 
     if (!employees.length) {
         return result;
@@ -2580,7 +2608,37 @@ const createPayrollForEmployees = async (
         employeeCount: employeeIds.length
     });
 
-    // Fetch all existing payslips for the current month
+    // First, check if ANY payroll is already generated for this month (across all employees)
+    // This determines if we should skip creating payroll for new employees
+    const anyGeneratedPayroll = await dbOutput.employeePayslipRecords.findOne({
+        where: {
+            [Op.and]: [
+                sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), currentMonth),
+                sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), currentYear)
+            ],
+            status: { [Op.in]: [payrollStatus.PAYROLL_GENERATED] },
+            isDeleted: false
+        },
+        attributes: ['payslipId', 'status'],
+        raw: true
+    });
+
+    if (anyGeneratedPayroll) {
+        console.log(`[${new Date().toISOString()}] Payroll already generated for ${currentMonth}/${currentYear}. Skipping creation for all employees.`);
+        
+        // Mark all employees as skipped since payroll is already generated
+        for (const employee of employees) {
+            result.skippedCount++;
+            result.skippedEmployees.push({
+                empUuid: employee.empUuid,
+                reason: 'Payroll already generated for this month - new employee payroll creation skipped'
+            });
+        }
+        
+        return result;
+    }
+
+    // Fetch all existing payslips for the current month for current employees
     // Use explicit date range with UTC dates to avoid timezone conversion issues
     // The dates are stored in UTC in the database, so we compare UTC to UTC
     const existingPayslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
@@ -2687,9 +2745,18 @@ const createPayrollForEmployees = async (
                 const reasonParts: string[] = [];
                 if (empType) reasonParts.push(`Employee Type: ${empType}`);
                 if (employeeLocation) reasonParts.push(`Location: ${employeeLocation}`);
-                if (empLevel) reasonParts.push(`Level: ${empLevel}`);
-                if (empDepartment) reasonParts.push(`Department: ${empDepartment}`);
-                if (empYearOfStudy) reasonParts.push(`Year of Study: ${empYearOfStudy}`);
+                
+                // Only include fields that are actually checked based on employee type
+                // FTE/OFTE/PTE: Only check empType, location, and level (NOT department/yearOfStudy)
+                // Interns: Check all fields including department and yearOfStudy
+                if (empType === 'fte_key' || empType === 'ofte_key' || empType === 'pte_key') {
+                    if (empLevel) reasonParts.push(`Level: ${empLevel}`);
+                } else if (empType === 'intern_key' || empType === 'extended_intern_key') {
+                    if (empLevel) reasonParts.push(`Level: ${empLevel}`);
+                    if (empDepartment) reasonParts.push(`Department: ${empDepartment}`);
+                    if (empYearOfStudy) reasonParts.push(`Year of Study: ${empYearOfStudy}`);
+                }
+                // For other types: only empType and location are checked
                 
                 const reason = reasonParts.length > 0 
                     ? `Salary configuration not available for ${reasonParts.join(', ')}`
@@ -2865,7 +2932,7 @@ export const createPayrollCronJob = async (): Promise<void> => {
         }
 
         if (result.skippedEmployees.length > 0) {
-            console.log(`[${new Date().toISOString()}] Skipped employees (showing first 10):`, result.skippedEmployees.slice(0, 10));
+            console.log(`[${new Date().toISOString()}] Skipped employees (${result.skippedEmployees.length} total):`, result.skippedEmployees);
         }
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Error in payroll creation cron job:`, error);
