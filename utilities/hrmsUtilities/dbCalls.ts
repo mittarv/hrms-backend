@@ -1350,41 +1350,95 @@ export const fetchUsedLeavesTillDate = async (
     }
 };
 
-// Fetches employee current job details by employee UUID
+// Fetches employee current job details by employee UUID(s)
 // The details are fetched based on the employee conversion date
 // If conversion date is in future, fetch the job details whose conversion date is the nearest past date
-export const fetchEmployeeCurrentJobDetails = async (empUuid: string, transaction?: Transaction) => {
+// Accepts single empUuid or array of empUuids
+export const fetchEmployeeCurrentJobDetails = async (
+    empUuid: string | string[], 
+    transaction?: Transaction
+): Promise<any | Map<string, any> | null> => {
     try {
-        const jobDetails = await employeeJobDetails.findOne({
+        const isArray = Array.isArray(empUuid);
+        const empUuids = isArray ? empUuid : [empUuid];
+        
+        if (empUuids.length === 0) {
+            return isArray ? new Map<string, any>() : null;
+        }
+
+        // Fetch all job details for the employee(s)
+        const allJobDetails = await employeeJobDetails.findAll({
             where: {
-                empUuid,
+                empUuid: { [Op.in]: empUuids },
                 isDeleted: false
             },
             raw: true,
             transaction
         });
 
-        if(!jobDetails) return null;
+        // If single employee and no job details found, return null
+        if (!isArray && allJobDetails.length === 0) {
+            return null;
+        }
 
-        // If conversion date is today or in past, return current job details
-        if(new Date(jobDetails.empConversionDate) <= new Date()) return jobDetails;
+        const jobDetailsMap = new Map<string, any>();
+        const currentDate = new Date();
+        const employeesWithFutureConversion: string[] = [];
+        
+        for (const job of allJobDetails) {
+            if (new Date(job.empConversionDate) <= currentDate) {
+                // Conversion date is today or in past - use current job details
+                jobDetailsMap.set(job.empUuid, job);
+            } else {
+                // Conversion date is in future - need to check history
+                employeesWithFutureConversion.push(job.empUuid);
+            }
+        }
 
-        // If conversion date is in future, fetch the nearest past job detail from history
-        const currentJobDetails = await employeeJobDetailHistory.findOne({
-            where: {
-                empUuid,
-                empConversionDate: {
-                    [Op.lte]: new Date()
+        // For employees with future conversion date, fetch from history
+        if (employeesWithFutureConversion.length > 0) {
+            const historyDetails = await employeeJobDetailHistory.findAll({
+                where: {
+                    empUuid: { [Op.in]: employeesWithFutureConversion },
+                    empConversionDate: {
+                        [Op.lte]: currentDate
+                    },
+                    isDeleted: false
                 },
-                isDeleted: false
-            },
-            order: [['createdAt', 'DESC']],
-            raw: true,
-            transaction
-        });
+                order: [['createdAt', 'DESC']],
+                raw: true,
+                transaction
+            });
 
-        // If no history found, return latest job details
-        return currentJobDetails ? currentJobDetails : jobDetails;
+            // Group history by empUuid and get the most recent one for each
+            const historyMap = new Map<string, any>();
+            for (const history of historyDetails) {
+                if (!historyMap.has(history.empUuid)) {
+                    historyMap.set(history.empUuid, history);
+                }
+            }
+
+            // For employees with future conversion, use history if available, otherwise use current job details
+            for (const uuid of employeesWithFutureConversion) {
+                const historyJob = historyMap.get(uuid);
+                if (historyJob) {
+                    jobDetailsMap.set(uuid, historyJob);
+                } else {
+                    // No history found, use the current job details (even if conversion is in future)
+                    const currentJob = allJobDetails.find(j => j.empUuid === uuid);
+                    if (currentJob) {
+                        jobDetailsMap.set(uuid, currentJob);
+                    }
+                }
+            }
+        }
+
+        // Return appropriate format based on input type
+        if (isArray) {
+            return jobDetailsMap;
+        } else {
+            return jobDetailsMap.get(empUuid as string) || null;
+        }
     } catch (error) {
         console.error("Error fetching employee current job details:", error);
         throw error;
