@@ -29,7 +29,8 @@ Before you begin, ensure you have the following installed:
 - **Node.js** (version 18 or higher)
 - **npm** (comes with Node.js)
 - **Docker** (optional, for containerized deployment)
-- **Database** (MySQL or PostgreSQL)
+- **Database** (MySQL)
+- **ORM** (sequelize)
 
 ---
 
