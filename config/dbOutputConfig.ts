@@ -4,6 +4,7 @@ const dbOutputConfig: DbConfig = {
   USER: getEnv("DATABASE_OUTPUT_USER"),
   PASSWORD: getEnv("DATABASE_OUTPUT_PASSWORD"),
   DB: getEnv("DATABASE_OUTPUT_NAME"),
+  PORT: parseInt(getEnv("DATABASE_OUTPUT_PORT") || "3306", 10),
   dialect: getEnv("DATABASE_OUTPUT_DIALECT"),
   pool: {
     max: 40,

@@ -10,6 +10,7 @@ export interface DbConfig {
   USER: string;
   PASSWORD: string;
   DB: string;
+  PORT: number;
   dialect: string;
   pool: DbPoolConfig;
 }

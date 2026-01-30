@@ -22,6 +22,7 @@ const outputSequelize = new Sequelize(
   dbOutputConfig.PASSWORD,
   {
     host: dbOutputConfig.HOST,
+    port: dbOutputConfig.PORT,
     dialect: dbOutputConfig.dialect as Dialect,
     logging: isTestEnv,
     pool: {
