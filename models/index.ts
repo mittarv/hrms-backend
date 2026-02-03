@@ -50,14 +50,16 @@ dbOutput.sequelize = outputSequelize;
 // ==================================== HRMS Tools Models ================================================================
 initializeHrmsModels(dbOutput, outputSequelize, DataTypes);
 
-dbOutput.sequelize
-  .sync({ force: false, alter: false })
-  .then(() => {
-    console.log("report model sync completed");
-  })
-  .catch((err) => {
-    console.log(err);
-  });
+export const syncDatabase = async () => {
+  dbOutput.sequelize
+    .sync({ force: false, alter: false })
+    .then(() => {
+      console.log("report model sync completed");
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+};
 
 // UAM tool relatons
 setUamAssociations();

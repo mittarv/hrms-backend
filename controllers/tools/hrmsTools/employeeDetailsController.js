@@ -170,7 +170,7 @@ exports.createEmployeeData = async (req, res) => {
       empTitle: emp_job_title,
       empLevel: emp_level,
       empDepartment: emp_department,
-      empManager: emp_reporting_manager,
+      empManager: emp_reporting_manager || null,
       empUuid: employeeUuid,
       empConversionDate: emp_latest_hire_date,
       effectiveDate: currentTimeStamp,
@@ -184,7 +184,7 @@ exports.createEmployeeData = async (req, res) => {
       empTitle: emp_job_title,
       empLevel: emp_level,
       empDepartment: emp_department,
-      empManager: emp_reporting_manager,
+      empManager: emp_reporting_manager || null,
       empUuid: employeeUuid,
       empConversionDate: emp_latest_hire_date,
       effectiveDate: currentTimeStamp,
@@ -543,7 +543,8 @@ exports.updateEmployeeDetailsByUuid = async (req, res) => {
     const employeeLoginHistoryUpdates = {};
 
     // Iterate through the updated employee details and map them to the respective table objects
-    for (const [field, value] of Object.entries(updatedEmployeeInfo)) {
+    for (const [field, rawValue] of Object.entries(updatedEmployeeInfo)) {
+      const value = (field === 'empManager' || field === 'updatedBy') && rawValue === "" ? null : rawValue;
       switch (fieldToTableMap[field]) {
         case "EmployeeBasicDetails":
           employeeBasicDetailUpdates[field] = value;
@@ -928,7 +929,8 @@ exports.sendChangesToApprover = async (req, res) => {
         });
       }
 
-      for (const [field, value] of Object.entries(fields)) {
+      for (const [field, rawValue] of Object.entries(fields)) {
+        const value = (field === 'empManager' || field === 'updatedBy') && rawValue === "" ? null : rawValue;
         // Skip fields that are already pending approval
         if (pendingAttributes.has(field)) {
           continue;
@@ -1149,7 +1151,8 @@ try{
         });
       }
 
-      for (const [field, value] of Object.entries(newData)) {
+      for (const [field, rawValue] of Object.entries(newData)) {
+        const value = (field === 'empManager' || field === 'updatedBy') && rawValue === "" ? null : rawValue;
         switch (fieldToTableMap[field]) {
           case "EmployeeBasicDetails":
             employeeBasicDetailUpdates[field] = value;

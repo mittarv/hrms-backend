@@ -25,7 +25,7 @@ exports.createTool = async (req, res) => {
         name: tool.name,
         description: tool.description,
         link: tool.link,
-        updatedBy: updatedBy,
+        updatedBy: updatedBy === "" ? null : updatedBy,
       });
 
       // also adding the user id and tool id with the tool admin access type into the UamToolUsers table as we are giving tool admin permission to the user
@@ -136,7 +136,7 @@ exports.updateUamTools = async (req, res) => {
           description: uamTool.description,
           remark: uamTool.remark,
           link: uamTool.link,
-          updatedBy: updatedBy,
+          updatedBy: updatedBy === "" ? null : updatedBy,
         },
         {
           where: { toolId: uamTool.toolId },

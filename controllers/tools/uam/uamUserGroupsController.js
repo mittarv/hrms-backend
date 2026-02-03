@@ -39,7 +39,7 @@ exports.updateUserGroupById = async (req, res) => {
         const { updatedUserGroups, userId } = req.body;
         for (var i = 0; i < updatedUserGroups.length; i++) {
             const userGroup = updatedUserGroups[i];
-            await UamUserGroups.update({ role: userGroup['role'], view: userGroup['view'], modify: userGroup['modify'], approver: userGroup['approver'], addmembers: userGroup['addmembers'], updatedBy: userId }, { where: { id: userGroup['id'] } });
+            await UamUserGroups.update({ role: userGroup['role'], view: userGroup['view'], modify: userGroup['modify'], approver: userGroup['approver'], addmembers: userGroup['addmembers'], updatedBy: userId === "" ? null : userId }, { where: { id: userGroup['id'] } });
         }
         return res.status(201).json({ success: true, message: "User Groups updated successfully" });
     } catch (error) {

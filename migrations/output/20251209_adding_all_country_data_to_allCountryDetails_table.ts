@@ -1,7 +1,6 @@
 "use strict";
 
 import { dbOutput, outputSequelize } from "../../models";
-const { allCountryDetails: AllCountryDetails } = dbOutput;
 
 const sequelize = outputSequelize;
 
@@ -33,6 +32,8 @@ interface CountryInDB {
   transactionCurrencySymbol: string;
   transactionCurrencyCodeAlpha3: string;
   ppp?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 };
 
 module.exports = {
@@ -44,20 +45,22 @@ module.exports = {
     try {
       const countriesToInsert: CountryInDB[] = [];
       for (const country of countryData) {
-        const countryExists = await AllCountryDetails.findOne({
+        const countryExists = await queryInterface.rawSelect('allcountrydetails', {
           where: { countryIsoCode: country.countryIsoCode },
-        });
+        }, ['countryIsoCode']);
 
         if (!countryExists) {
           countriesToInsert.push({
             ...country,
-            countryFlagSvg: Buffer.from(country.countryFlagSvg, 'base64')
+            countryFlagSvg: Buffer.from(country.countryFlagSvg, 'base64'),
+            createdAt: new Date(),
+            updatedAt: new Date()
           });
         }
       }
 
       if (countriesToInsert.length > 0) {
-        await AllCountryDetails.bulkCreate(countriesToInsert, { transaction });
+        await queryInterface.bulkInsert('allcountrydetails', countriesToInsert, {});
       }
       console.log("Number of countries added: ", countriesToInsert.length);
       await transaction.commit();
@@ -73,7 +76,7 @@ module.exports = {
 
     console.log("Removing all country data from 'allCountryDetails' table...");
     try {
-      await queryInterface.bulkDelete('allCountryDetails', null, {});
+      await queryInterface.bulkDelete('allcountrydetails', null, {});
       console.log("All country data removed from 'allCountryDetails' table successfully.");
     } catch (error) {
       console.error("Error removing all country data from 'allCountryDetails' table:", error);

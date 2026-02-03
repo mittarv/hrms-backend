@@ -389,7 +389,7 @@ module.exports = {
     // Insert permissions only if they don't exist
     for (const permission of permissions) {
       const [existingPermission] = await queryInterface.sequelize.query(
-        `SELECT permissionId FROM hrms_permissions WHERE name = :name AND isDeleted = false`,
+        `SELECT "permissionId" FROM "hrms_permissions" WHERE "name" = :name AND "isDeleted" = false`,
         {
           replacements: { name: permission.name },
           type: QueryTypes.SELECT,

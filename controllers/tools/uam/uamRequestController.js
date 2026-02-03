@@ -264,7 +264,7 @@ exports.changRequestStatus = async (req, res) => {
       await UamRequest.update(
         {
           status: "approved",
-          resolvedBy,
+          resolvedBy: resolvedBy === "" ? null : resolvedBy,
           resolvedOn: new Date(),
           currentAccess: request.requestedAccess,
         },
@@ -292,7 +292,7 @@ exports.changRequestStatus = async (req, res) => {
       await UamRequest.update(
         {
           status: "rejected",
-          resolvedBy,
+          resolvedBy: resolvedBy === "" ? null : resolvedBy,
           isDeleted: true,
           resolvedOn: new Date(),
           requestedAccess: request.currentAccess,

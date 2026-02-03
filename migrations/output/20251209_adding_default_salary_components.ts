@@ -212,7 +212,7 @@ module.exports = {
             
             console.log(`Inserting ${salaryCategoriesToInsert.length} salary categories...`);
             // Bulk insert salary categories
-            await queryInterface.bulkInsert('salaryCategories', salaryCategoriesToInsert, { transaction });
+            await queryInterface.bulkInsert('salarycategories', salaryCategoriesToInsert, { transaction });
             
             console.log(`Inserting ${salaryComponentsToInsert.length} salary components...`);
             // Bulk insert salary components

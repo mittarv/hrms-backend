@@ -6,7 +6,7 @@ export class UamToolsUser
     implements UamToolsUserAttributes {
     declare id?: number;
     declare toolId?: number | null;
-    declare userId?: string | null;
+    declare userId?: number | null;
     declare userGroupId?: number | null;
     declare startDate?: Date | null;
     declare endDate?: Date | null;
@@ -29,7 +29,7 @@ export const initUamToolsUser = (sequelize: Sequelize, dataTypes: typeof DataTyp
                 type: dataTypes.INTEGER,
             },
             userId: {
-                type: dataTypes.STRING,
+                type: dataTypes.INTEGER,
             },
             userGroupId: {
                 type: dataTypes.INTEGER,

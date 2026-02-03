@@ -6,7 +6,7 @@ const sequelizeConfig: SequelizeConfig = {
     password: getEnv("DATABASE_OUTPUT_PASSWORD"),
     dialect: getEnv("DATABASE_OUTPUT_DIALECT"),
     host: getEnv("DATABASE_OUTPUT_HOST"),
-    port: 3306,
+    port: parseInt(getEnv("DATABASE_OUTPUT_PORT") || "3306", 10),
     migrationStorageTableName: 'sequelizemeta',
   }
 };
