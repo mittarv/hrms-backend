@@ -34,9 +34,9 @@ const app = createApp();
 // Startup Cron Jobs
 startCronJobs();
 
-import { syncDatabase } from "./models";
+import { syncDatabases } from "./models";
 // Sync Database
-syncDatabase();
+syncDatabases();
 
 //server listening
 startServer(app);

@@ -50,7 +50,7 @@ dbOutput.sequelize = outputSequelize;
 // ==================================== HRMS Tools Models ================================================================
 initializeHrmsModels(dbOutput, outputSequelize, DataTypes);
 
-export const syncDatabase = async () => {
+export const syncDatabases = async () => {
   dbOutput.sequelize
     .sync({ force: false, alter: false })
     .then(() => {
