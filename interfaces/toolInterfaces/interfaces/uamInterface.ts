@@ -56,7 +56,7 @@ export interface UamToolsAttributes {
 export interface UamToolsUserAttributes {
     id?: number;
     toolId?: number | null;
-    userId?: string | null;
+    userId?: number | null;
     userGroupId?: number | null;
     startDate?: Date | null;
     endDate?: Date | null;

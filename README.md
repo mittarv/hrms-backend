@@ -107,6 +107,14 @@ DATABASE_OUTPUT_DIALECT=mysql
 
 #### Email Configuration (SMTP)
 
+SMTP (Simple Mail Transfer Protocol) configuration is **required** for sending HRMS-related emails. This includes:
+- Leave request notifications and approvals/rejections
+- Employee onboarding welcome emails
+- Password reset emails
+- Attendance and timesheet notifications
+- Holiday announcements
+- Other HR communication emails
+
 ```env
 # SMTP Server Configuration
 SMTP_HOST=smtp.gmail.com
@@ -119,9 +127,17 @@ HRMS_SMTP_FROM=noreply@mittarv.com
 HRMS_DASHBOARD_URL=http://localhost:3000
 ```
 
+**Note:** If using Gmail, you may need to enable "Less secure app access" or use an App Password for `SMTP_PASS`.
+
 #### Optional Configuration
 
 #### Azure Service Bus Configuration
+
+Azure Service Bus is used for **asynchronous message queuing** between microservices. This enables:
+- Decoupled communication between services
+- Reliable message delivery with retry mechanisms
+- Background job processing
+- Event-driven architecture support
 
 ```env
 # Azure Service Bus (for message queuing)
@@ -129,13 +145,24 @@ AZURE_SERVICE_BUS_CONNECTION_STRING=your-azure-service-bus-connection-string
 AZURE_SERVICE_BUS_QUEUE_NAME=your-queue-name
 ```
 
+**Note:** Azure Service Bus is optional. If not configured, the application will work without message queuing capabilities.
+
 #### Azure Event Hub Configuration
+
+Azure Event Hub is used for **centralized event logging and analytics**. This enables:
+- Real-time API request/response logging
+- Application performance monitoring
+- User activity tracking and auditing
+- Centralized log aggregation for analysis
+- Integration with Azure Monitor and other analytics tools
 
 ```env
 # Azure Event Hub (for event logging)
 EVENT_HUB_CONNECTION_STRING=your-event-hub-connection-string
 EVENT_HUB_NAME=your-event-hub-name
 ```
+
+**Note:** Azure Event Hub is optional. If not configured, the application will still log locally but without centralized event streaming.
 
 ```env
 # Logging Configuration (optional, defaults provided)
@@ -182,6 +209,24 @@ npm install
 ```
 
 This will install all required packages listed in `package.json`.
+
+---
+
+## Initialize Database Tables
+
+Before building the project, run the development server once to automatically create all required database tables:
+
+```bash
+npm run dev
+```
+
+This command:
+- Connects to the configured database
+- Automatically creates all required tables defined in Sequelize models
+- Syncs the database schema with the application models
+- Starts the development server with hot-reload
+
+**Note:** You can stop the server (Ctrl+C) after the tables are created, then proceed to build and migrate.
 
 ---
 
@@ -275,6 +320,36 @@ npm run server
 The server will start on the port specified in your `.env` file (default: `5000`).
 
 You can access the API at: `http://localhost:5000`
+
+---
+
+## Setting Up Superadmin (First-Time Setup)
+
+**IMPORTANT:** Before onboarding any employees or accessing the HRMS features, you need to set up a superadmin user.
+
+After the database tables are created and the application is running, manually update the `tmsusers` table to grant superadmin privileges to the first user:
+
+### Using MySQL:
+
+```sql
+UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
+```
+
+### Using PostgreSQL:
+
+```sql
+UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
+```
+
+**User Type Values:**
+- `900` - Superadmin (full system access, can onboard employees and manage all HRMS features)
+
+**Why is this needed?**
+- The superadmin role allows you to onboard the first set of employees
+- Without a superadmin, you cannot access HRMS administrative features
+- This is a one-time setup required during initial deployment
+
+**Note:** Replace `<your_user_id>` with the actual user ID from the `tmsusers` table.
 
 ---
 

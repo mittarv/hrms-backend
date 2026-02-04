@@ -25,7 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import handlebars from 'handlebars';
 import { fetchEmployeeLeavesData, fetchEmployeeCurrentJobDetails } from "../../../utilities/hrmsUtilities/dbCalls";
-import { formatItems, generatePayrollCSV } from "../../../utilities/hrmsUtilities/helperFunctions";
+import { formatItems, generatePayrollCSV, getMonthYearDateRange, getYearDateRange } from "../../../utilities/hrmsUtilities/helperFunctions";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
 import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
@@ -67,12 +67,10 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // ============================================
         // 2. BUILD FILTER CONDITIONS
         // ============================================
-        // Filter for payslip records by month/year
+        // Filter for payslip records by month/year (database-agnostic)
+        const { startDate: monthStart, endDate: monthEnd } = getMonthYearDateRange(month, year);
         const monthYearFilter = {
-            [Op.and]: [
-                sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), month),
-                sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-            ],
+            payrollStartDate: { [Op.between]: [monthStart, monthEnd] },
             isDeleted: false
         };
 
@@ -1127,13 +1125,11 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
 
             // Fetch all payslip records for the given month
             // Fetch unpaid leave config
+            const { startDate: payrollMonthStart, endDate: payrollMonthEnd } = getMonthYearDateRange(month, year);
             const [finalizedPayrollRecords, unpaidLeaveConfig] = await Promise.all([
                 dbOutput.employeePayslipRecords.findAll({
                     where: {
-                        [Op.and]: [
-                            sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), month),
-                            sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-                        ],
+                        payrollStartDate: { [Op.between]: [payrollMonthStart, payrollMonthEnd] },
                         isDeleted: false
                     }
                 }),
@@ -1708,6 +1704,9 @@ export const fetchEmployeePayslipsForYear = async (req: Request, res: Response):
             return;
         }
 
+        // Generate year date range for database-agnostic filtering
+        const { startDate: yearStart, endDate: yearEnd } = getYearDateRange(year);
+        
         const payslips = await dbOutput.employeePayslipRecords.findAll({
             include: [
                 {
@@ -1719,9 +1718,7 @@ export const fetchEmployeePayslipsForYear = async (req: Request, res: Response):
             ],
             where: {
                 employeeId: employeeId,
-                [Op.and]: [
-                    sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-                ],
+                payrollStartDate: { [Op.between]: [yearStart, yearEnd] },
                 isDeleted: false,
             },
             attributes: ['payslipId', 'payrollStartDate', 'payrollEndDate', 'status', 'netPay'],
@@ -1780,13 +1777,11 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Fetch all payslip records for the given month and year
+        // Fetch all payslip records for the given month and year (database-agnostic)
+        const { startDate: csvMonthStart, endDate: csvMonthEnd } = getMonthYearDateRange(month, year);
         const payslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
             where: {
-                [Op.and]: [
-                    sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), month),
-                    sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-                ],
+                payrollStartDate: { [Op.between]: [csvMonthStart, csvMonthEnd] },
                 isDeleted: false,
             },
             attributes: ['payslipId', 'employeeId', 'payrollStartDate', 'payrollEndDate', 'status', 'netPay'],
@@ -2216,12 +2211,12 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
         const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
 
+        // Generate date range for database-agnostic filtering
+        const { startDate: netPayMonthStart, endDate: netPayMonthEnd } = getMonthYearDateRange(month, year);
+        
         const allPayslipRecords = await dbOutput.employeePayslipRecords.findAll({
             where: {
-                [Op.and]: [
-                    sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), month),
-                    sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), year)
-                ],
+                payrollStartDate: { [Op.between]: [netPayMonthStart, netPayMonthEnd] },
                 isDeleted: false
             }
         });
@@ -2610,12 +2605,10 @@ const createPayrollForEmployees = async (
 
     // First, check if ANY payroll is already generated for this month (across all employees)
     // This determines if we should skip creating payroll for new employees
+    const { startDate: payrollCheckStart, endDate: payrollCheckEnd } = getMonthYearDateRange(currentMonth, currentYear);
     const anyGeneratedPayroll = await dbOutput.employeePayslipRecords.findOne({
         where: {
-            [Op.and]: [
-                sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), currentMonth),
-                sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), currentYear)
-            ],
+            payrollStartDate: { [Op.between]: [payrollCheckStart, payrollCheckEnd] },
             status: { [Op.in]: [payrollStatus.PAYROLL_GENERATED] },
             isDeleted: false
         },

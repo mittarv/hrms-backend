@@ -1,6 +1,6 @@
 import { Op, Transaction } from "sequelize";
 import { AttendanceStatusType, payrollStatus } from "../../interfaces/hrmsTool/enum/hrmsEnum";
-import { EmployeeAttendanceAttributes, EmployeeLeaveAttendanceAttributes, EmployeeLeaveBalanceAttributes, EmployeeLeaveRequestAttributes, employeePayslipAttributes, employeePayslipItemAttributes, LeaveConfigWithAccrual , EmployeeLeaveConfiguratorAttributes } from "../../interfaces/hrmsTool/interface/hrmsInterface";
+import { EmployeeAttendanceAttributes, EmployeeLeaveAttendanceAttributes, EmployeeLeaveBalanceAttributes, EmployeeLeaveRequestAttributes, employeePayslipAttributes, employeePayslipItemAttributes, LeaveConfigWithAccrual , EmployeeLeaveConfiguratorAttributes, EmployeeBasicDetailsAttributes } from "../../interfaces/hrmsTool/interface/hrmsInterface";
 import { createUUIDV4 } from "../uuidV4Generator";
 import { createEmployeeAttendanceRecord, createLeaveRequest, fetchAllLeaveConfigDetails, fetchEmployeeCurrentJobDetails, fetchEmployeeLeavesData, updateEmployeeAttendanceDetails, updateEmployeeLeaveBalance, } from "./dbCalls";
 import { apporveRejectLeaveRequestMail } from "../../middlewares/sendEmail";
@@ -840,13 +840,11 @@ export const updateEmployeePayslipStatusForUnpaidLeave = async (empUuid: string,
   const currentMonthLastDate = new Date(currentYear, currentMonth + 1, 0);
 
   // get current months payslip record
+  const { startDate: payrollStatusStart, endDate: payrollStatusEnd } = getMonthYearDateRange(currentMonth + 1, currentYear);
   const payslipRecord = await dbOutput.employeePayslipRecords.findOne({
     where: {
       employeeId: empUuid,
-      [Op.and]: [
-        sequelize.where(sequelize.fn('MONTH', sequelize.col('payrollStartDate')), currentMonth + 1),
-        sequelize.where(sequelize.fn('YEAR', sequelize.col('payrollStartDate')), currentYear)
-      ],
+      payrollStartDate: { [Op.between]: [payrollStatusStart, payrollStatusEnd] },
       isDeleted: false
     },
     transaction
@@ -984,3 +982,122 @@ export const getEmployeeUuid = async (tmsUser) => {
     return `Error fetching employee UUID: ${error.message}`;
   }
 }
+
+/**
+ * Filter employees whose birthdays fall within the remaining days of the current month.
+ * This function performs the date filtering in JavaScript, making it compatible with both MySQL and PostgreSQL.
+ * 
+ * @param employees - Array of employee records with empDob field
+ * @param todayMonth - Current month (1-12)
+ * @param todayDay - Current day of the month (1-31)
+ * @returns Filtered and sorted array of employees with upcoming birthdays this month
+ */
+export const filterUpcomingBirthdays = (
+  employees: Partial<EmployeeBasicDetailsAttributes>[],
+  todayMonth: number,
+  todayDay: number
+): Partial<EmployeeBasicDetailsAttributes>[] => {
+  return employees
+    .filter(emp => {
+      if (!emp.empDob) return false;
+      
+      const dob = new Date(emp.empDob);
+      const dobMonth = dob.getMonth() + 1; // getMonth() returns 0-11
+      const dobDay = dob.getDate();
+      
+      // Check if birthday is in the current month and on or after today
+      return dobMonth === todayMonth && dobDay >= todayDay;
+    })
+    .sort((a, b) => {
+      // Sort by day of month (ascending)
+      const dayA = new Date(a.empDob!).getDate();
+      const dayB = new Date(b.empDob!).getDate();
+      return dayA - dayB;
+    });
+};
+
+/**
+ * Filter employees whose work anniversaries fall on today's date and have completed at least one year.
+ * This function performs the date filtering in JavaScript, making it compatible with both MySQL and PostgreSQL.
+ * 
+ * @param employees - Array of employee records with empHireDate field
+ * @param todayMonth - Current month (1-12)
+ * @param todayDay - Current day of the month (1-31)
+ * @param todayYear - Current year
+ * @returns Filtered array of employees with work anniversaries today, each with yearsCompleted property
+ */
+export const filterWorkAnniversaries = (
+  employees: Partial<EmployeeBasicDetailsAttributes>[],
+  todayMonth: number,
+  todayDay: number,
+  todayYear: number
+): Partial<EmployeeBasicDetailsAttributes>[] => {
+  return employees
+    .filter(emp => {
+      if (!emp.empHireDate) return false;
+      
+      const hireDate = new Date(emp.empHireDate);
+      const hireMonth = hireDate.getMonth() + 1; // getMonth() returns 0-11
+      const hireDay = hireDate.getDate();
+      const hireYear = hireDate.getFullYear();
+      
+      // Check if hire anniversary is today and at least one year has passed
+      const isAnniversaryToday = hireMonth === todayMonth && hireDay === todayDay;
+      const yearsCompleted = todayYear - hireYear;
+      
+      return isAnniversaryToday && yearsCompleted >= 1;
+    })
+    .map(emp => {
+      const hireYear = new Date(emp.empHireDate!).getFullYear();
+      const yearsCompleted = todayYear - hireYear;
+      return { ...emp, yearsCompleted };
+    });
+};
+
+/**
+ * Generate date range for a given month and year for database-agnostic filtering.
+ * This replaces MySQL-specific MONTH()/YEAR() functions with date range comparisons
+ * that work on both MySQL and PostgreSQL.
+ * 
+ * @param month - Month (1-12)
+ * @param year - Full year (e.g., 2026)
+ * @returns Object with startDate and endDate for the given month/year
+ * 
+ * @example
+ * // For filtering payrollStartDate in January 2026:
+ * const { startDate, endDate } = getMonthYearDateRange(1, 2026);
+ * // Use in Sequelize: { payrollStartDate: { [Op.between]: [startDate, endDate] } }
+ */
+export const getMonthYearDateRange = (month: number, year: number): { startDate: Date; endDate: Date } => {
+  // Start of the month (first day at 00:00:00.000)
+  const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  
+  // End of the month (last day at 23:59:59.999)
+  // Using month (instead of month - 1) with day 0 gives last day of previous month
+  const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  
+  return { startDate, endDate };
+};
+
+/**
+ * Generate date range for a given year for database-agnostic filtering.
+ * This replaces MySQL-specific YEAR() function with date range comparisons
+ * that work on both MySQL and PostgreSQL.
+ * 
+ * @param year - Full year (e.g., 2026)
+ * @returns Object with startDate and endDate for the given year
+ * 
+ * @example
+ * // For filtering payrollStartDate in 2026:
+ * const { startDate, endDate } = getYearDateRange(2026);
+ * // Use in Sequelize: { payrollStartDate: { [Op.between]: [startDate, endDate] } }
+ */
+export const getYearDateRange = (year: number): { startDate: Date; endDate: Date } => {
+  // Start of the year (January 1st at 00:00:00.000)
+  const startDate = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+  
+  // End of the year (December 31st at 23:59:59.999)
+  const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  
+  return { startDate, endDate };
+};

@@ -24,7 +24,7 @@ exports.addUserToTool = async (req, res) => {
                 }
             })
             if (!checkEntry) {
-                await UamToolUsers.create({ userId: userTool.userId, toolId: userTool.toolId, userGroupId: userTool.userGroupId, updatedBy });
+                await UamToolUsers.create({ userId: userTool.userId, toolId: userTool.toolId, userGroupId: userTool.userGroupId, updatedBy: updatedBy === "" ? null : updatedBy });
             } else {
                 await UamToolUsers.update({ userGroupId: userTool.userGroupId }, { where: { userId: userTool.userId, toolId: userTool.toolId } });
             }
