@@ -1,4 +1,4 @@
-const { outputSequelize, dbOutput } = require("../../../models/index");
+const { outputSequelize, dbOutput, Op } = require("../../../models/index");
 // const { attribute } = require("../../../test/mockData/platform/userMockData");
 const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
 import { 
@@ -10,7 +10,7 @@ import {
 import { fetchEmployeeCurrentJobDetails, findHRRepositoryToolAdminUsers } from "../../../utilities/hrmsUtilities/dbCalls";
 import { createHRMSNotification } from "../../../utilities/hrmsUtilities/dbCalls";
 import { hrmsNotificationTypes } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
-import { generateUpdateMessage, updateEmployeeLeaveBalanceOnTypeChange } from "../../../utilities/hrmsUtilities/helperFunctions";
+import { generateUpdateMessage, updateEmployeeLeaveBalanceOnTypeChange, filterUpcomingBirthdays, filterWorkAnniversaries } from "../../../utilities/hrmsUtilities/helperFunctions";
 const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 const EmployeeBasicDetails = dbOutput.employeeBasicDetails;
 const EmployeeContactDetails = dbOutput.employeeContactDetails;
@@ -786,41 +786,35 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
     });
     const today_date = formatter.format(now);
 
-    // Extract month and day from today's date for birthday comparison
+    // Extract month, day, and year from today's date for birthday/anniversary comparison
     const [year, month, day] = today_date.split('-');
     const todayMonth = parseInt(month);
     const todayDay = parseInt(day);
+    const todayYear = parseInt(year);
 
-    // Extract birthday details from today till end of this month (excluding employees with NULL birthdays)
-    const employeeBirthdayDetails = await EmployeeBasicDetails.findAll({
-      where: outputSequelize.and(
-        outputSequelize.where(outputSequelize.fn('MONTH', outputSequelize.col('empDob')), todayMonth),
-        outputSequelize.where(outputSequelize.fn('DAY', outputSequelize.col('empDob')), '>=', todayDay),
-        outputSequelize.where(outputSequelize.col('empDob'), '!=', null)
-      ),
+    // Fetch all employees with their DOB (only non-null DOB values)
+    const allEmployeesWithDob = await EmployeeBasicDetails.findAll({
+      where: {
+        empDob: { [Op.ne]: null }
+      },
       attributes: ['empUuid', 'empFirstName', 'empLastName', 'empDob'],
-      order: [[outputSequelize.fn('DAY', outputSequelize.col('empDob')), 'ASC']]
+      raw: true
     });
 
-    // Extract work anniversary details for today
-    const employeeWorkAnniversaryDetails = await EmployeeBasicDetails.findAll({
-      attributes: [
-        'empUuid',
-        'empFirstName',
-        'empLastName',
-        'empHireDate',
-        [outputSequelize.literal(`YEAR('${today_date}') - YEAR(empHireDate)`), 'yearsCompleted']
-      ],
-      where: outputSequelize.and(
-        outputSequelize.where(outputSequelize.fn('MONTH', outputSequelize.col('empHireDate')), todayMonth),
-        outputSequelize.where(outputSequelize.fn('DAY', outputSequelize.col('empHireDate')), todayDay),
-        outputSequelize.where(
-          outputSequelize.fn('DATEDIFF', outputSequelize.literal(`'${today_date}'`), outputSequelize.col('empHireDate')),
-          '>=',
-          365 // Ensures at least one year has passed
-        )
-      )
+    // Filter employees whose birthdays fall within the remaining days of the current month
+    const employeeBirthdayDetails = filterUpcomingBirthdays(allEmployeesWithDob, todayMonth, todayDay);
+
+    // Fetch all employees with their hire date (only non-null hire date values)
+    const allEmployeesWithHireDate = await EmployeeBasicDetails.findAll({
+      where: {
+        empHireDate: { [Op.ne]: null }
+      },
+      attributes: ['empUuid', 'empFirstName', 'empLastName', 'empHireDate'],
+      raw: true
     });
+
+    // Filter employees whose work anniversaries fall on today and have completed at least one year
+    const employeeWorkAnniversaryDetails = filterWorkAnniversaries(allEmployeesWithHireDate, todayMonth, todayDay, todayYear);
 
     // Return the results
     return res.status(200).json({

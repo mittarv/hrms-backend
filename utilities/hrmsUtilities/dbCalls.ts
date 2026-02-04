@@ -937,8 +937,7 @@ export const CheckOutstandingCheckoutService = async (empUuid: string, timezone?
       where: {
         empUuid,
         checkOut: null,
-        // More robust isDeleted check - handle string '0', number 0, and boolean false
-        isDeleted: { [Op.in]: [false, 0, '0'] },
+        isDeleted: false,
         attendanceStatus: AttendanceStatusType.WORKING,
         attendanceDate: {
           [Op.lt]: todayMidnight
@@ -1481,24 +1480,26 @@ export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDa
         };
 
         if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setUTCHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            
             whereClause.createdAt = {
-                [Op.and]: [
-                    sequelize.where(sequelize.fn('DATE', sequelize.col('createdAt')), '>=', startDate),
-                    sequelize.where(sequelize.fn('DATE', sequelize.col('createdAt')), '<=', endDate)
-                ]
+                [Op.between]: [start, end]
             };
         } else if (startDate) {
-            whereClause.createdAt = sequelize.where(
-                sequelize.fn('DATE', sequelize.col('createdAt')), 
-                '>=', 
-                startDate
-            );
+            const start = new Date(startDate);
+            start.setUTCHours(0, 0, 0, 0);
+            whereClause.createdAt = {
+                [Op.gte]: start
+            };
         } else if (endDate) {
-            whereClause.createdAt = sequelize.where(
-                sequelize.fn('DATE', sequelize.col('createdAt')), 
-                '<=', 
-                endDate
-            );
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            whereClause.createdAt = {
+                [Op.lte]: end
+            };
         }
 
         const workLogRequests = await employeeExtraWorkLog.findAll({
@@ -1544,27 +1545,54 @@ export const updateExtraWorkLogRequestStatusService = async (
                 approvalDate: new Date()
             };
             
-            // Add expiry date only for approved requests
             if (action === LeaveApprovalStatus.APPROVED) {
-                updateData.compOffExpiryDate = sequelize.literal("DATE_ADD(workDate, INTERVAL 90 DAY)");
-            }
-            
-            // Execute batch update
-            const [updatedCount] = await employeeExtraWorkLog.update(
-                updateData,
-                {
+                // Fetch the logs to get their workDate for calculations
+                const logs = await employeeExtraWorkLog.findAll({
                     where: {
-                        extraWorkDayId: {
-                            [Op.in]: batch
-                        },
+                        extraWorkDayId: { [Op.in]: batch },
                         isDeleted: false
                     },
+                    attributes: ['extraWorkDayId', 'workDate'],
                     transaction
+                });
+
+                // Update each record individually to calculate expiry date in JS
+                let batchUpdatedCount = 0;
+                for (const log of logs) {
+                    const expiryDate = new Date(log.workDate);
+                    expiryDate.setDate(expiryDate.getDate() + 90);
+
+                    const [count] = await employeeExtraWorkLog.update(
+                        {
+                            ...updateData,
+                            compOffExpiryDate: expiryDate
+                        },
+                        {
+                            where: { extraWorkDayId: log.extraWorkDayId },
+                            transaction
+                        }
+                    );
+                    batchUpdatedCount += count;
                 }
-            );
+                totalUpdated += batchUpdatedCount;
+            } else {
+                // Execute batch update for rejections as no date calculation is needed
+                const [updatedCount] = await employeeExtraWorkLog.update(
+                    updateData,
+                    {
+                        where: {
+                            extraWorkDayId: {
+                                [Op.in]: batch
+                            },
+                            isDeleted: false
+                        },
+                        transaction
+                    }
+                );
+                totalUpdated += updatedCount;
+            }
             
-            totalUpdated += updatedCount;
-            console.log(`Processed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalIds / BATCH_SIZE)} - Updated: ${updatedCount} records`);
+            console.log(`Processed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalIds / BATCH_SIZE)} - Batch total processed: ${batch.length}`);
         }
         
         return {

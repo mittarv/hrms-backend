@@ -1,4 +1,4 @@
-import { Sequelize, DataTypes, Dialect } from "sequelize";
+import { Sequelize, DataTypes, Dialect, Op } from "sequelize";
 import dbOutputConfig from "../config/dbOutputConfig";
 import { initializeHrmsModels } from "./hrms.models";
 import { setupHrmsAssociations } from "../associations/hrmsAssociations";
@@ -69,4 +69,4 @@ setupHrmsAssociations();
 
 const sequelize = outputSequelize;
 
-export { dbOutput, outputSequelize, sequelize };
+export { dbOutput, outputSequelize, sequelize, Op };
