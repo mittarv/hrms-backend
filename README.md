@@ -110,9 +110,7 @@ DATABASE_OUTPUT_DIALECT=mysql
 SMTP (Simple Mail Transfer Protocol) configuration is **required** for sending HRMS-related emails. This includes:
 - Leave request notifications and approvals/rejections
 - Employee onboarding welcome emails
-- Password reset emails
-- Attendance and timesheet notifications
-- Holiday announcements
+- Attendance notifications
 - Other HR communication emails
 
 ```env
