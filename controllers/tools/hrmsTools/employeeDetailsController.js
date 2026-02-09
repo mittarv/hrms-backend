@@ -908,8 +908,8 @@ exports.sendChangesToApprover = async (req, res) => {
       const pendingRequests = await EmployeeDataRequest.findAll({
         where: {
           requestedFor,
-          isApproved: 0,
-          isRejected: 0,
+          isApproved: false,
+          isRejected: false,
           sectionChanged: section,
         },
         attributes: ["attributesChanged"],
@@ -1433,8 +1433,8 @@ exports.getPendingRequests = async (req, res) => {
 
     const pendingRequests = await EmployeeDataRequest.findAll({
       where: {
-        isApproved: 0,
-        isRejected: 0,
+        isApproved: false,
+        isRejected: false,
       },
       raw: true,
     });
