@@ -19,21 +19,24 @@ exports.createRequest = async (req, res) => {
       //   resolvedBy,
     } = req.body;
     if (
-      !toolId ||
+      toolId == null ||
+      toolId === "" ||
       !requestedBy ||
-      !requestedAccess ||
-      !currentAccess ||
-      !remark
+      requestedAccess == null ||
+      requestedAccess === "" ||
+      remark == null ||
+      remark === ""
     ) {
       return res
         .status(400)
         .json({ success: false, message: "Please fill all the details" });
     }
+    // currentAccess may be null when user has no current role (e.g. first-time access request)
     const request = await UamRequest.create({
       toolId,
       requestedBy,
       requestedAccess,
-      currentAccess,
+      currentAccess: currentAccess ?? null,
       status: "pending",
       remark,
     });

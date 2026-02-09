@@ -648,10 +648,10 @@ hrms-backend/
 
 ## License
 
-ISC
+MIT
 
 ---
 
 ## Support
 
-For issues and questions, please visit: [GitHub Issues](https://github.com/mittarv/backend/issues)
+For questions, email us at: [support@mittarv.com](mailto:support@mittarv.com)
