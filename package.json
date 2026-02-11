@@ -52,7 +52,7 @@
     "@azure/storage-blob": "^12.16.0",
     "@react-pdf/pdfkit": "^4.0.0",
     "applicationinsights": "^3.2.1",
-    "axios": "^1.12.0",
+    "axios": "^1.13.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "country-state-city": "^3.2.1",
