@@ -1145,10 +1145,17 @@ export const getEmployeeLeaveBalance = async (req: Request, res: Response) => {
  */
 export const requireProofForLeave  = async (req: Request, res: Response) => {
     const { user } = req as AuthenticatedRequest;
-    const { toolsAccess } = user as { toolsAccess: unknown};
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
+    const { toolsAccess, employeeUuid } = user as { toolsAccess: unknown; employeeUuid?: string };
+    const toolName = hrmsConstants.HR_REPOSITORY;
 
-    if(userType < 500){
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "LeaveRequest_write",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
         sendError(res, "You are not allowed to do this action");
         return;
     }
@@ -2901,8 +2908,13 @@ export const getCompOffleaveBalance = async (req: Request, res: Response) => {
         // First, find comp off leave config ID
         const compOffLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
             where: {
-                leaveType: { [Op.like]: '%comp%' },
-                isActive: true
+                [Op.and]: [
+                    outputSequelize.where(
+                        outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                        { [Op.like]: '%comp%' }
+                    ),
+                    { isActive: true }
+                ]
             },
             raw: true
         });
@@ -2947,8 +2959,6 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
     const { user } = req as AuthenticatedRequest;
         const { email, toolsAccess } = user as { email: string, toolsAccess: unknown };
 
-    const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
-
         // Get employee UUID from params and leave details from body
         const employeeId = req.params.empUuid as string;
         const leaveDetails = req.body as EmployeeAttendanceRequestPayload;
@@ -2975,8 +2985,14 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
             // Get the UUID of the user making the request
             const { empUuid }: { empUuid: string } = await fetchEmployeeContactDetailsFromEmail(email);
 
-            // Only admin/super admin can register comp off leave for other employees
-            if (userType < 500 && empUuid !== employeeId) {
+            // Only users with LeaveAttendance_write can register comp off leave for other employees
+            const canRegisterForOthers = await checkHrmsPermission(
+                empUuid,
+                "LeaveAttendance_write",
+                hrmsConstants.HR_REPOSITORY,
+                toolsAccess as Record<string, number> | undefined
+            );
+            if (!canRegisterForOthers && empUuid !== employeeId) {
                 sendError(
                     res,
                     "You do not have the access. Only admin and super admin can register comp off leave for other employees",
@@ -3130,7 +3146,11 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
                         {
                             [Op.and]: [
                                 { totalCompOffUsed: { [Op.ne]: null } },
-                                outputSequelize.literal('totalCompOffUsed < totalCompOffCredit')
+                                outputSequelize.where(
+                                    outputSequelize.col('totalCompOffUsed'),
+                                    Op.lt,
+                                    outputSequelize.col('totalCompOffCredit')
+                                )
                             ]
                         }
                     ]
@@ -3156,7 +3176,12 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
             // Check continuous leave limit (CDL)
             const previousLeaveDetails = await getLeavesDetailsOfPastDays(employeeId, start, continuousLeavesLimit);
             const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === leaveConfigId);
-            const isAdmin = userType >= 500;
+            const isAdmin = await checkHrmsPermission(
+                empUuid,
+                "LeaveAttendance_write",
+                hrmsConstants.HR_REPOSITORY,
+                toolsAccess as Record<string, number> | undefined
+            );
 
             // Apply CDL restrictions for non-admin users
             let finalPaidDays = paidDays;
@@ -3213,8 +3238,13 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
             if (finalUnpaidDays > 0) {
                 const unpaidLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
                     where: {
-                        leaveType: { [Op.like]: '%unpaid%' },
-                        isActive: true
+                        [Op.and]: [
+                            outputSequelize.where(
+                                outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                                { [Op.like]: '%unpaid%' }
+                            ),
+                            { isActive: true }
+                        ]
                     },
                     attributes: ['leaveConfigId'],
                     raw: true
@@ -3352,7 +3382,6 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
     try {
         const { user } = req as AuthenticatedRequest;
         const { toolsAccess, email } = user as { toolsAccess: unknown; email: string };
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
 
         const { empUuid, startDate, endDate, isHalfDay: isHalfDayParam } = req.query as {
             empUuid: string;
@@ -3401,14 +3430,20 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
         // Get the UUID of the user making the request
         const { empUuid: requestorEmpUuid } = await fetchEmployeeContactDetailsFromEmail(email);
 
-        // Only admin/super admin can check eligibility for other employees
-        if (userType < 500 && requestorEmpUuid !== empUuid) {
-        res.status(403).json({
+        // Only users with LeaveAttendanceAdmin_read can check eligibility for other employees
+        const canViewOthersEligibility = await checkHrmsPermission(
+            requestorEmpUuid,
+            "LeaveAttendanceAdmin_read",
+            hrmsConstants.HR_REPOSITORY,
+            toolsAccess as Record<string, number> | undefined
+        );
+        if (!canViewOthersEligibility && requestorEmpUuid !== empUuid) {
+            res.status(403).json({
                 success: false,
                 message: "You do not have access to check eligibility for other employees"
-        });
-        return;
-    }
+            });
+            return;
+        }
 
         const start = new Date(startDate);
         const end = new Date(finalEndDate);
@@ -3424,8 +3459,13 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
             fetchEmployeeBasicDetails(empUuid),
             dbOutput.employeeLeaveConfigurator.findOne({
                 where: {
-                    leaveType: { [Op.like]: '%comp%' },
-                    isActive: true
+                    [Op.and]: [
+                        outputSequelize.where(
+                            outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                            { [Op.like]: '%comp%' }
+                        ),
+                        { isActive: true }
+                    ]
                 },
                 raw: true
             })
@@ -3503,7 +3543,11 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
                     {
                         [Op.and]: [
                             { totalCompOffUsed: { [Op.ne]: null } },
-                            outputSequelize.literal('totalCompOffUsed < totalCompOffCredit')
+                            outputSequelize.where(
+                                outputSequelize.col('totalCompOffUsed'),
+                                Op.lt,
+                                outputSequelize.col('totalCompOffCredit')
+                            )
                         ]
                     }
                 ]
@@ -3537,7 +3581,13 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
 
         let noticePeriodValid = true;
         let noticePeriodMessage = '';
-        if (userType < 500) {
+        const hasLeaveWritePermission = await checkHrmsPermission(
+            requestorEmpUuid,
+            "LeaveAttendance_write",
+            hrmsConstants.HR_REPOSITORY,
+            toolsAccess as Record<string, number> | undefined
+        );
+        if (!hasLeaveWritePermission) {
             if (originalStart.getTime() >= todayDate.getTime() && startDiffDays < minimumNoticePeriod) {
                 noticePeriodValid = false;
                 noticePeriodMessage = `Minimum notice period of ${minimumNoticePeriod} days not satisfied`;
@@ -3551,7 +3601,7 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
         const continuousLeavesLimit = compOffLeaveConfig.continuousLeavesLimit || 0;
         const previousLeaveDetails = await getLeavesDetailsOfPastDays(empUuid, adjustedStart, continuousLeavesLimit);
         const sameTypeLeaves = previousLeaveDetails.filter(leave => leave.leaveConfigId === compOffLeaveConfig.leaveConfigId);
-        const isAdmin = userType >= 500;
+        const isAdmin = hasLeaveWritePermission;
         
         // Apply CDL restrictions for non-admin users
         // If totalDays exceeds CDL or previous leaves + current request would exceed CDL, adjust paid/unpaid
@@ -3650,8 +3700,6 @@ export const updateCompOffLeave = async (req: Request, res: Response) => {
         const { user } = req as AuthenticatedRequest;
         const { email, toolsAccess } = user as { email: string, toolsAccess: unknown };
 
-        const userType: number = toolsAccess?.[hrmsConstants.HR_REPOSITORY];
-
         // Get attendanceId from params and update details from body
         const { attendanceId } = req.params as { attendanceId: string };
         const attendanceDetails: EmployeeAttendanceRequestPayload = req.body;
@@ -3680,8 +3728,14 @@ export const updateCompOffLeave = async (req: Request, res: Response) => {
             attendanceDateForEmail = currentAttendance.attendanceDate;
             attendanceStatusForEmail = attendanceStatus;
 
-            // Only admin/super admin can update comp off leave for other employees
-            if (userType < 500 && empUuid !== employeeId) {
+            // Only users with LeaveAttendance_write can update comp off leave for other employees
+            const canUpdateOthersCompOff = await checkHrmsPermission(
+                empUuid,
+                "LeaveAttendance_write",
+                hrmsConstants.HR_REPOSITORY,
+                toolsAccess as Record<string, number> | undefined
+            );
+            if (!canUpdateOthersCompOff && empUuid !== employeeId) {
                 sendError(
                     res,
                     "You do not have the access. Only admin and super admin can update comp off leave for other employees",
