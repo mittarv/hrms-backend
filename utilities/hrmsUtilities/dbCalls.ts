@@ -6,18 +6,18 @@
 import { Op, Transaction, WhereOptions } from "sequelize";
 import { sequelize } from "../../models";
 import { dbOutput } from "../../models";
-import { 
-    EmployeeAttendanceAttributes, 
-    EmployeeLeaveRequestAttributes, 
-    hrmsEmailLogsCreationAttributes, 
-    hrmsNotificationAttributes, 
-    CreateNotificationParams, 
+import {
+    EmployeeAttendanceAttributes,
+    EmployeeLeaveRequestAttributes,
+    hrmsEmailLogsCreationAttributes,
+    hrmsNotificationAttributes,
+    CreateNotificationParams,
     EmployeeLeaveBalanceAttributes
 } from "../../interfaces/hrmsTool/interface/hrmsInterface";
-import { 
-    AttendanceStatusType, 
-    LeaveApprovalStatus, 
-    hrmsNotificationTypes 
+import {
+    AttendanceStatusType,
+    LeaveApprovalStatus,
+    hrmsNotificationTypes
 } from "../../interfaces/hrmsTool/enum/hrmsEnum";
 import { createUUIDV4 } from "../uuidV4Generator";
 import { isValidTime, formatTimeInTimezone } from "./helperFunctions";
@@ -68,7 +68,7 @@ export const fetchLeaveConfigDetails = async (leaveConfigId: string) => {
  */
 export const fetchAllLeaveConfigDetails = async () => {
     try {
-        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({raw: true});
+        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({ raw: true });
         return allLeaveConfigs;
     } catch (error) {
         console.error("Error fetching all leave configs:", error);
@@ -104,7 +104,7 @@ export const fetchMandatoryLeavesInRange = async (startDate: Date, endDate: Date
     try {
         const mandatoryLeaves = await employeeHolidayDetails.findAll({
             where: {
-                eventdate: {
+                eventDate: {
                     [Op.between]: [startDate, endDate]
                 },
                 isDeleted: false
@@ -127,14 +127,14 @@ export const fetchMandatoryLeavesInRange = async (startDate: Date, endDate: Date
 export const fetchOverLappingLeaves = async (empUuid: string, startDate: Date, endDate: Date): Promise<{
     overlappingLeaveAttendances: EmployeeAttendanceAttributes[];
     overlappingLeaveRequests: EmployeeLeaveRequestAttributes[];
-  }> => {
+}> => {
     try {
         const [overlappingLeaveAttendances, overlappingLeaveRequests] = await Promise.all([
             employeeAttendance.findAll({
                 where: {
                     empUuid,
                     attendanceDate: {
-                        [Op.between] : [startDate, endDate]
+                        [Op.between]: [startDate, endDate]
                     },
                     attendanceStatus: {
                         [Op.not]: [AttendanceStatusType.WORKING]
@@ -167,7 +167,7 @@ export const fetchOverLappingLeaves = async (empUuid: string, startDate: Date, e
 
         // if(overlappingLeaveAttendances?.length > 0) return overlappingLeaveAttendances;
 
-        return {overlappingLeaveAttendances, overlappingLeaveRequests};
+        return { overlappingLeaveAttendances, overlappingLeaveRequests };
     } catch (error) {
         console.error("Error fetching overlapping leaves:", error);
         throw error;
@@ -180,32 +180,32 @@ export const fetchOverLappingLeaves = async (empUuid: string, startDate: Date, e
  * @returns {Promise<Array>} The leave balance details
  */
 export const fetchLeaveBalanceDetails = async (
-  jobDetails,
-  fiscalYearStart: Date,
-  leaveConfigIds?: [string]
+    jobDetails,
+    fiscalYearStart: Date,
+    leaveConfigIds?: [string]
 ): Promise<EmployeeLeaveBalanceAttributes[]> => {
-  try {
-    const whereClaus: WhereOptions<EmployeeLeaveBalanceAttributes> = {
-        empUuid: jobDetails?.empUuid,
-        fiscalYearStart,
-        empType: jobDetails?.empType,
-        isDeleted: false
-    };
+    try {
+        const whereClaus: WhereOptions<EmployeeLeaveBalanceAttributes> = {
+            empUuid: jobDetails?.empUuid,
+            fiscalYearStart,
+            empType: jobDetails?.empType,
+            isDeleted: false
+        };
 
-    if (leaveConfigIds && leaveConfigIds.length > 0) {
-        whereClaus.leaveConfigId = { [Op.in]: leaveConfigIds };
+        if (leaveConfigIds && leaveConfigIds.length > 0) {
+            whereClaus.leaveConfigId = { [Op.in]: leaveConfigIds };
+        }
+
+        const leaveBalanceDetails: EmployeeLeaveBalanceAttributes[] = await employeeLeaveBalance.findAll({
+            where: whereClaus,
+            raw: true
+        });
+
+        return leaveBalanceDetails;
+    } catch (error) {
+        console.error("Error fetching leave balance details:", error);
+        throw error;
     }
-
-    const leaveBalanceDetails: EmployeeLeaveBalanceAttributes[] = await employeeLeaveBalance.findAll({
-      where: whereClaus,
-      raw: true
-    });
-
-    return leaveBalanceDetails;
-  } catch (error) {
-    console.error("Error fetching leave balance details:", error);
-    throw error;
-  }
 };
 
 // Attendance Functions
@@ -233,7 +233,7 @@ export const fetchEmployeeAttendanceDetails = async (empUuid: string, startDate:
         // Group records by date and combine them
         const groupedRecords: EmployeeAttendanceAttributes = records.reduce((acc, record) => {
             const dateKey = record.attendanceDate.toISOString().split('T')[0];
-            
+
             if (!acc[dateKey]) {
                 acc[dateKey] = {
                     ...record,
@@ -244,25 +244,25 @@ export const fetchEmployeeAttendanceDetails = async (empUuid: string, startDate:
             } else {
                 // Combine work hours only if both checkIn and checkOut exist
                 if (record.checkIn && record.checkOut) {
-                    acc[dateKey].workHours  = (+acc[dateKey].workHours!) + (+record.workHours! || 0);
+                    acc[dateKey].workHours = (+acc[dateKey].workHours!) + (+record.workHours! || 0);
                 }
-                
+
                 // Keep the earliest checkIn
                 if (record.checkIn && (!acc[dateKey].checkIn || record.checkIn < acc[dateKey].checkIn)) {
                     acc[dateKey].checkIn = record.checkIn;
                 }
-                
+
                 // Keep the latest checkOut
                 if (record.checkOut && (!acc[dateKey].checkOut || record.checkOut > acc[dateKey].checkOut)) {
                     acc[dateKey].checkOut = record.checkOut;
                 }
             }
-            
+
             return acc;
         }, {} as EmployeeAttendanceAttributes);
 
         // Convert back to array and sort by date
-        const consolidatedRecords: EmployeeAttendanceAttributes[] = Object.values(groupedRecords).sort((a: EmployeeAttendanceAttributes, b: EmployeeAttendanceAttributes) => 
+        const consolidatedRecords: EmployeeAttendanceAttributes[] = Object.values(groupedRecords).sort((a: EmployeeAttendanceAttributes, b: EmployeeAttendanceAttributes) =>
             new Date(a.attendanceDate).getTime() - new Date(b.attendanceDate).getTime()
         );
 
@@ -419,7 +419,7 @@ export const updatePendingLeaveRequest = async (empUuid: string, leaveRequestIds
  */
 export const createLeaveRequest = async (leaveRequestDetails: EmployeeLeaveRequestAttributes, transaction?: Transaction) => {
     try {
-        await employeeLeaveRequest.create(leaveRequestDetails, {transaction});
+        await employeeLeaveRequest.create(leaveRequestDetails, { transaction });
     } catch (error) {
         console.error("Error creating leave request:", error);
         throw error;
@@ -452,21 +452,21 @@ export const createEmployeeAttendanceRecord = async (employeeAttendanceDetailsLi
  */
 export const updateEmployeeLeaveBalance = async (
     {
-      jobDetails,
-      leaveConfigId,
-      fiscalYear,
-      fiscalYearStart,
-      fiscalYearEnd,
-      totalLeaveUsed,
-      transaction,
+        jobDetails,
+        leaveConfigId,
+        fiscalYear,
+        fiscalYearStart,
+        fiscalYearEnd,
+        totalLeaveUsed,
+        transaction,
     }: {
-      jobDetails;
-      leaveConfigId: string;
-      fiscalYear: number;
-      fiscalYearStart: Date;
-      fiscalYearEnd: Date;
-      totalLeaveUsed: number;
-      transaction?: Transaction;
+        jobDetails;
+        leaveConfigId: string;
+        fiscalYear: number;
+        fiscalYearStart: Date;
+        fiscalYearEnd: Date;
+        totalLeaveUsed: number;
+        transaction?: Transaction;
     }
 ) => {
     try {
@@ -553,7 +553,7 @@ export const updateEmployeeAttendanceDetails = async (updateData: Partial<Employ
     } catch (error) {
         console.error("Error updating employee attendance details:", error);
         throw error;
-    }   
+    }
 }
 
 export const fetchEmployeesOnLeave = async (startDate: Date, endDate: Date) => {
@@ -583,178 +583,178 @@ export const fetchEmployeesOnLeave = async (startDate: Date, endDate: Date) => {
  * @returns {Promise<hrmsEmailLogsCreationAttributes>} The newly created email log record
  */
 export const EmailLog = async (
-  emailLogsDetails: Partial<hrmsEmailLogsCreationAttributes>, 
-  transaction?: Transaction
+    emailLogsDetails: Partial<hrmsEmailLogsCreationAttributes>,
+    transaction?: Transaction
 ): Promise<hrmsEmailLogsCreationAttributes> => {
-  const {
-    recipient_employee_id,
-    recipient_email,
-    sender_email,
-    subject,
-  } = emailLogsDetails;
-  
-  if (!recipient_email || !sender_email || !subject) {
-    throw new Error('Missing required fields: recipient_email, sender_email, and subject are required');
-  }
-  
-  const email_log_id = await createUUIDV4();
-  const sent_at = new Date();
-  
-  try {
-    const emailLog = await hrmsEmailLogs.create({
-      email_log_id,
-      recipient_employee_id,
-      recipient_email,
-      sender_email,
-      subject,
-      sent_at
-    }, { transaction });
-    
-    return emailLog;
-  } catch (error) {
-    console.error("Error creating email log:", error);
-    throw error;
-  }
+    const {
+        recipient_employee_id,
+        recipient_email,
+        sender_email,
+        subject,
+    } = emailLogsDetails;
+
+    if (!recipient_email || !sender_email || !subject) {
+        throw new Error('Missing required fields: recipient_email, sender_email, and subject are required');
+    }
+
+    const email_log_id = await createUUIDV4();
+    const sent_at = new Date();
+
+    try {
+        const emailLog = await hrmsEmailLogs.create({
+            email_log_id,
+            recipient_employee_id,
+            recipient_email,
+            sender_email,
+            subject,
+            sent_at
+        }, { transaction });
+
+        return emailLog;
+    } catch (error) {
+        console.error("Error creating email log:", error);
+        throw error;
+    }
 };
 
 export const createHRMSNotification = async (
-  params: CreateNotificationParams,
-  transaction?: Transaction
+    params: CreateNotificationParams,
+    transaction?: Transaction
 ) => {
-  const {
-    notification_type,
-    message,
-    sender_employee_id,
-    recipient_employee_id,
-    notification_effective_date = new Date()
-  } = params;
-
-  try {
-    const getExpiryDate = (type: hrmsNotificationTypes): Date => {
-      const expiryDate = new Date();
-      if (type === hrmsNotificationTypes.MY_UPDATES) {
-        expiryDate.setDate(expiryDate.getDate() + 30);
-      } else {
-        expiryDate.setDate(expiryDate.getDate() + 7);
-      }
-      return expiryDate;
-    };
-
-    const notification_expiry_date = getExpiryDate(notification_type);
-
-    if (notification_type === hrmsNotificationTypes.MY_UPDATES) {
-      if (!recipient_employee_id) {
-        throw new Error('recipient_employee_id is required for MY_UPDATES notification type');
-      }
-
-      const notificationId = await createUUIDV4();
-
-      const notificationRecord = {
-        notificationId,
+    const {
+        notification_type,
         message,
-        notificationType: notification_type,
-        recipient_employee_id,
         sender_employee_id,
-        read_at: null,
-        notification_effective_date,
-        notification_expiry_date,
-        priority: 100,
-        is_deleted: false
-      };
+        recipient_employee_id,
+        notification_effective_date = new Date()
+    } = params;
 
-      const result = await hrmsNotificationLogs.create(notificationRecord, { transaction });
-
-      return {
-        success: true,
-        message: 'Individual notification created successfully',
-        recordsCreated: 1,
-        data: result
-      };
-    }
-
-    if (notification_type === hrmsNotificationTypes.ORGANIZATION_UPDATES) {
-      const allEmployees = await employeeBasicDetails.findAll({
-        attributes: ['empUuid'],
-        where: { isDeleted: false },
-        raw: true
-      });
-
-      if (allEmployees.length === 0) {
-        return {
-          success: false,
-          message: 'No employees found to send organization updates',
-          recordsCreated: 0
+    try {
+        const getExpiryDate = (type: hrmsNotificationTypes): Date => {
+            const expiryDate = new Date();
+            if (type === hrmsNotificationTypes.MY_UPDATES) {
+                expiryDate.setDate(expiryDate.getDate() + 30);
+            } else {
+                expiryDate.setDate(expiryDate.getDate() + 7);
+            }
+            return expiryDate;
         };
-      }
 
-      const notificationRecords = await Promise.all(
-        allEmployees.map(async (employee: { empUuid: string }) => ({
-          notificationId: await createUUIDV4(),
-          message,
-          notificationType: notification_type,
-          recipient_employee_id: employee.empUuid,
-          sender_employee_id,
-          read_at: null,
-          notification_effective_date,
-          notification_expiry_date,
-          priority: 100,
-          is_deleted: false
-        }))
-      );
+        const notification_expiry_date = getExpiryDate(notification_type);
 
-      const BATCH_SIZE = 10;
-      let totalRecordsCreated = 0;
-      const allCreatedRecords: hrmsNotificationAttributes[] = [];
+        if (notification_type === hrmsNotificationTypes.MY_UPDATES) {
+            if (!recipient_employee_id) {
+                throw new Error('recipient_employee_id is required for MY_UPDATES notification type');
+            }
 
-      for (let i = 0; i < notificationRecords.length; i += BATCH_SIZE) {
-        const batch = notificationRecords.slice(i, i + BATCH_SIZE);
+            const notificationId = await createUUIDV4();
 
-        const createdBatch = await hrmsNotificationLogs.bulkCreate(batch, {
-          validate: true,
-          ignoreDuplicates: false,
-          returning: true,
-          transaction
-        });
+            const notificationRecord = {
+                notificationId,
+                message,
+                notificationType: notification_type,
+                recipient_employee_id,
+                sender_employee_id,
+                read_at: null,
+                notification_effective_date,
+                notification_expiry_date,
+                priority: 100,
+                is_deleted: false
+            };
 
-        totalRecordsCreated += createdBatch.length;
-        allCreatedRecords.push(...createdBatch);
+            const result = await hrmsNotificationLogs.create(notificationRecord, { transaction });
 
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+            return {
+                success: true,
+                message: 'Individual notification created successfully',
+                recordsCreated: 1,
+                data: result
+            };
+        }
 
-      return {
-        success: true,
-        message: `Organization notifications created successfully.`,
-        recordsCreated: totalRecordsCreated,
-        employeesNotified: allEmployees.length
-      };
+        if (notification_type === hrmsNotificationTypes.ORGANIZATION_UPDATES) {
+            const allEmployees = await employeeBasicDetails.findAll({
+                attributes: ['empUuid'],
+                where: { isDeleted: false },
+                raw: true
+            });
+
+            if (allEmployees.length === 0) {
+                return {
+                    success: false,
+                    message: 'No employees found to send organization updates',
+                    recordsCreated: 0
+                };
+            }
+
+            const notificationRecords = await Promise.all(
+                allEmployees.map(async (employee: { empUuid: string }) => ({
+                    notificationId: await createUUIDV4(),
+                    message,
+                    notificationType: notification_type,
+                    recipient_employee_id: employee.empUuid,
+                    sender_employee_id,
+                    read_at: null,
+                    notification_effective_date,
+                    notification_expiry_date,
+                    priority: 100,
+                    is_deleted: false
+                }))
+            );
+
+            const BATCH_SIZE = 10;
+            let totalRecordsCreated = 0;
+            const allCreatedRecords: hrmsNotificationAttributes[] = [];
+
+            for (let i = 0; i < notificationRecords.length; i += BATCH_SIZE) {
+                const batch = notificationRecords.slice(i, i + BATCH_SIZE);
+
+                const createdBatch = await hrmsNotificationLogs.bulkCreate(batch, {
+                    validate: true,
+                    ignoreDuplicates: false,
+                    returning: true,
+                    transaction
+                });
+
+                totalRecordsCreated += createdBatch.length;
+                allCreatedRecords.push(...createdBatch);
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            return {
+                success: true,
+                message: `Organization notifications created successfully.`,
+                recordsCreated: totalRecordsCreated,
+                employeesNotified: allEmployees.length
+            };
+        }
+
+        throw new Error('Invalid notification type provided');
+    } catch (error: unknown) {
+        console.error('Error creating notification:', error);
+        throw error;
     }
-
-    throw new Error('Invalid notification type provided');
-  } catch (error: unknown) {
-    console.error('Error creating notification:', error);
-    throw error;
-  }
 };
 
 
 export const CheckInService = async (empUuid: string, attendanceDate: string, timezone: string, transaction?: Transaction) => {
     const attendanceId = await createUUIDV4();
-    
+
     // Get current time in user's timezone using proper formatting
     const now = new Date();
     const checkIn = formatTimeInTimezone(now, timezone); // Returns HH:MM:SS format (00-23)
-    
+
     // Create date object for the user's date in UTC (to avoid timezone conversion issues)
     const [year, month, day] = attendanceDate.split('-').map(Number);
-    
+
     // Create the date as UTC midnight for the user's date
     const attendanceDateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    
+
     // For querying, we need to find records for the same day 
     const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-    
+
     try {
         const activeRecord = await employeeAttendance.findOne({
             where: {
@@ -767,7 +767,7 @@ export const CheckInService = async (empUuid: string, attendanceDate: string, ti
             },
             transaction
         });
-        
+
         if (activeRecord) {
             return { success: false, message: "Already checked in for today" };
         } else {
@@ -794,7 +794,7 @@ export const getCheckInOutStatusService = async (empUuid: string, attendanceDate
         const [year, month, day] = attendanceDate.split('-').map(Number);
         const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
         const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-        
+
         const latestRecord = await employeeAttendance.findOne({
             where: {
                 empUuid,
@@ -843,7 +843,7 @@ export const checkOutService = async (empUuid: string, attendanceDate: string, t
         const [year, month, day] = attendanceDate.split('-').map(Number);
         const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
         const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-        
+
         // Find latest record for today with null checkOut
         const latestRecord = await employeeAttendance.findOne({
             where: {
@@ -858,34 +858,34 @@ export const checkOutService = async (empUuid: string, attendanceDate: string, t
             order: [["createdAt", "DESC"]],
             transaction,
         });
-        
+
         if (!latestRecord) {
             throw new Error("No pending check-in record found for today.");
         }
-        
+
         // Get current time in user's timezone using proper formatting
         const now = new Date();
         const checkOut = formatTimeInTimezone(now, timezone); // Returns HH:MM:SS format (00-23)
-        
+
         const checkIn = latestRecord.checkIn || latestRecord.checkInTime;
         if (!checkIn) {
             throw new Error("Missing check-in time. Cannot compute work hours.");
         }
-        
+
         // Calculate work hours more accurately
         const checkInTime = new Date(`1970-01-01T${checkIn}Z`).getTime();
         const checkOutTime = new Date(`1970-01-01T${checkOut}Z`).getTime();
-        
+
         let workHours = (checkOutTime - checkInTime) / (1000 * 60 * 60);
-        
+
         // Handle case where checkout is next day (past midnight)
         if (workHours < 0) {
             workHours += 24; // Add 24 hours if checkout is next day
         }
-        
+
         // Round to 2 decimal places
         workHours = Math.round(workHours * 100) / 100;
-        
+
         // Update the existing record
         await employeeAttendance.update(
             {
@@ -898,87 +898,87 @@ export const checkOutService = async (empUuid: string, attendanceDate: string, t
                 transaction,
             }
         );
-        
+
         // Return updated record
         const updatedRecord = await employeeAttendance.findOne({
             where: { attendanceId: latestRecord.attendanceId },
             transaction,
         });
-        
+
         return updatedRecord;
-        
+
     } catch (error) {
         console.error("Error during check-out:", error);
         throw error;
     }
 };
 export const CheckOutstandingCheckoutService = async (empUuid: string, timezone?: string, transaction?: Transaction) => {
-  try {
-    // Get current date in user's timezone or default to server timezone
-    const now = new Date();
-    let todayDateString: string;
+    try {
+        // Get current date in user's timezone or default to server timezone
+        const now = new Date();
+        let todayDateString: string;
 
-    if (timezone) {
-      const formatter = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      todayDateString = formatter.format(now);
-    } else {
-      todayDateString = now.toISOString().split('T')[0]; // Get YYYY-MM-DD format
-    }
-    
-    const todayMidnight = new Date(`${todayDateString}T00:00:00.000Z`);
-
-    // Find the most recent attendance where checkout is null AND date is before today
-    const outstandingRecord = await employeeAttendance.findOne({
-      where: {
-        empUuid,
-        checkOut: null,
-        isDeleted: false,
-        attendanceStatus: AttendanceStatusType.WORKING,
-        attendanceDate: {
-          [Op.lt]: todayMidnight
+        if (timezone) {
+            const formatter = new Intl.DateTimeFormat('en-CA', {
+                timeZone: timezone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            todayDateString = formatter.format(now);
+        } else {
+            todayDateString = now.toISOString().split('T')[0]; // Get YYYY-MM-DD format
         }
-      },
-      order: [['attendanceDate', 'DESC']],
-      transaction
-    });
 
-    if (outstandingRecord) {
-      const dateOnly = outstandingRecord.attendanceDate.toISOString().split('T')[0];
-      return {
-        isShowCheckoutPopup: true,
-        outstandingDate: dateOnly,
-        checkInTime: outstandingRecord.checkIn || outstandingRecord.checkInTime,
-        attendanceId: outstandingRecord.attendanceId,
-        message: `You have an outstanding checkout for ${dateOnly}`
-      };
-    } else {
-      return {
-        isShowCheckoutPopup: false,
-        outstandingDate: null,
-        checkInTime: null,
-        message: "No outstanding checkout found"
-      };
+        const todayMidnight = new Date(`${todayDateString}T00:00:00.000Z`);
+
+        // Find the most recent attendance where checkout is null AND date is before today
+        const outstandingRecord = await employeeAttendance.findOne({
+            where: {
+                empUuid,
+                checkOut: null,
+                isDeleted: false,
+                attendanceStatus: AttendanceStatusType.WORKING,
+                attendanceDate: {
+                    [Op.lt]: todayMidnight
+                }
+            },
+            order: [['attendanceDate', 'DESC']],
+            transaction
+        });
+
+        if (outstandingRecord) {
+            const dateOnly = outstandingRecord.attendanceDate.toISOString().split('T')[0];
+            return {
+                isShowCheckoutPopup: true,
+                outstandingDate: dateOnly,
+                checkInTime: outstandingRecord.checkIn || outstandingRecord.checkInTime,
+                attendanceId: outstandingRecord.attendanceId,
+                message: `You have an outstanding checkout for ${dateOnly}`
+            };
+        } else {
+            return {
+                isShowCheckoutPopup: false,
+                outstandingDate: null,
+                checkInTime: null,
+                message: "No outstanding checkout found"
+            };
+        }
+    } catch (error) {
+        console.error("Error checking outstanding checkout:", error);
+        throw error;
     }
-  } catch (error) {
-    console.error("Error checking outstanding checkout:", error);
-    throw error;
-  }
 };
 
 
 
 export const UpdateCheckoutService = async (attendanceId: string, attendanceDate: string, checkOutTime: string, transaction?: Transaction) => {
     try {
-       
+
         // // Find the record to update
         const recordToUpdate = await employeeAttendance.findOne({
             where: {
-                attendanceId, 
+                attendanceId,
                 isDeleted: false
             },
             transaction
@@ -1270,7 +1270,7 @@ export const findEmployeeDetailsByUuid = async (empUuidList: string[], transacti
     } catch (error) {
         console.error("Error finding employee details by UUID:", error);
         throw error;
-        
+
     }
 }
 
@@ -1283,8 +1283,8 @@ export const findEmployeeDetailsByUuid = async (empUuidList: string[], transacti
  * @returns {Promise<number>} Total used leaves till the specified date
  */
 export const fetchUsedLeavesTillDate = async (
-    empUuid: string, 
-    leaveConfigId: string, 
+    empUuid: string,
+    leaveConfigId: string,
     tillDate: Date,
     fiscalYearStart: Date,
     transaction?: Transaction
@@ -1332,7 +1332,7 @@ export const fetchUsedLeavesTillDate = async (
 
         // Calculate total days from attendance records that match approved leave requests
         const approvedLeaveRequestIds = new Set(leaveRequests.map(req => req.leaveRequestId));
-        
+
         // **FIXED: Count days properly - HALF_DAY = 0.5, ON_LEAVE = 1.0**
         const totalUsedDays = attendanceRecords
             .filter(record => approvedLeaveRequestIds.has(record.leaveRequestId))
@@ -1354,13 +1354,13 @@ export const fetchUsedLeavesTillDate = async (
 // If conversion date is in future, fetch the job details whose conversion date is the nearest past date
 // Accepts single empUuid or array of empUuids
 export const fetchEmployeeCurrentJobDetails = async (
-    empUuid: string | string[], 
+    empUuid: string | string[],
     transaction?: Transaction
 ): Promise<any | Map<string, any> | null> => {
     try {
         const isArray = Array.isArray(empUuid);
         const empUuids = isArray ? empUuid : [empUuid];
-        
+
         if (empUuids.length === 0) {
             return isArray ? new Map<string, any>() : null;
         }
@@ -1383,7 +1383,7 @@ export const fetchEmployeeCurrentJobDetails = async (
         const jobDetailsMap = new Map<string, any>();
         const currentDate = new Date();
         const employeesWithFutureConversion: string[] = [];
-        
+
         for (const job of allJobDetails) {
             if (new Date(job.empConversionDate) <= currentDate) {
                 // Conversion date is today or in past - use current job details
@@ -1457,14 +1457,14 @@ export const createWorkRequestService = async (requestedData, user, transaction)
             checkIn: requestedData.checkIn,
             checkOut: requestedData.checkOut,
             remarks: requestedData.remarks,
-            proof:requestedData.proof,
+            proof: requestedData.proof,
             totalDuration: requestedData.totalDuration,
             totalCompOffCredit,
             requestBy: user.employeeUuid,
             approvalStatus: LeaveApprovalStatus.PENDING,
             isDeleted: false
-        }, 
-        { transaction });
+        },
+            { transaction });
         return createWorkLogData;
     } catch (error) {
         console.error("Error creating work request:", error);
@@ -1484,7 +1484,7 @@ export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDa
             start.setUTCHours(0, 0, 0, 0);
             const end = new Date(endDate);
             end.setUTCHours(23, 59, 59, 999);
-            
+
             whereClause.createdAt = {
                 [Op.between]: [start, end]
             };
@@ -1516,11 +1516,11 @@ export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDa
 }
 
 export const updateExtraWorkLogRequestStatusService = async (
-    extraWorkDayIds: string[], 
-    action: LeaveApprovalStatus, 
-    user, 
+    extraWorkDayIds: string[],
+    action: LeaveApprovalStatus,
+    user,
     transaction?: Transaction
-) => { 
+) => {
     try {
         if (!extraWorkDayIds || extraWorkDayIds.length === 0) {
             throw new Error("No extra work day IDs provided");
@@ -1533,18 +1533,18 @@ export const updateExtraWorkLogRequestStatusService = async (
         const BATCH_SIZE = 50;
         const totalIds = extraWorkDayIds.length;
         let totalUpdated = 0;
-        
+
         // Process in batches
         for (let i = 0; i < totalIds; i += BATCH_SIZE) {
             const batch = extraWorkDayIds.slice(i, i + BATCH_SIZE);
-            
+
             // Build update data
             const updateData: any = {
                 approvalStatus: action,
                 approvedBy: user.employeeUuid,
                 approvalDate: new Date()
             };
-            
+
             if (action === LeaveApprovalStatus.APPROVED) {
                 // Fetch the logs to get their workDate for calculations
                 const logs = await employeeExtraWorkLog.findAll({
@@ -1591,10 +1591,10 @@ export const updateExtraWorkLogRequestStatusService = async (
                 );
                 totalUpdated += updatedCount;
             }
-            
+
             console.log(`Processed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalIds / BATCH_SIZE)} - Batch total processed: ${batch.length}`);
         }
-        
+
         return {
             success: true,
             totalRequested: totalIds,

@@ -1020,7 +1020,15 @@ exports.sendChangesToApprover = async (req, res) => {
       }
     }
 
-    if(userType < 500) {
+    // If user cannot approve employee detail requests, notify HR Repository admins
+    const canApproveRequests = await checkHrmsPermission(
+      employeeUuid,
+      "EmployeeDetailsRequest_write",
+      toolName,
+      toolsAccess
+    );
+
+    if (!canApproveRequests) {
       const users = await findHRRepositoryToolAdminUsers();
       
       // Fetch employee name from basic details

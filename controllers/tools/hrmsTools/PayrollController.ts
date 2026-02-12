@@ -93,8 +93,13 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         const [unpaidLeaveConfig, leaveAccrualFrequency] = await Promise.all([
             dbOutput.employeeLeaveConfigurator.findOne({
                 where: {
-                    leaveType: { [Op.like]: '%unpaid%' },
-                    isActive: true
+                    [Op.and]: [
+                        outputSequelize.where(
+                            outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                            { [Op.like]: '%unpaid%' }
+                        ),
+                        { isActive: true }
+                    ]
                 },
                 attributes: ['leaveConfigId']
             }),
@@ -1135,8 +1140,13 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                 }),
                 dbOutput.employeeLeaveConfigurator.findOne({
                     where: {
-                        leaveType: { [Op.like]: '%unpaid%' },
-                        isActive: true
+                        [Op.and]: [
+                            outputSequelize.where(
+                                outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                                { [Op.like]: '%unpaid%' }
+                            ),
+                            { isActive: true }
+                        ]
                     },
                     attributes: ['leaveConfigId']
                 })
@@ -2406,10 +2416,13 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
 
             const unpaidLeaveConfigDetails = await dbOutput.employeeLeaveConfigurator.findOne({
                 where: {
-                    leaveType: {
-                        [Op.like]: '%unpaid%'
-                    },
-                    isActive: true
+                    [Op.and]: [
+                        outputSequelize.where(
+                            outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
+                            { [Op.like]: '%unpaid%' }
+                        ),
+                        { isActive: true }
+                    ]
                 },
                 attributes: ['leaveConfigId'],
                 raw: true
