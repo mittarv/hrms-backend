@@ -618,6 +618,7 @@ export interface CreatedAdjustment {
 
 export interface AdjustmentError {
     componentId?: string;
+    componentName?: string;
     error: string;
 }
 

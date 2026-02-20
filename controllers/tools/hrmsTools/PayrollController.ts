@@ -562,7 +562,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         const allAdjustments = await dbOutput.employeeComponentAdjustments.findAll({
             where: {
                 employeeId: { [Op.in]: empUuids },
-                startDate: { [Op.lte]: new Date(year, month - 1, 31) },
+                startDate: { [Op.lte]: new Date(year, month, 0) },
                 [Op.or]: [
                     { endDate: { [Op.gte]: new Date(year, month - 1, 1) } },
                     { endDate: null }
@@ -580,69 +580,40 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             attributes: ['adjustmentId', 'employeeId', 'componentId', 'adjustedAmount', 'adjustedFrequency', 'startDate', 'endDate']
         });
 
-        // Filter adjustments based on frequency - only include if applicable for current month
-        const filteredAdjustments = allAdjustments.filter(adj => {
+        // Determine if an adjustment is applicable for the current payroll month.
+        // Frequency rules:
+        //   one_time: only in the exact startDate month+year
+        //   monthly / null: every month within the date range
+        //   quarterly: startDate month, then every 3 months
+        //   half_yearly: startDate month, then every 6 months
+        //   annually: startDate month, then every 12 months
+        // effectiveTill (endDate) acts as the hard stop — no occurrence after that month.
+        const isApplicableThisMonth = (adj: any): boolean => {
             const startDate = new Date(adj.startDate);
             const startYear = startDate.getFullYear();
             const startMonth = startDate.getMonth() + 1;
-            
-            // Calculate the requested month's date range
             const monthStartDate = new Date(year, month - 1, 1);
-            
-            // One-time adjustments: only include in the month they started (check month only, not year)
-            // If effectiveTill is set, show for whole month if effectiveTill >= month start
-            // e.g., if added in Jan 2025 with effectiveTill Jan 20, 2026, show in Jan 2026
+
+            if (adj.endDate && new Date(adj.endDate) < monthStartDate) return false;
+
             if (adj.adjustedFrequency === 'one_time_key') {
-                // Check if startDate's month matches requested month (regardless of year)
-                const monthMatches = (startDate.getMonth() + 1) === month;
-                
-                if (!monthMatches) {
-                    return false; // Month doesn't match, don't show
-                }
-                
-                // If effectiveTill (endDate) is set, check if it's >= month start
-                // This allows showing one-time components in the same month across different years
-                if (adj.endDate) {
-                    const endDate = new Date(adj.endDate);
-                    // Show for whole month if effectiveTill is >= month start
-                    return endDate >= monthStartDate;
-                }
-                
-                // If no effectiveTill, show only if year also matches (original behavior for backward compatibility)
-                return startDate.getFullYear() === year;
+                return startMonth === month && startYear === year;
             }
 
-            // For other frequencies, check effectiveTill (endDate) - if set, must be >= month start
-            if (adj.endDate) {
-                const endDate = new Date(adj.endDate);
-                if (endDate < monthStartDate) {
-                    return false; // effectiveTill is before the requested month
-                }
-            }
-
-            // Calculate frequency interval (e.g., quarterly = every 3 months)
             const frequencyConfig = componentFrequencies[adj.adjustedFrequency];
-            if (!frequencyConfig || !frequencyConfig[1]) {
-                return true; // Include if no frequency config (default to monthly)
-            }
+            if (!frequencyConfig || !frequencyConfig[1]) return true;
 
             const frequencyNum = 12 / parseInt(frequencyConfig[1]);
-            
-            if (isNaN(frequencyNum) || frequencyNum <= 0) {
-                return true; // Include if invalid frequency
-            }
-            
-            // Calculate months elapsed since adjustment started
-            const monthsElapsed = (year - startYear) * 12 + (month - startMonth);
-            
-            // Include if current month aligns with frequency interval
-            // E.g., quarterly (frequencyNum=3): months 0, 3, 6, 9, etc.
-            return monthsElapsed >= 0 && monthsElapsed % frequencyNum === 0;
-        });
+            if (isNaN(frequencyNum) || frequencyNum <= 0) return true;
 
-        // Group filtered adjustments by employee ID
-        const adjustmentsMap = new Map<string, typeof filteredAdjustments>();
-        filteredAdjustments.forEach(adj => {
+            const monthsElapsed = (year - startYear) * 12 + (month - startMonth);
+            return monthsElapsed >= 0 && monthsElapsed % frequencyNum === 0;
+        };
+
+        // Filter to only applicable adjustments, then group by employee ID
+        const applicableAdjustments = allAdjustments.filter(isApplicableThisMonth);
+        const adjustmentsMap = new Map<string, typeof applicableAdjustments>();
+        applicableAdjustments.forEach(adj => {
             if (!adjustmentsMap.has(adj.employeeId)) {
                 adjustmentsMap.set(adj.employeeId, []);
             }
@@ -756,21 +727,21 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             // Format adjustment data for response
             const formatAdjustment = (adj: any) => {
                 const sc = adj.salaryComponent;
-                // Prioritize adjustedFrequency over frequency from salaryComponent
                 const effectiveFrequency = adj.adjustedFrequency || sc?.frequency || null;
-                
+                const realAmount = parseFloat(String(adj.adjustedAmount)) || 0;
+
                 return {
                     adjustmentId: adj.adjustmentId,
                     componentId: adj.componentId,
                     componentName: sc?.componentName || 'Unknown',
-                    adjustedAmount: parseFloat(String(adj.adjustedAmount)) || 0,
-                    amount: parseFloat(String(adj.adjustedAmount)) || 0,
+                    adjustedAmount: realAmount,
+                    amount: realAmount,
                     startDate: adj.startDate ? new Date(adj.startDate).toISOString().split('T')[0] : null,
                     endDate: adj.endDate ? new Date(adj.endDate).toISOString().split('T')[0] : null,
                     effectiveTill: adj.endDate ? new Date(adj.endDate).toISOString().split('T')[0] : null,
-                    adjustedFrequency: adj.adjustedFrequency || null, // Actual adjusted frequency from adjustment
-                    frequency: sc?.frequency || null, // Original frequency from component
-                    effectiveFrequency: effectiveFrequency, // Combined frequency (prioritized)
+                    adjustedFrequency: adj.adjustedFrequency || null,
+                    frequency: sc?.frequency || null,
+                    effectiveFrequency: effectiveFrequency,
                     isVariable: sc?.isVariable ?? true,
                     thresholdAmount: sc?.thresholdAmount ? parseFloat(String(sc.thresholdAmount)) : null,
                     percentageOfBasicSalary: sc?.percentageOfBasicSalary ? parseFloat(String(sc.percentageOfBasicSalary)) : null
@@ -940,32 +911,36 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Process adjustments - update if exists, create if new, delete if marked
+        // Process adjustments - update if exists, create if new, delete if marked.
+        // First pass: apply all deletions so "already added" checks only consider non-deleted records.
         const createdAdjustments: CreatedAdjustment[] = [];
         const updatedAdjustments: CreatedAdjustment[] = [];
         const deletedAdjustments: string[] = [];
         const errors: AdjustmentError[] = [];
 
         for (const adjustment of adjustments) {
+            const { adjustmentId, isDeleted } = adjustment;
+            if (isDeleted && adjustmentId) {
+                const existingAdjustment = await dbOutput.employeeComponentAdjustments.findOne({
+                    where: {
+                        adjustmentId: adjustmentId,
+                        employeeId: employeeId,
+                        isDeleted: false
+                    }
+                });
+                if (existingAdjustment) {
+                    await existingAdjustment.update({ isDeleted: true }, { transaction });
+                    deletedAdjustments.push(adjustmentId);
+                }
+            }
+        }
+
+        // Second pass: create/update. Duplicate check only finds non-deleted, active records (so deleted in this request are ignored).
+        for (const adjustment of adjustments) {
             try {
                 const { adjustmentId, componentId, adjustedAmount, adjustedFrequency, startDate, endDate, isDeleted } = adjustment;
 
-                // Handle deletion requests
-                if (isDeleted && adjustmentId) {
-                    const existingAdjustment = await dbOutput.employeeComponentAdjustments.findOne({
-                        where: {
-                            adjustmentId: adjustmentId,
-                            employeeId: employeeId,
-                            isDeleted: false
-                        }
-                    });
-
-                    if (existingAdjustment) {
-                        await existingAdjustment.update({ isDeleted: true }, { transaction });
-                        deletedAdjustments.push(adjustmentId);
-                    }
-                    continue;
-                }
+                if (isDeleted && adjustmentId) continue;
 
                 // Validate required fields for create/update adjustments
                 if (!componentId || adjustedAmount === undefined || adjustedAmount === null) {
@@ -995,7 +970,6 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
 
                 // Check if adjustmentId is provided and exists
                 if (adjustmentId) {
-                    // Try to find existing adjustment
                     const existingAdjustment = await dbOutput.employeeComponentAdjustments.findOne({
                         where: {
                             adjustmentId: adjustmentId,
@@ -1005,6 +979,43 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                     });
 
                     if (existingAdjustment) {
+                        // If changing to a different component, check that component isn't already active for this employee
+                        const startOfToday = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                        const freqLabels: Record<string, string> = {
+                            'monthly_key': 'Monthly',
+                            'quarterly_key': 'Quarterly',
+                            'half_yearly_key': 'Half-Yearly',
+                            'annually_key': 'Annually',
+                            'one_time_key': 'One Time'
+                        };
+
+                        if (existingAdjustment.componentId !== componentId) {
+                            const alreadyAdded = await dbOutput.employeeComponentAdjustments.findOne({
+                                where: {
+                                    employeeId: employeeId,
+                                    componentId: componentId,
+                                    adjustmentId: { [Op.ne]: adjustmentId },
+                                    isDeleted: false,
+                                    [Op.or]: [
+                                        { endDate: null },
+                                        { endDate: { [Op.gte]: startOfToday } }
+                                    ]
+                                }
+                            });
+
+                            if (alreadyAdded) {
+                                const dupFreq = (alreadyAdded as { adjustedFrequency?: string }).adjustedFrequency;
+                                const dupStart = new Date(alreadyAdded.startDate);
+                                const dupDate = dupStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                const dupFreqLabel = freqLabels[dupFreq || ''] || dupFreq || 'Monthly';
+                                errors.push({
+                                    componentId,
+                                    error: `"${component.componentName}" is already added on ${dupDate} with ${dupFreqLabel} frequency`
+                                });
+                                continue;
+                            }
+                        }
+
                         // Update existing adjustment
                         await existingAdjustment.update({
                             componentId: componentId,
@@ -1024,9 +1035,41 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                     }
                 }
 
-                // Create new adjustment (if no adjustmentId provided or not found)
-                const newAdjustmentId = await createUUIDV4();
+                // Check for duplicate: only block if same component is already active (not expired).
+                const startOfToday = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+                const existingDuplicate = await dbOutput.employeeComponentAdjustments.findOne({
+                    where: {
+                        employeeId: employeeId,
+                        componentId: componentId,
+                        isDeleted: false,
+                        [Op.or]: [
+                            { endDate: null },
+                            { endDate: { [Op.gte]: startOfToday } }
+                        ]
+                    }
+                });
 
+                if (existingDuplicate) {
+                    const freqLabels: Record<string, string> = {
+                        'monthly_key': 'Monthly',
+                        'quarterly_key': 'Quarterly',
+                        'half_yearly_key': 'Half-Yearly',
+                        'annually_key': 'Annually',
+                        'one_time_key': 'One Time'
+                    };
+                    const dupFreq = (existingDuplicate as { adjustedFrequency?: string }).adjustedFrequency;
+                    const dupStart = new Date(existingDuplicate.startDate);
+                    const dupDate = dupStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const dupFreqLabel = freqLabels[dupFreq || ''] || dupFreq || 'Monthly';
+                    errors.push({
+                        componentId,
+                        error: `"${component.componentName}" is already added on ${dupDate} with ${dupFreqLabel} frequency`
+                    });
+                    continue;
+                }
+
+                // Create new adjustment
+                const newAdjustmentId = await createUUIDV4();
                 const newAdjustment = await dbOutput.employeeComponentAdjustments.create({
                     adjustmentId: newAdjustmentId,
                     employeeId: employeeId,
@@ -1051,6 +1094,17 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                     error: adjError instanceof Error ? adjError.message : 'Unknown error'
                 });
             }
+        }
+
+        const duplicateErrors = errors.filter((e: AdjustmentError) => e.error?.includes('already added'));
+        if (duplicateErrors.length > 0) {
+            await transaction.rollback();
+            const message = duplicateErrors.map((e: AdjustmentError) => e.error).join('; ');
+            res.status(400).json({
+                success: false,
+                message
+            });
+            return;
         }
 
         await transaction.commit();
@@ -1160,6 +1214,16 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             }
 
             const unpaidLeaveConfigId = unpaidLeaveConfig?.leaveConfigId || null;
+
+            // Fetch frequency config for filtering adjustments during generation
+            const generateFreqConfig = await dbOutput.employeeComponentConfigurator.findOne({
+                where: { componentType: 'leave_accural_frequency', isDeleted: false }
+            });
+            const generateFrequencies: Record<string, string[]> = generateFreqConfig?.componentValue
+                ? (typeof generateFreqConfig.componentValue === 'string'
+                    ? JSON.parse(generateFreqConfig.componentValue)
+                    : generateFreqConfig.componentValue)
+                : {};
 
             // Create a map for quick lookup of payroll records by employeeId
             const payrollRecordMap = new Map();
@@ -1377,11 +1441,12 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                     
                     console.log(`Total items to create for ${empUuid}: ${payrollItemsToCreate.length}`);
 
-                    // Get custom additions (adjustments)
+                    // Get custom additions/deductions (adjustments)
                     const customComponents = await dbOutput.employeeComponentAdjustments.findAll({
                         where: {
                             employeeId: empUuid,
                             isDeleted: false,
+                            startDate: { [Op.lte]: new Date(year, month, 0) },
                             [Op.or]: [
                                 { endDate: null },
                                 { endDate: { [Op.gte]: payrollStartDate } }
@@ -1399,7 +1464,25 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                         }]
                     });
 
-                    const customAdditions = customComponents.filter(comp => comp.salaryComponent.componentType === componentTypes.ADDITION);
+                    // Filter by frequency — only include components applicable for this payroll month
+                    const applicableComponents = customComponents.filter(adj => {
+                        const freq = (adj as any).adjustedFrequency;
+                        const sd = new Date(adj.startDate);
+
+                        if (freq === 'one_time_key') {
+                            return (sd.getMonth() + 1) === month && sd.getFullYear() === year;
+                        }
+
+                        const fc = generateFrequencies[freq];
+                        if (!fc || !fc[1]) return true;
+                        const interval = 12 / parseInt(fc[1]);
+                        if (isNaN(interval) || interval <= 0) return true;
+
+                        const elapsed = (year - sd.getFullYear()) * 12 + (month - (sd.getMonth() + 1));
+                        return elapsed >= 0 && elapsed % interval === 0;
+                    });
+
+                    const customAdditions = applicableComponents.filter(comp => comp.salaryComponent.componentType === componentTypes.ADDITION);
 
                     let totalAdditions = 0;
                     for (const adjustment of customAdditions) {
@@ -1416,7 +1499,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                     }
 
                     // Get custom deductions (adjustments)
-                    const customDeductions = customComponents.filter(comp => comp.salaryComponent.componentType === componentTypes.DEDUCTION);
+                    const customDeductions = applicableComponents.filter(comp => comp.salaryComponent.componentType === componentTypes.DEDUCTION);
 
                     let totalCustomDeductions = 0;
                     for (const adjustment of customDeductions) {
@@ -2245,6 +2328,16 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
             const monthStartDate = new Date(year, month - 1, 1);
             const monthEndDate = new Date(year, month, 0, 23, 59, 59, 999);
 
+            // Fetch frequency config for filtering
+            const netPayFreqConfig = await dbOutput.employeeComponentConfigurator.findOne({
+                where: { componentType: 'leave_accural_frequency', isDeleted: false }
+            });
+            const netPayFrequencies: Record<string, string[]> = netPayFreqConfig?.componentValue
+                ? (typeof netPayFreqConfig.componentValue === 'string'
+                    ? JSON.parse(netPayFreqConfig.componentValue)
+                    : netPayFreqConfig.componentValue)
+                : {};
+
             // Fetch adjusted components only for employees with payslip records
             const allAdjustedComponents = employeeIds.length > 0 ? await dbOutput.employeeComponentAdjustments.findAll({
                 include: [
@@ -2264,8 +2357,28 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                 }
             }) : [];
 
-            const allAdjustedAdditions = allAdjustedComponents.filter(component => component.salaryComponent.componentType === componentTypes.ADDITION);
-            const allAdjustedDeductions = allAdjustedComponents.filter(component => component.salaryComponent.componentType === componentTypes.DEDUCTION);
+            // Filter by frequency — only include applicable adjustments in net pay
+            const applicableAdjusted = allAdjustedComponents.filter(adj => {
+                const freq = (adj as any).adjustedFrequency;
+                const sd = new Date(adj.startDate);
+
+                if (adj.endDate && new Date(adj.endDate) < monthStartDate) return false;
+
+                if (freq === 'one_time_key') {
+                    return (sd.getMonth() + 1) === month && sd.getFullYear() === year;
+                }
+
+                const fc = netPayFrequencies[freq];
+                if (!fc || !fc[1]) return true;
+                const interval = 12 / parseInt(fc[1]);
+                if (isNaN(interval) || interval <= 0) return true;
+
+                const elapsed = (year - sd.getFullYear()) * 12 + (month - (sd.getMonth() + 1));
+                return elapsed >= 0 && elapsed % interval === 0;
+            });
+
+            const allAdjustedAdditions = applicableAdjusted.filter(component => component.salaryComponent.componentType === componentTypes.ADDITION);
+            const allAdjustedDeductions = applicableAdjusted.filter(component => component.salaryComponent.componentType === componentTypes.DEDUCTION);
 
             netPayAmount += allAdjustedAdditions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0) - allAdjustedDeductions.reduce((total, component) => total + parseFloat(String(component.adjustedAmount || 0)), 0);
 

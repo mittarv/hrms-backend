@@ -151,14 +151,19 @@ export const registerAttendance = async (req: Request, res: Response) => {
         } = leaveDetails;
 
         // Fetch employee details before transaction for email (needed outside transaction)
+        // Only fetch leave config when registering leave/half-day; not needed for working
         const basicDetailsForEmail = await fetchEmployeeBasicDetails(employeeId);
-        const configDetailsForEmail = await fetchLeaveConfigDetails(leaveConfigId!);
+        const configDetailsForEmail =
+            attendanceStatus !== AttendanceStatusType.WORKING && leaveConfigId
+                ? await fetchLeaveConfigDetails(leaveConfigId)
+                : null;
         
-        if (!configDetailsForEmail) {
+        if (attendanceStatus !== AttendanceStatusType.WORKING && !configDetailsForEmail) {
             sendError(res, "Leave configuration not found");
             return;
         }
         
+
         let isPendingForEmail: boolean = false;
         const startForEmail: Date | null = null as Date | null;
         const endForEmail: Date | null = null as Date | null;
