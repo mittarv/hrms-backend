@@ -1,9 +1,17 @@
 # Dependencies and build outputs (huge - must exclude)
+# Dependencies and build outputs (huge - must exclude)
 node_modules
 dist
 
 # Git and CI (not needed in image)
+
+# Git and CI (not needed in image)
 .git
+.github
+
+# Env and local files
+.env
+.env.*
 .github
 
 # Env and local files
@@ -23,6 +31,12 @@ __tests__
 __mocks__
 
 # Logs and temp
+*.test.ts
+*.spec.ts
+__tests__
+__mocks__
+
+# Logs and temp
 logs
 *.log
 npm-debug.log
@@ -30,7 +44,14 @@ npm-debug.log
 *.temp
 
 # Config not needed at build
+npm-debug.log
+*.tmp
+*.temp
+
+# Config not needed at build
 .eslintrc
 .prettierrc
+*.zip
+*.tar.gz
 *.zip
 *.tar.gz
