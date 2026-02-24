@@ -142,13 +142,19 @@ jobs:
       - name: Stop and remove existing container
         run: |
           cd "${{ github.workspace }}"
-          docker compose down
+          # Use explicit project name so down always targets the same project
+          export COMPOSE_PROJECT_NAME=hrms-backend
+          docker compose down --remove-orphans
+          # Force stop/remove by container name in case it was started from another path
+          docker stop hrms-backend 2>/dev/null || true
+          docker rm hrms-backend 2>/dev/null || true
         continue-on-error: true
 
       - name: Build and deploy with Docker Compose
         run: |
           cd "${{ github.workspace }}"
-          docker compose up -d --build hrms-backend
+          export COMPOSE_PROJECT_NAME=hrms-backend
+          docker compose up -d --build --force-recreate hrms-backend
         env:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}

@@ -1648,6 +1648,18 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 return;
             }
 
+            // --- For comp-off: check overlap with existing half-day/on-leave (fetchOverLappingLeaves) ---
+            const isCompOffLeaveType = configDetails.leaveType?.toLowerCase().includes('comp') ||
+                configDetails.leaveType?.toLowerCase().includes('comp off');
+            if (isCompOffLeaveType) {
+                const overlappingLeaves = await fetchOverLappingLeaves(employeeId, start, end);
+                if (overlappingLeaves.overlappingLeaveAttendances.length > 0 ||
+                    overlappingLeaves.overlappingLeaveRequests.length > 0) {
+                    sendError(res, "Leave overlaps with existing leaves");
+                    return;
+                }
+            }
+
             // --- Calculate fiscal year start and end dates ---
             const { fiscalYearStart } = getFiscalYearStartAndEndDate(jobDetails?.empConversionDate, start);
 
@@ -1841,7 +1853,7 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 }
             }
 
-            // Paid leave data
+            // Paid leave data (use undefined for empty checkIn/checkOut - PostgreSQL time type rejects '')
             let paidLeaveData: EmployeeLeaveRequestAttributes = {
                 leaveRequestId: await createUUIDV4(),
                 empUuid: employeeId,
@@ -1850,8 +1862,8 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 endDate: end,
                 totalDays: paidDays,
                 isHalfDay,
-                checkIn,
-                checkOut,
+                checkIn: checkIn?.trim() || undefined,
+                checkOut: checkOut?.trim() || undefined,
                 remarks,
                 approvalStatus: LeaveApprovalStatus.APPROVED,
                 approvedBy: empUuid,
@@ -1867,8 +1879,8 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
                 endDate: end,
                 totalDays: unpaidDays,
                 isHalfDay,
-                checkIn,
-                checkOut,
+                checkIn: checkIn?.trim() || undefined,
+                checkOut: checkOut?.trim() || undefined,
                 remarks,
                 approvalStatus: LeaveApprovalStatus.APPROVED,
                 approvedBy: empUuid,
@@ -3099,40 +3111,10 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
                 return;
             }
 
-            // Check for overlapping leaves
+            // Check for overlapping leaves (comp-off: any half-day/on-leave on these dates = overlap)
             if (overlappingLeaveAttendances.length > 0 || overlappingLeaveRequests.length > 0) {
-                // Fetch leaveRequestIds from overlappingLeaveAttendances
-                const leaveRequestIds = overlappingLeaveAttendances
-                    .map(a => a.leaveRequestId)
-                    .filter(Boolean);
-
-                // leaveRequestDetails - already approved leaves
-                // applicableLeaveTypes - leave types applicable to the employee
-                const [leaveRequestDetails, applicableLeaveTypes] = await Promise.all([
-                    fetchLeaveRequestDetailsFromLeaveId(leaveRequestIds as string[]),
-                    dbOutput.employeeLeaveConfigurator.findAll({
-                        where: {
-                            employeeType: { [Op.like]: `%${jobDetails.empType}%` },
-                            isActive: true
-                        },
-                        raw: true
-                    })
-                ]);
-
-                // Create a set of leaveConfigIds from both existing leaves and overlapping requests
-                const leaveConfigIds = new Set([
-                    ...leaveRequestDetails.map(r => r?.leaveConfigId).filter(Boolean),
-                    ...overlappingLeaveRequests.map(r => r?.leaveConfigId).filter(Boolean)
-                ]);
-
-                // If any overlapping leaves exist, check if they are of the same leave type
-                const hasOverlap = applicableLeaveTypes.some(type => leaveConfigIds.has(type.leaveConfigId));
-
-                // If there is an overlap, return an error
-                if (hasOverlap) {
-                    sendError(res, "Leave overlaps with existing ones");
-                    return;
-                }
+                sendError(res, "Leave overlaps with existing leaves");
+                return;
             }
 
             // Fetch available comp off leaves (oldest non-expired first)
