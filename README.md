@@ -86,6 +86,17 @@ IP=localhost
 
 # JWT Secret Key (used for authentication tokens)
 SECRET_KEY=your-secret-key-here
+
+# Google OAuth (required for secure login)
+# Used for server-side Authorization Code exchange with Google
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# TMS Login Configuration (Optional)
+# Comma-separated list of super admin emails (users auto-assigned userType 900)
+# TMS_SUPER_ADMIN_EMAILS=admin1@example.com,admin2@example.com
+# Comma-separated list of allowed email domains for login (defaults to mittarv.com)
+# TMS_ALLOWED_DOMAINS=mittarv.com
 ```
 
 #### Database Configuration
@@ -177,6 +188,10 @@ SLOW_THRESHOLD=10000
 | `NODE_ENV` | Yes | Environment (LOCAL, DEVELOPMENT, PRODUCTION) | - |
 | `IP` | No | Server IP for Swagger | `localhost` |
 | `SECRET_KEY` | Yes | JWT secret key for token signing | - |
+| `GOOGLE_CLIENT_ID` | Yes | Google OAuth Client ID for server-side auth code exchange | - |
+| `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth Client Secret for server-side auth code exchange | - |
+| `TMS_SUPER_ADMIN_EMAILS` | No | Comma-separated super admin emails (auto-assigned userType 900) | Empty (no auto super admins) |
+| `TMS_ALLOWED_DOMAINS` | No | Comma-separated allowed email domains for login | `mittarv.com` |
 | `DATABASE_OUTPUT_HOST` | Yes | Database host address | - |
 | `DATABASE_OUTPUT_NAME` | Yes | Database name | - |
 | `DATABASE_OUTPUT_USER` | Yes | Database username | - |
@@ -321,19 +336,55 @@ You can access the API at: `http://localhost:5000`
 
 ---
 
+## Authentication (Google OAuth Authorization Code Flow)
+
+This application uses **Google OAuth 2.0 Authorization Code flow** for secure authentication:
+
+1. **Frontend** initiates Google sign-in and receives an opaque, one-time-use authorization code
+2. **Frontend** sends only the `{ code }` to the backend (no user data)
+3. **Backend** exchanges the code with Google server-to-server using `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`
+4. **Backend** verifies the returned ID token (signature, issuer, audience, expiry)
+5. **Backend** validates: email is verified by Google, email domain is allowed (`TMS_ALLOWED_DOMAINS`)
+6. **Backend** issues an application-specific JWT
+
+**Required environment variables for authentication:**
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID (same as frontend) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret (backend only, never expose on frontend) |
+| `TMS_ALLOWED_DOMAINS` | Allowed email domains for login (defaults to `mittarv.com`) |
+| `TMS_SUPER_ADMIN_EMAILS` | Emails auto-assigned as super admin on first login |
+
+> **Security:** The Google Client Secret is used exclusively on the backend for server-to-server communication with Google. It must never be exposed on the frontend or committed to version control.
+
+---
+
 ## Setting Up Superadmin (First-Time Setup)
 
 **IMPORTANT:** Before onboarding any employees or accessing the HRMS features, you need to set up a superadmin user.
 
-After the database tables are created and the application is running, manually update the `tmsusers` table to grant superadmin privileges to the first user:
+### Option 1: Using Environment Variable (Recommended)
 
-### Using MySQL:
+Set the `TMS_SUPER_ADMIN_EMAILS` environment variable in your `.env` file before the user's first login:
+
+```env
+TMS_SUPER_ADMIN_EMAILS=admin1@mittarv.com,admin2@mittarv.com
+```
+
+When these users log in for the first time, they will automatically be assigned `userType 900` (superadmin). This is the preferred method as it doesn't require direct database access.
+
+### Option 2: Using SQL (Manual)
+
+If the user already exists in the database, manually update the `tmsusers` table:
+
+#### Using MySQL:
 
 ```sql
 UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
 ```
 
-### Using PostgreSQL:
+#### Using PostgreSQL:
 
 ```sql
 UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
@@ -468,6 +519,8 @@ Add the following **sensitive** secrets:
 | Secret Name | Description | Example |
 |-------------|-------------|---------|
 | `SECRET_KEY` | JWT secret key for authentication | `your-super-secret-jwt-key-here` |
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID for server-side auth | `123456789-abc.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret for auth code exchange | `GOCSPX-xxxxxxxxxx` |
 | `REFRESH_TOKEN_SECRET` | Refresh token secret key | `your-refresh-token-secret-here` |
 | `SMTP_PASS` | SMTP email password | `your-email-app-password` |
 | `DATABASE_OUTPUT_PASSWORD` | Database password | `your-db-password` |
@@ -499,6 +552,8 @@ Add the following **public configuration** variables:
 | `DATABASE_OUTPUT_DIALECT` | Database dialect | `mysql` or `postgres` |
 | `CRON_JOB_MACHINE_HOSTNAME` | Cron job machine hostname | `hrms-server-01` |
 | `HOST_PORT` | Docker host port | `5000` |
+| `TMS_SUPER_ADMIN_EMAILS` | Comma-separated super admin emails | `admin@mittarv.com` |
+| `TMS_ALLOWED_DOMAINS` | Comma-separated allowed email domains for login | `mittarv.com` |
 
 **Optional Variables** (with defaults):
 
