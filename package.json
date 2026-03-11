@@ -76,7 +76,7 @@
     "pdfkit": "^0.15.0",
     "pg": "^8.8.0",
     "redis": "^4.7.0",
-    "sequelize": "^6.21.4",
+    "sequelize": "^6.37.8",
     "sequelize-cli": "^6.4.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
