@@ -71,7 +71,7 @@
     "node-cache": "^5.1.2",
     "node-cron": "^3.0.3",
     "node-rsa": "^1.1.1",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^8.0.4",
     "nodemailer-express-handlebars": "^6.0.0",
     "pdfkit": "^0.15.0",
     "pg": "^8.8.0",
