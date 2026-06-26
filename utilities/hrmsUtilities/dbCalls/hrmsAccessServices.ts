@@ -740,16 +740,17 @@ export const getMyHrmsPermissionsService = async (empUuid: string) => {
 };
 
 /**
- * Check if user has a specific HRMS permission or admin access
+ * Check if user has HRMS permission(s) or admin access.
+ * When permissionNames is an array, returns true if user has ANY of the permissions.
  * @param employeeUuid - The employee UUID
- * @param permissionName - The permission name to check (e.g., 'Policy_create')
+ * @param permissionNames - Single permission name or array (e.g. 'Offboarding_HR_Clearance' or ['Offboarding_HR_Clearance', 'Offboarding_Finance_Clearance'])
  * @param toolName - The tool name (e.g., 'HR Repository')
  * @param toolsAccess - The tools access map from user object
- * @returns true if user has permission or admin access (>= 900), false otherwise
+ * @returns true if user has at least one of the permissions or admin access (>= 900), false otherwise
  */
 export const checkHrmsPermission = async (
   employeeUuid: string | null | undefined,
-  permissionName: string,
+  permissionNames: string | string[],
   toolName: string,
   toolsAccess: Record<string, number> | undefined
 ): Promise<boolean> => {
@@ -763,15 +764,22 @@ export const checkHrmsPermission = async (
     return false;
   }
 
+  const namesToCheck = Array.isArray(permissionNames) ? permissionNames : [permissionNames];
+  if (namesToCheck.length === 0) {
+    return false;
+  }
+
   // Get user's HRMS permissions
   const hrmsAccess = await getMyHrmsPermissionsService(employeeUuid);
-  
+
   // Check if hrmsAccess is an array (empty result) or an object with permissions
   const permissions = Array.isArray(hrmsAccess) ? [] : (hrmsAccess?.permissions || []);
 
-  // Check if user has the specific permission
-  return permissions.some(
-    (perm) => perm.name === permissionName || perm.displayName === permissionName
+  // Check if user has any of the requested permissions
+  return permissions.some((perm) =>
+    namesToCheck.some(
+      (name) => perm.name === name || perm.displayName === name
+    )
   );
 };
 

@@ -68,3 +68,10 @@ export enum payrollStatus {
   PAYROLL_FINALIZED = "payroll_finalized",
   PAYROLL_GENERATED = "payroll_generated",
 }
+export enum offboardingStatus {
+  NOT_INITIATED = "not_initiated",
+  INITIATED = "initiated",
+  APPROVED = "approved",
+  ON_HOLD = "on_hold",
+  REJECTED = "rejected",
+}

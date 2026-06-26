@@ -754,3 +754,98 @@ export interface RolePermissionAssociation {
   isDeleted: boolean;
   lastActionBy?: string | null;
 }
+export interface EmployeeOffBoardingAttributes {
+  offboardingId: string;
+  empUuid: string;
+  offboardingStatus: string;
+  lastWorkingDay?: Date;
+  hrClearanceStatus: boolean;
+  hrClearanceDate?: Date;
+  hrClearanceBy?: string;
+  financeClearanceStatus: boolean;
+  financeClearanceDate?: Date;
+  financeClearanceBy?: string;
+  finalApprovalStatus: boolean;
+  finalApprovalDate?: Date;
+  finalApprovalBy?: string;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+export interface OffboardingWithEmployeeName extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+}
+
+export type OffboardingInitiatedEmployeeDetails = EmployeeOffBoardingAttributes & EmployeeJobDetailsAttributes;
+
+export interface GetOffboardingInitiatedEmployeeDetailsParams {
+  empUuid: string;
+}
+
+export interface GetOffboardingInitiatedEmployeeDetailsResponse {
+  success: true;
+  message: string;
+  offboardingInitiatedEmployeeDetails: OffboardingInitiatedEmployeeDetails[];
+}
+
+export interface InitiateOffboardingResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+export interface HrClearanceResult extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+  previousStatus: boolean;
+  newStatus: boolean;
+}
+
+export interface HrClearanceResponse {
+  success: true;
+  message: string;
+  hrClearanceResult: HrClearanceResult;
+}
+
+export interface FinanceClearanceResult extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+  previousStatus: boolean;
+  newStatus: boolean;
+}
+
+export interface FinanceClearanceResponse {
+  success: true;
+  message: string;
+  financeClearanceResult: FinanceClearanceResult;
+}
+
+export interface SetLastWorkingDayRequestBody {
+  lastWorkingDay: string;
+}
+
+export interface SetLastWorkingDayResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+export interface ApproveOffboardingResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+export interface OffboardedEmployeeWithLastWorkingDay {
+  empUuid: string;
+  empFirstName: string;
+  empLastName: string;
+  employeeName: string;
+  jobDetails?: {
+      jobId: string;
+      empType?: string;
+      empDepartment?: string;
+  } | null;
+  lastWorkingDay?: string | Date | null;
+}

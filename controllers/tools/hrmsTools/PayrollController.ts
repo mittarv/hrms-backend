@@ -2201,9 +2201,20 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
         // Calculate earnings and deductions from payslip items
         const payslipItems = (payslip as unknown as { payslipItems: employeePayslipItemAttributes[] }).payslipItems || [];
         
-        const earnings = payslipItems.filter(
-            item => item.componentType === componentTypes.ADDITION || item.componentType === componentTypes.DEFAULT_ADDITION
-        );
+        const getOrderScore = (componentName: string | undefined | null) => {
+            if (!componentName) return 4;
+            const name = componentName.trim().toLowerCase();
+            if (name === "basic salary") return 1;
+            if (name === "house rent allowance (hra)" || name === "house rent allowance" || name === "hra") return 2;
+            if (name === "special allowance") return 3;
+            return 4;
+        };
+
+        const earnings = payslipItems
+            .filter(
+                item => item.componentType === componentTypes.ADDITION || item.componentType === componentTypes.DEFAULT_ADDITION
+            )
+            .sort((a, b) => getOrderScore(a.componentName) - getOrderScore(b.componentName));
 
         const deductions = payslipItems.filter(
             item => item.componentType === componentTypes.DEDUCTION || item.componentType === componentTypes.DEFAULT_DEDUCTION

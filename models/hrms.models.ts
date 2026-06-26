@@ -28,6 +28,13 @@ import { initHrmsAccessRole } from "./tools/hrmsTools/HrmsAccess/hrms_access_rol
 import { initHrmsAccessPermission } from "./tools/hrmsTools/HrmsAccess/hrms_access_permission_model";
 import { initHrmsAccessRolePermission } from "./tools/hrmsTools/HrmsAccess/hrms_access_role_permission_model";
 import { initHrmsEmployeeRole } from "./tools/hrmsTools/HrmsAccess/hrms_employee_role_model";
+import { initEmployeeOffboarding } from "./tools/hrmsTools/employeeOffboarding/employee_offboarding_Model";
+import { initRewardCycle } from "./tools/hrmsTools/rewards/rewardCycleModel";
+import { initNomination } from "./tools/hrmsTools/rewards/nominationModel";
+import { initGroupedCitation } from "./tools/hrmsTools/rewards/groupedCitationModel";
+import { initVote } from "./tools/hrmsTools/rewards/voteModel";
+import { initWinner } from "./tools/hrmsTools/rewards/winnerModel";
+import { initPhaseAuditLog } from "./tools/hrmsTools/rewards/phaseAuditLogModel";
 import { initSalaryCategories } from "./tools/hrmsTools/salaryConfigurator/salary_categories_model";
 import { initSalaryComponents } from "./tools/hrmsTools/salaryConfigurator/salary_components_model";
 import { DataTypes, Sequelize } from "sequelize";
@@ -82,6 +89,18 @@ export function initializeHrmsModels(dbOutput: any, outputSequelize: Sequelize, 
   dbOutput.hrmsAccessPermission = initHrmsAccessPermission(outputSequelize, dataTypes);
   dbOutput.hrmsAccessRolePermission = initHrmsAccessRolePermission(outputSequelize, dataTypes);
   dbOutput.hrmsEmployeeRole = initHrmsEmployeeRole(outputSequelize, dataTypes);
+  dbOutput.employeePayslips = initEmployeePayslipItems(outputSequelize, dataTypes);
+
+  //HRMS Offboarding Models
+  dbOutput.employeeOffboarding = initEmployeeOffboarding(outputSequelize, dataTypes);
+
+  // Rewards & Recognition Models
+  dbOutput.rewardCycle = initRewardCycle(outputSequelize, dataTypes);
+  dbOutput.nomination = initNomination(outputSequelize, dataTypes);
+  dbOutput.groupedCitation = initGroupedCitation(outputSequelize, dataTypes);
+  dbOutput.vote = initVote(outputSequelize, dataTypes);
+  dbOutput.winner = initWinner(outputSequelize, dataTypes);
+  dbOutput.phaseAuditLog = initPhaseAuditLog(outputSequelize, dataTypes);
 
   // Shared accross HRMS and Mittarv
   dbOutput.tmsUsers = initTmsUsers(outputSequelize, dataTypes);
