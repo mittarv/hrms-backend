@@ -13,6 +13,7 @@ export class employeeLeaveBalanceDetails extends Model<
   public empType!: string;
   public fiscalYearStart!: Date;
   public fiscalYearEnd!: Date;
+  public isWasCompOff!: boolean;
   public isDeleted?: boolean;
   public readonly createdAt?: Date;
   public readonly updatedAt?: Date;
@@ -59,6 +60,11 @@ export const initEmployeeLeaveBalanceDetails = (sequelize: Sequelize, dataTypes:
         allowNull: false,
       },
       isDeleted: {
+        type: dataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false
+      },
+      isWasCompOff: {
         type: dataTypes.BOOLEAN,
         defaultValue: false,
         allowNull: false

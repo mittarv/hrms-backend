@@ -2,6 +2,27 @@
 import { dbOutput } from "../models/index";
 
 export const setupHrmsAssociations = (): void => {
+    // =========================================== Secondary Location Associations ===========================================
+    if (dbOutput.configureSecondaryLocation && dbOutput.configEmployeeType) {
+        dbOutput.configureSecondaryLocation.hasMany(dbOutput.configEmployeeType, {
+            foreignKey: 'configId',
+            sourceKey: 'configId',
+            as: 'employeeTypes',
+            constraints: false,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        dbOutput.configEmployeeType.belongsTo(dbOutput.configureSecondaryLocation, {
+            foreignKey: 'configId',
+            targetKey: 'configId',
+            as: 'configuration',
+            constraints: false,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+    }
+
     // ============================================================ employeeLeaveBalanceDetails ORM relations  ==================================================================
     // Many-to-One
     dbOutput.employeeLeaveBalanceDetails.belongsTo(dbOutput.employeeBasicDetails, {
@@ -409,4 +430,38 @@ export const setupHrmsAssociations = (): void => {
             as: 'modifiedImportantLinks'
         });
     }
+
+    // =========================================== Rewards & Recognition Associations ===========================================
+    // cycleId FK to reward_cycles is enforced. empUuid references have constraints: false (no DB FK) to avoid type/collation issues with employeebasicdetails.
+    if (dbOutput.rewardCycle && dbOutput.nomination && dbOutput.employeeBasicDetails) {
+        dbOutput.rewardCycle.hasMany(dbOutput.nomination, { foreignKey: 'cycleId', as: 'nominations' });
+        dbOutput.nomination.belongsTo(dbOutput.rewardCycle, { foreignKey: 'cycleId', as: 'cycle' });
+        dbOutput.nomination.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'nomineeEmpUuid', targetKey: 'empUuid', as: 'nominee', constraints: false });
+        dbOutput.nomination.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'nominatedByEmpUuid', targetKey: 'empUuid', as: 'nominatedBy', constraints: false });
+        dbOutput.nomination.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'removedByEmpUuid', targetKey: 'empUuid', as: 'removedBy', constraints: false });
+    }
+    if (dbOutput.rewardCycle && dbOutput.groupedCitation && dbOutput.employeeBasicDetails) {
+        dbOutput.rewardCycle.hasMany(dbOutput.groupedCitation, { foreignKey: 'cycleId', as: 'groupedCitations' });
+        dbOutput.groupedCitation.belongsTo(dbOutput.rewardCycle, { foreignKey: 'cycleId', as: 'cycle' });
+        dbOutput.groupedCitation.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'nomineeEmpUuid', targetKey: 'empUuid', as: 'nominee', constraints: false });
+        dbOutput.groupedCitation.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'createdByEmpUuid', targetKey: 'empUuid', as: 'createdBy', constraints: false });
+    }
+    if (dbOutput.rewardCycle && dbOutput.vote && dbOutput.employeeBasicDetails) {
+        dbOutput.rewardCycle.hasMany(dbOutput.vote, { foreignKey: 'cycleId', as: 'votes' });
+        dbOutput.vote.belongsTo(dbOutput.rewardCycle, { foreignKey: 'cycleId', as: 'cycle' });
+        dbOutput.vote.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'nomineeEmpUuid', targetKey: 'empUuid', as: 'nominee', constraints: false });
+        dbOutput.vote.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'votedByEmpUuid', targetKey: 'empUuid', as: 'votedBy', constraints: false });
+    }
+    if (dbOutput.rewardCycle && dbOutput.winner && dbOutput.employeeBasicDetails) {
+        dbOutput.rewardCycle.hasMany(dbOutput.winner, { foreignKey: 'cycleId', as: 'winners' });
+        dbOutput.winner.belongsTo(dbOutput.rewardCycle, { foreignKey: 'cycleId', as: 'cycle' });
+        dbOutput.winner.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'employeeEmpUuid', targetKey: 'empUuid', as: 'employee', constraints: false });
+        dbOutput.winner.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'announcedByEmpUuid', targetKey: 'empUuid', as: 'announcedBy', constraints: false });
+    }
+    if (dbOutput.rewardCycle && dbOutput.phaseAuditLog && dbOutput.employeeBasicDetails) {
+        dbOutput.rewardCycle.hasMany(dbOutput.phaseAuditLog, { foreignKey: 'cycleId', as: 'phaseAuditLogs' });
+        dbOutput.phaseAuditLog.belongsTo(dbOutput.rewardCycle, { foreignKey: 'cycleId', as: 'cycle' });
+        dbOutput.phaseAuditLog.belongsTo(dbOutput.employeeBasicDetails, { foreignKey: 'triggeredByEmpUuid', targetKey: 'empUuid', as: 'triggeredBy', constraints: false });
+    }
 };
+

@@ -1,0 +1,286 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{{subject}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+    body, table, td, p, a, li, blockquote {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table, td {
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      -ms-interpolation-mode: bicubic;
+      border: 0;
+      outline: none;
+      text-decoration: none;
+    }
+    .container {
+      font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+      color: #454754;
+      width: 100%;
+      background: #FFFFFF;
+    }
+    .content {
+      max-width: 500px;
+      width: 100%;
+      min-height: 200px;
+      padding: 24px 50px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    .mittarv_header {
+      width: 100%;
+      height: 79px;
+      line-height: 79px;
+      background-color: #E7F3F8;
+      text-align: center;
+    }
+    .mittarv_header > img {
+      padding-top: 20px;
+      vertical-align: middle;
+    }
+    .rewards_illustration {
+      width: 100%;
+      text-align: center;
+    }
+    .rewards_illustration > img,
+    .rewards_illustration > svg {
+      width: 100px;
+      max-width: 100px;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+    .nominations_heading {
+      width: 100%;
+      color: #167E7E;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 44px;
+      letter-spacing: 0.01em;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .nominations_body {
+      width: 100%;
+      text-align: center;
+      color: #454754;
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      margin-bottom: 32px;
+    }
+    .regards_box {
+      margin-top: 48px;
+      border-top: 2px solid #C7C9D1;
+      padding-top: 24px;
+      text-align: center;
+    }
+    .regards {
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      color: #454754;
+      margin-bottom: 16px;
+    }
+    .team_mittarv {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      color: #167E7E;
+    }
+    .zero_life_infinity {
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      color: #167E7E;
+    }
+    .mittarv_footer {
+      width: 100%;
+      background-color: #E7F3F8;
+      padding: 48px 0px;
+      text-align: center;
+    }
+    .social_icons_box {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 20px;
+      letter-spacing: 1%;
+      color: #8F92A3;
+      margin-bottom: 24px;
+    }
+    .follow_us_on {
+      margin-bottom: 8px;
+    }
+    .social_icons > a {
+      display: inline-block;
+      margin-right: 6px;
+      border-radius: 50%;
+    }
+    .social_icons > a > img {
+      display: block;
+    }
+    .inquiries {
+      text-align: center;
+    }
+    .inquiries > div {
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      color: #454754;
+    }
+    .inquiries > a {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 28px;
+      letter-spacing: 0.5%;
+      color: #454754;
+      text-decoration: none;
+    }
+    .nominate_button_container {
+      width: 100%;
+      text-align: center;
+      margin: 32px 0;
+    }
+    .nominate_button {
+      display: inline-block;
+      text-decoration: none;
+      background-color: #033348;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 64px;
+      color: #FFFFFF !important;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+      text-align: center;
+      line-height: 1.2;
+      mso-padding-alt: 12px 24px;
+    }
+    .nominate_button_container table {
+      margin: 0 auto;
+    }
+    @media only screen and (max-width: 600px),
+    only screen and (max-device-width:600px) {
+      .content {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 20px 15px !important;
+        margin: 0 !important;
+      }
+      .rewards_illustration > img,
+      .rewards_illustration > svg {
+        width: 60px;
+        max-width: 60px;
+      }
+      .nominations_heading {
+        font-size: 20px !important;
+        line-height: 28px !important;
+      }
+      .nominations_body {
+        font-size: 16px !important;
+        line-height: 24px !important;
+      }
+      .regards, .team_mittarv, .zero_life_infinity {
+        font-size: 16px !important;
+        line-height: 24px !important;
+      }
+      .inquiries > div {
+        font-size: 14px !important;
+        line-height: 20px !important;
+      }
+    }
+    </style>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #FFFFFF;">
+    <div class="container">
+      <div class="mittarv_header">
+        <img
+          src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-logo-horizontal-coloured.png"
+          alt="Mitt Arv"
+          width="137"
+          height="40"
+        />
+      </div>
+
+      <div class="rewards_illustration">
+        {{!-- For inline SVG: pass illustrationHtml from context and use triple braces so Handlebars doesn't escape it. Include xmlns, use href not xlink:href. PNG fallback for clients that block SVG. --}}
+        {{#if illustrationHtml}}
+          {{{ illustrationHtml }}}
+        {{else}}
+          <img
+            src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/HeartInJar_Happy.png"
+            alt="Recognition"
+            width="100"
+            style="width: 100px; max-width: 100px; height: auto; display: block; margin: 0 auto;"
+          />
+        {{/if}}
+      </div>
+
+      <div class="content">
+        <div class="nominations_heading">
+          Nominations started for {{monthYear}}
+        </div>
+
+        <div class="nominations_body">
+          Nominations have begun. Nominate a peer who went above and beyond and deserves recognition.
+        </div>
+
+        <div class="nominate_button_container">
+          <a
+            href="{{redirectUrl}}"
+            class="nominate_button"
+            style="display: inline-block; text-decoration: none; background-color: #033348; padding: 12px 24px; border-radius: 64px; color: #FFFFFF; font-size: 16px; font-weight: 600; font-family: 'Plus Jakarta Sans', Arial, sans-serif;"
+          >Nominate a Peer</a>
+        </div>
+
+        <div class="regards_box">
+          <div class="regards">Warmest regards,</div>
+          <div class="team_mittarv">Team Mitt Arv</div>
+          <div class="zero_life_infinity">Zero — Life — Infinity</div>
+        </div>
+      </div>
+
+      <div class="mittarv_footer">
+        <div class="social_icons_box">
+          <div class="follow_us_on">Follow Us On</div>
+          <div class="social_icons">
+            <a href="https://www.linkedin.com/company/mittarv/" target="_blank" rel="noopener noreferrer" title="LinkedIn">
+              <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/Linkedin.png" width="36" height="36" alt="LinkedIn" />
+            </a>
+            <a href="https://www.facebook.com/mittarv/?_rdr" target="_blank" rel="noopener noreferrer" title="Facebook">
+              <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/Facebook.png" width="36" height="36" alt="Facebook" />
+            </a>
+            <a href="https://medium.com/mittarv" target="_blank" rel="noopener noreferrer" title="Medium">
+              <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/Medium.png" width="36" height="36" alt="Medium" />
+            </a>
+            <a href="https://x.com/Mitt_Arv" target="_blank" rel="noopener noreferrer" title="X (Twitter)">
+              <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/X.png" width="36" height="36" alt="X" />
+            </a>
+          </div>
+        </div>
+        <div class="inquiries">
+          <div>For any inquiries, kindly reach out to us at</div>
+          <a href="mailto:support@mittarv.com" style="color: #454754; text-decoration: none;">support@mittarv.com</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

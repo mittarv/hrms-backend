@@ -18,9 +18,15 @@ import uamRequestRoutes from "./tools/uam/uamRequestRoutes";
 import uamToolAccessRoute from "./tools/uam/uamToolsAccessManagement";
 import allCountryRoutes from "./platform/allCountryRoutes";
 
+import payrollLevelManagementRoutes from "./tools/hrmsTools/payrollLevelManagementRoutes";
+import employeeOffboardingRoutes from "./tools/hrmsTools/employeeOffboardingRoutes";
+import rewardsRoutes from "./tools/hrmsTools/rewardsRoutes";
+import secondaryLocationRoutes from "./tools/hrmsTools/secondaryLocationRoutes";
+
 //HRMS tool routes
 export function registerHrms(app: Application) {
     app.use("/api/hrms/empConfig", employeeComponentConfiguratorRoutes);
+    app.use("/api/hrms/empConfig", payrollLevelManagementRoutes);
     app.use("/api/hrms/empDetails", employeeDetailsRoutes);
     app.use("/api/hrms/leaveConfig", employeeLeaveConfiguratorRoutes);
     app.use("/api/hrms/empHoliday", employeeHolidayRoutes);
@@ -30,6 +36,9 @@ export function registerHrms(app: Application) {
     app.use("/api/hrms/payroll", PayrollRoutes);
     app.use("/api/hrms/access", hrmsAccessRoutes);
     app.use("/api/hrrepository", importantlinkAndPolicyRoutes);
+    app.use("/api/hrms/employeeOffboarding", employeeOffboardingRoutes);
+    app.use("/api/hrms/rewards", rewardsRoutes);
+    app.use("/api/hrms/secondaryLocation", secondaryLocationRoutes);
 
     // UAM tool routes
     app.use("/api/tms/users", tmsUsersRoutes);

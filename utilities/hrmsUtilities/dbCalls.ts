@@ -1628,3 +1628,50 @@ export const getCompOffleaveBalanceService = async (empUuid: string) => {
         throw error;
     }
 }
+/**
+ * Get active employees' official emails
+ * @returns Array of objects { empUuid, empOfficialEmail }
+ */
+export const getActiveEmployeesOfficialEmails = async () => {
+    try {
+        const activeEmployees = await employeeBasicDetails.findAll({
+            where: {
+                isActive: true,
+                isDeleted: false
+            },
+            attributes: ['empUuid'],
+        });
+
+        const activeEmpUuids = activeEmployees.map((e: { empUuid: string }) => e.empUuid);
+        if (activeEmpUuids.length === 0) return [];
+
+        const contacts = await employeeContact.findAll({
+            where: {
+                empUuid: { [Op.in]: activeEmpUuids },
+                isDeleted: false
+            },
+            attributes: ['empUuid', 'empOfficialEmail'],
+        });
+
+        return contacts;
+    } catch (error) {
+        console.error("Error getting active employees official emails:", error);
+        return [];
+    }
+};
+
+export const checkIsEmployeeManager = async (empUuid: string): Promise<boolean> => {
+    try {
+        const employee = await employeeBasicDetails.findOne({
+            where: {
+                empUuid,
+                isDeleted: false
+            },
+            attributes: ['isManager'],
+        });
+        return employee?.isManager;
+    } catch (error) {
+        console.error("Error checking if employee is manager:", error);
+        return false;
+    }
+};

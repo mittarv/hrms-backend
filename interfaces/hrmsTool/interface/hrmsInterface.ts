@@ -5,6 +5,10 @@ import {
   RegisterAttendanceActionType, 
   hrmsNotificationTypes, 
   payrollStatus,
+  offboardingStatus,
+  SecondaryLocationLogStatus,
+  SecondaryLocationRequestStatus,
+  SecondaryLocationRequestType
 } from "../enum/hrmsEnum";
 import { Transaction } from "sequelize";
 
@@ -81,6 +85,7 @@ export interface EmployeeLeaveBalanceAttributes {
   totalLeaveUsed: number;
   fiscalYear: number;
   empType: string;
+  isWasCompOff: boolean;
   fiscalYearStart: Date;
   fiscalYearEnd: Date;
   isDeleted?: boolean;
@@ -262,6 +267,7 @@ export interface AuthenticatedUser {
   userId?: string;
   toolsAccess: unknown;
   employeeUuid?: string | null;
+  isActive?: boolean | null;
 }
 
 export interface CategoryData {
@@ -385,6 +391,8 @@ export interface EmployeeAddressDetailsAttributes {
   country?: string | null;
   effectiveDate?: Date | null;
   terminationDate?: Date | null;
+  secondaryLocation?: string | null;
+  isSecondarySameAsPrimary?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -416,6 +424,7 @@ export interface EmployeeBankAccountDetailHistoryAttributes {
   empAccountNumber?: string | null;
   empBenefeciaryName?: string | null;
   empAccType?: string | null;
+  empUanNumber?: string | null;
   isDeleted: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -429,6 +438,7 @@ export interface EmployeeBankAccountDetailsAttributes {
   empAccountNumber?: string | null;
   empBenefeciaryName?: string | null;
   empAccType?: string | null;
+  empUanNumber?: string | null;
   effecTiveDate?: Date | null;
   isDeleted: boolean;
   createdAt?: Date;
@@ -455,7 +465,7 @@ export interface EmployeeBasicDetailsAttributes {
   empLastLogin?: Date | null;
   empPanCard?: string | null;
   isDeleted: boolean;
-  isActive?: number | null;
+  isActive?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -550,6 +560,8 @@ export interface EmployeeLeaveConfiguratorAttributes {
   isDefault: boolean;
   leaveApplicableTo?: string;
   allotAllLeaves: boolean;
+  // isCompOffLeave:boolean;
+  leaveExpiresAfter: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -753,4 +765,168 @@ export interface RolePermissionAssociation {
   permissionId: number;
   isDeleted: boolean;
   lastActionBy?: string | null;
+}
+
+export interface EmployeeOffBoardingAttributes {
+  offboardingId: string;
+  empUuid: string;
+  offboardingStatus: offboardingStatus;
+  lastWorkingDay?: Date;
+  hrClearanceStatus: boolean;
+  hrClearanceDate?: Date;
+  hrClearanceBy?: string;
+  financeClearanceStatus: boolean;
+  financeClearanceDate?: Date;
+  financeClearanceBy?: string;
+  finalApprovalStatus: boolean;
+  finalApprovalDate?: Date;
+  finalApprovalBy?: string;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+/** Result of initiate offboarding: offboarding record with employee display name */
+export interface OffboardingWithEmployeeName extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+}
+
+/** Result of get offboarding initiated employee details: offboarding + current job details */
+export type OffboardingInitiatedEmployeeDetails = EmployeeOffBoardingAttributes &
+  EmployeeJobDetailsAttributes;
+
+/** Request params for get offboarding initiated employee details */
+export interface GetOffboardingInitiatedEmployeeDetailsParams {
+  empUuid: string;
+}
+
+/** Success response body for get offboarding initiated employee details API (all employees with offboarding in progress) */
+export interface GetOffboardingInitiatedEmployeeDetailsResponse {
+  success: true;
+  message: string;
+  offboardingInitiatedEmployeeDetails: OffboardingInitiatedEmployeeDetails[];
+}
+
+/** Success response body for initiate offboarding API */
+export interface InitiateOffboardingResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+/** Result of HR clearance service: offboarding + employee name + status change info */
+export interface HrClearanceResult extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+  previousStatus: boolean;
+  newStatus: boolean;
+}
+
+/** Success response body for HR clearance API */
+export interface HrClearanceResponse {
+  success: true;
+  message: string;
+  hrClearanceResult: HrClearanceResult;
+}
+
+/** Result of Finance clearance service: offboarding + employee name + status change info */
+export interface FinanceClearanceResult extends EmployeeOffBoardingAttributes {
+  employeeName: string;
+  previousStatus: boolean;
+  newStatus: boolean;
+}
+
+/** Success response body for Finance clearance API */
+export interface FinanceClearanceResponse {
+  success: true;
+  message: string;
+  financeClearanceResult: FinanceClearanceResult;
+}
+
+/** Request body for set last working day API (lastWorkingDay as ISO date string) */
+export interface SetLastWorkingDayRequestBody {
+  lastWorkingDay: string;
+}
+
+/** Success response body for set last working day API */
+export interface SetLastWorkingDayResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+/** Success response body for approve offboarding API */
+export interface ApproveOffboardingResponse {
+  success: true;
+  message: string;
+  data: OffboardingWithEmployeeName;
+}
+
+/** Offboarded employee with basic info, job details and lastWorkingDay from employee_offboarding */
+export interface OffboardedEmployeeWithLastWorkingDay {
+  empUuid: string;
+  empFirstName: string;
+  empLastName: string;
+  employeeName: string;
+  jobDetails?: {
+      jobId: string;
+      empType?: string;
+      empDepartment?: string;
+  } | null;
+  lastWorkingDay?: string | Date | null;
+}
+
+
+export interface ConfigEmployeeTypeAttributes {
+  id: string;
+  configId: string;
+  employeeType: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface ConfigureSecondaryLocationAttributes {
+  configId: string;
+  location: string;
+  durationWeeks: number;
+  maximumSplitsPerYear: number;
+  minimumIntimationPeriodDays: number;
+  createdBy: string;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SecondaryLocationLogAttributes {
+  logId: string;
+  employeeUuid: string;
+  secondaryLocation: string;
+  startDate: Date;
+  endDate: Date;
+  durationDays: number;
+  status: SecondaryLocationLogStatus;
+  loggedBy: string;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SecondaryLocationRequestAttributes {
+  requestId: string;
+  employeeUuid: string;
+  originalLogId?: string | null;
+  startDate: Date;
+  endDate: Date;
+  durationDays: number;
+  requestType: SecondaryLocationRequestType;
+  reason: string;
+  status: SecondaryLocationRequestStatus;
+  rejectionReason?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

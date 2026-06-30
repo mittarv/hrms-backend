@@ -29,6 +29,84 @@ import { formatItems, generatePayrollCSV, getMonthYearDateRange, getYearDateRang
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
 import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const formatLocalDate = (value?: string | Date | null): string | null => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const parseDateInput = (value?: string | Date | null): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value;
+    }
+    if (DATE_ONLY_REGEX.test(value)) {
+        const [year, month, day] = value.split("-").map(Number);
+        const parsed = new Date(year, month - 1, day);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getMonthStartDate = (value?: string | Date | null): Date | null => {
+    const parsed = parseDateInput(value);
+    if (!parsed) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+};
+
+const rangesOverlap = (
+    startA: Date,
+    endA: Date | null,
+    startB: Date,
+    endB: Date | null
+): boolean => {
+    const startATime = startA.getTime();
+    const endATime = endA ? endA.getTime() : Number.POSITIVE_INFINITY;
+    const startBTime = startB.getTime();
+    const endBTime = endB ? endB.getTime() : Number.POSITIVE_INFINITY;
+
+    return startATime <= endBTime && startBTime <= endATime;
+};
+
+const getGlobalSalaryCategoryWhere = (): Record<string, unknown> => ({
+    employeeType: componentTypes.ALL,
+    employeeLocation: componentTypes.ALL,
+    employeeLevel: componentTypes.ALL,
+    department: null,
+    yearOfStudy: null,
+    isDeleted: false
+});
+
+const buildComponentMergeKey = (component: Partial<salaryComponentsAttributes>): string => {
+    const componentType = String(component.componentType || "").trim().toLowerCase();
+    const componentName = String(component.componentName || "").trim().toLowerCase();
+    return `${componentType}::${componentName}`;
+};
+
+const mergeSalaryComponentsWithSpecificPriority = <T extends Partial<salaryComponentsAttributes>>(
+    globalComponents: T[],
+    specificComponents: T[]
+): T[] => {
+    const merged = new Map<string, T>();
+
+    for (const component of globalComponents) {
+        merged.set(buildComponentMergeKey(component), component);
+    }
+
+    for (const component of specificComponents) {
+        merged.set(buildComponentMergeKey(component), component);
+    }
+
+    return Array.from(merged.values());
+};
+
 
 export const getAllEmployeePayrollDetails = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
@@ -185,6 +263,29 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
 
         // Get all unique employee IDs
         const allEmpIdsWithPayslips = paginatedPayslips.map((p: any) => p.employeeId);
+        const notFetchedEmployees: Array<{
+            empUuid: string;
+            empName: string;
+            reason: string;
+            resolution: string;
+        }> = [];
+        const notFetchedEmployeeSet = new Set<string>();
+
+        const addNotFetchedEmployee = (
+            empUuid: string,
+            empName: string | null | undefined,
+            reason: string,
+            resolution: string
+        ) => {
+            if (!empUuid || notFetchedEmployeeSet.has(empUuid)) return;
+            notFetchedEmployeeSet.add(empUuid);
+            notFetchedEmployees.push({
+                empUuid,
+                empName: empName?.trim() || empUuid,
+                reason,
+                resolution
+            });
+        };
 
         // Early return if no payslip records found
         if (!allEmpIdsWithPayslips || allEmpIdsWithPayslips.length === 0) {
@@ -192,6 +293,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 success: true,
                 message: "No payroll records found",
                 data: [],
+                notFetchedEmployees: [],
                 isPayrollGenerated: false,
                 pagination: {
                     currentPage: page,
@@ -215,12 +317,27 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             ],
             where: { 
                 empUuid: { [Op.in]: allEmpIdsWithPayslips },
-                isDeleted: false 
+                isDeleted: false
             },
             attributes: ['empUuid', 'empFirstName', 'empLastName'],
             order: [['empFirstName', 'ASC'], ['empLastName', 'ASC']],
             raw: true,
             nest: true
+        });
+
+        const employeeBasicMap = new Map<string, any>();
+        employeesBasicData.forEach((emp: any) => {
+            employeeBasicMap.set(emp.empUuid, emp);
+        });
+        allEmpIdsWithPayslips.forEach((empUuid: string) => {
+            if (!employeeBasicMap.has(empUuid)) {
+                addNotFetchedEmployee(
+                    empUuid,
+                    empUuid,
+                    'Payroll not fetched because employee profile is missing or deleted',
+                    'Please verify employee basic profile exists and is not deleted'
+                );
+            }
         });
 
         // Step 2b: Fetch current job details using the helper function (handles conversion date logic)
@@ -234,6 +351,20 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 ...empData,
                 jobDetails: jobDetails || null
             };
+        });
+
+        const employeeNameByUuid = new Map<string, string>();
+        employeesWithJobDetails.forEach((employee: any) => {
+            const fullName = `${employee.empFirstName || ''} ${employee.empLastName || ''}`.trim();
+            employeeNameByUuid.set(employee.empUuid, fullName || employee.empUuid);
+            if (!employee.jobDetails) {
+                addNotFetchedEmployee(
+                    employee.empUuid,
+                    fullName,
+                    'Payroll not fetched because employee job details are unavailable',
+                    'Please update employee job details before payroll processing'
+                );
+            }
         });
 
         // Step 3: Pre-filter to include only employees with valid salary categories
@@ -274,13 +405,15 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             });
 
         // Fetch all salary categories in one query
-        const allSalaryCategoriesForFiltering = await dbOutput.salaryCategories.findAll({
-            where: {
-                [Op.or]: salaryCategoryQueriesForFiltering.map(q => q.whereClause)
-            },
-            attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
-            raw: true
-        });
+        const allSalaryCategoriesForFiltering = salaryCategoryQueriesForFiltering.length > 0
+            ? await dbOutput.salaryCategories.findAll({
+                where: {
+                    [Op.or]: salaryCategoryQueriesForFiltering.map(q => q.whereClause)
+                },
+                attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
+                raw: true
+            })
+            : [];
 
         // Map employees to their salary categories and filter valid ones
         const employeesWithValidCategories: string[] = [];
@@ -310,6 +443,13 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             
             if (match) {
                 employeesWithValidCategories.push(query.empUuid);
+            } else {
+                addNotFetchedEmployee(
+                    query.empUuid,
+                    employeeNameByUuid.get(query.empUuid) || query.empUuid,
+                    'Payroll not fetched due to salary configuration mismatch',
+                    'Please align salary category with employee type, location, level, department, and year of study'
+                );
             }
         });
 
@@ -322,6 +462,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 success: true,
                 message: "No employees with valid salary categories found",
                 data: [],
+                notFetchedEmployees,
                 isPayrollGenerated: false,
                 pagination: {
                     currentPage: page,
@@ -342,6 +483,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 success: true,
                 message: "No employees found on this page",
                 data: [],
+                notFetchedEmployees,
                 isPayrollGenerated: false,
                 pagination: {
                     currentPage: page,
@@ -365,7 +507,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             ],
             where: { 
                 empUuid: { [Op.in]: paginatedEmpUuids },
-                isDeleted: false 
+                isDeleted: false
             },
             attributes: ['empUuid', 'empFirstName', 'empLastName'],
             order: [['empFirstName', 'ASC'], ['empLastName', 'ASC']],
@@ -475,13 +617,22 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             });
 
         // Fetch all matching salary categories in one query
-        const salaryCategories = await dbOutput.salaryCategories.findAll({
-            where: {
-                [Op.or]: salaryCategoryQueries.map(q => q.whereClause)
-            },
-            attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
-            raw: true
-        });
+        const [salaryCategories, globalSalaryCategory] = await Promise.all([
+            dbOutput.salaryCategories.findAll({
+                where: {
+                    [Op.or]: salaryCategoryQueries.map(q => q.whereClause)
+                },
+                attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
+                raw: true
+            }),
+            dbOutput.salaryCategories.findOne({
+                where: getGlobalSalaryCategoryWhere(),
+                attributes: ['salaryCategoryId'],
+                raw: true
+            })
+        ]);
+
+        const globalSalaryCategoryId = globalSalaryCategory?.salaryCategoryId || null;
 
         // Map employees to their salary categories
         const salaryCategoryMap = new Map<string, string>();
@@ -516,7 +667,10 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // ============================================
         // 8. BATCH FETCH SALARY COMPONENTS
         // ============================================
-        const categoriesWithSalary = Array.from(new Set(salaryCategoryMap.values()));
+        const categoriesWithSalary = Array.from(new Set([
+            ...salaryCategoryMap.values(),
+            ...(globalSalaryCategoryId ? [globalSalaryCategoryId] : [])
+        ]));
         
         // Calculate the requested month's date range for effectiveFrom filtering
         const monthStartDate = new Date(year, month - 1, 1);
@@ -699,7 +853,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                     additions: formatItems(componentTypes.ADDITION, payslipItems),
                     defaultDeductions: formatItems(componentTypes.DEFAULT_DEDUCTION, payslipItems),
                     deductions: formatItems(componentTypes.DEDUCTION, payslipItems),
-                    unpaidLeave: 0, // Already calculated in generated payslip
+                    unpaidLeave: unpaidLeaveMap.get(empUuid) || 0,
                     status: payslipStatus,
                     netPay: payslipRecord.netPay ? parseFloat(String(payslipRecord.netPay)) : 0
                 });
@@ -710,11 +864,13 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             // 11b. HANDLE NON-GENERATED PAYSLIPS
             // ============================================
             // Calculate payroll on-the-fly from configurations and adjustments
-            const salaryCategoryId = salaryCategoryMap.get(empUuid);
-            if (!salaryCategoryId) continue;
+            const salaryCategoryId = salaryCategoryMap.get(empUuid) || null;
+            if (!salaryCategoryId && !globalSalaryCategoryId) continue;
 
-            // Get salary components for this employee's category
-            const components = salaryComponentsMap.get(salaryCategoryId) || [];
+            // Get merged salary components: global defaults + specific category (specific overrides global by type+name)
+            const specificComponents = salaryCategoryId ? (salaryComponentsMap.get(salaryCategoryId) || []) : [];
+            const globalComponents = globalSalaryCategoryId ? (salaryComponentsMap.get(globalSalaryCategoryId) || []) : [];
+            const components = mergeSalaryComponentsWithSpecificPriority(globalComponents, specificComponents);
             const defaultAdditions = components.filter(c => c.componentType === componentTypes.DEFAULT_ADDITION);
             const defaultDeductions = components.filter(c => c.componentType === componentTypes.DEFAULT_DEDUCTION);
             const monthlyCTC = defaultAdditions.reduce((sum, c) => sum + (parseFloat(String(c.amount)) || 0), 0);
@@ -729,16 +885,16 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 const sc = adj.salaryComponent;
                 const effectiveFrequency = adj.adjustedFrequency || sc?.frequency || null;
                 const realAmount = parseFloat(String(adj.adjustedAmount)) || 0;
-
+                
                 return {
                     adjustmentId: adj.adjustmentId,
                     componentId: adj.componentId,
                     componentName: sc?.componentName || 'Unknown',
                     adjustedAmount: realAmount,
                     amount: realAmount,
-                    startDate: adj.startDate ? new Date(adj.startDate).toISOString().split('T')[0] : null,
-                    endDate: adj.endDate ? new Date(adj.endDate).toISOString().split('T')[0] : null,
-                    effectiveTill: adj.endDate ? new Date(adj.endDate).toISOString().split('T')[0] : null,
+                    startDate: formatLocalDate(adj.startDate),
+                    endDate: formatLocalDate(adj.endDate),
+                    effectiveTill: formatLocalDate(adj.endDate),
                     adjustedFrequency: adj.adjustedFrequency || null,
                     frequency: sc?.frequency || null,
                     effectiveFrequency: effectiveFrequency,
@@ -758,9 +914,43 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 frequency: comp.frequency,
                 isVariable: comp.isVariable,
                 includeinLop: comp.includeinLop,
-                effectiveFrom: comp.effectiveFrom ? new Date(comp.effectiveFrom).toISOString().split('T')[0] : null,
-                effectiveTill: comp.effectiveTill ? new Date(comp.effectiveTill).toISOString().split('T')[0] : null
+                effectiveFrom: formatLocalDate(comp.effectiveFrom),
+                effectiveTill: formatLocalDate(comp.effectiveTill)
             });
+
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const formatDefaultDeduction = (comp: any, unpaidLeaveDays: number, allComponents: any[] = []): Promise<any | null> => {
+                const componentNameLower = String(comp.componentName || '').toLowerCase();
+                const isLopComponent = componentNameLower.includes('loss of pay') || componentNameLower.includes('lop');
+                const baseAmount = parseFloat(String(comp.amount)) || 0;
+                
+                let amount = baseAmount;
+                if (isLopComponent) {
+                    // Calculate LOP dynamically by summing up components with includeinLop = true
+                    const lopIncludedAmount = allComponents
+                        .filter(c => c.componentType === 'defaultAddition' && c.includeinLop)
+                        .reduce((sum, c) => sum + (parseFloat(String(c.amount)) || 0), 0);
+                    
+                    // If no components have includeinLop, fallback to baseAmount
+                    const totalLopBase = lopIncludedAmount > 0 ? lopIncludedAmount : baseAmount;
+                    const dailyRate = totalLopBase / daysInMonth;
+                    amount = dailyRate * unpaidLeaveDays;
+                }
+
+                if (isLopComponent && unpaidLeaveDays === 0) {
+                    return Promise.resolve(null);
+                }
+
+                return Promise.resolve({
+                    ...formatComponent(comp),
+                    amount
+                });
+            };
+
+            const actualUnpaidLeaveDays = unpaidLeaveMap.get(empUuid) || 0;
+            const formattedDefaultDeductions = await Promise.all(
+                defaultDeductions.map(comp => formatDefaultDeduction(comp, actualUnpaidLeaveDays, components))
+            );
 
             payrollData.push({
                 payslipId: payslipRecord.payslipId || null,
@@ -769,9 +959,9 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 monthlyCTC,
                 defaultAdditions: defaultAdditions.map(formatComponent),
                 additions: additions.map(formatAdjustment),
-                defaultDeductions: defaultDeductions.map(formatComponent),
+                defaultDeductions: formattedDefaultDeductions.filter((item): item is any => item !== null),
                 deductions: deductions.map(formatAdjustment),
-                unpaidLeave: unpaidLeaveMap.get(empUuid) || 0,
+                unpaidLeave: actualUnpaidLeaveDays,
                 status: payslipStatus
             });
         }
@@ -811,6 +1001,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             success: true,
             message: "Payroll details fetched successfully",
             data: payrollData,
+            notFetchedEmployees,
             isAllPayrollFinalized,
             isAllPayrollGenerated,
             pagination: {
@@ -879,7 +1070,7 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Verify employee exists
+        // Verify employee exists and is active
         const employee = await dbOutput.employeeBasicDetails.findOne({
             where: { empUuid: employeeId, isDeleted: false }
         });
@@ -970,6 +1161,7 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
 
                 // Check if adjustmentId is provided and exists
                 if (adjustmentId) {
+                    // Try to find existing adjustment
                     const existingAdjustment = await dbOutput.employeeComponentAdjustments.findOne({
                         where: {
                             adjustmentId: adjustmentId,
@@ -990,18 +1182,33 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                         };
 
                         if (existingAdjustment.componentId !== componentId) {
-                            const alreadyAdded = await dbOutput.employeeComponentAdjustments.findOne({
+                            const candidateStartDate = parseDateInput(startDate) || existingAdjustment.startDate;
+                            const candidateEndDate = parseDateInput(endDate);
+                            if (candidateEndDate && candidateEndDate < new Date(candidateStartDate)) {
+                                errors.push({
+                                    componentId,
+                                    error: "Effective till date cannot be earlier than start date"
+                                });
+                                continue;
+                            }
+
+                            const potentialDuplicates = await dbOutput.employeeComponentAdjustments.findAll({
                                 where: {
                                     employeeId: employeeId,
                                     componentId: componentId,
                                     adjustmentId: { [Op.ne]: adjustmentId },
-                                    isDeleted: false,
-                                    [Op.or]: [
-                                        { endDate: null },
-                                        { endDate: { [Op.gte]: startOfToday } }
-                                    ]
+                                    isDeleted: false
                                 }
                             });
+
+                            const alreadyAdded = potentialDuplicates.find((dup) =>
+                                rangesOverlap(
+                                    new Date(dup.startDate),
+                                    dup.endDate ? new Date(dup.endDate) : null,
+                                    new Date(candidateStartDate),
+                                    candidateEndDate
+                                )
+                            );
 
                             if (alreadyAdded) {
                                 const dupFreq = (alreadyAdded as { adjustedFrequency?: string }).adjustedFrequency;
@@ -1021,8 +1228,8 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                             componentId: componentId,
                             adjustedAmount: parseFloat(String(adjustedAmount)),
                             adjustedFrequency: adjustedFrequency || existingAdjustment.adjustedFrequency,
-                            startDate: startDate ? new Date(startDate) : existingAdjustment.startDate,
-                            endDate: endDate ? new Date(endDate) : null
+                            startDate: parseDateInput(startDate) || existingAdjustment.startDate,
+                            endDate: parseDateInput(endDate)
                         }, { transaction });
 
                         updatedAdjustments.push({
@@ -1036,18 +1243,40 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                 }
 
                 // Check for duplicate: only block if same component is already active (not expired).
-                const startOfToday = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-                const existingDuplicate = await dbOutput.employeeComponentAdjustments.findOne({
+                // If effectiveTill has passed, user can add the same component again.
+                // Enforce month-start semantics for NEW adjustments:
+                // startDate is always the 1st day of the selected payroll month.
+                const normalizedStartDate = getMonthStartDate(payrollRecord.payrollStartDate) || new Date(payrollRecord.payrollStartDate);
+                const normalizedEndDate = parseDateInput(endDate);
+                if (normalizedEndDate && normalizedEndDate < normalizedStartDate) {
+                    errors.push({
+                        componentId,
+                        error: "Effective till date cannot be earlier than start date"
+                    });
+                    continue;
+                }
+
+                const potentialDuplicates = await dbOutput.employeeComponentAdjustments.findAll({
                     where: {
                         employeeId: employeeId,
                         componentId: componentId,
-                        isDeleted: false,
-                        [Op.or]: [
-                            { endDate: null },
-                            { endDate: { [Op.gte]: startOfToday } }
-                        ]
-                    }
+                        isDeleted: false
+                    },
+                    include: [{
+                        model: dbOutput.salaryComponents,
+                        as: 'salaryComponent',
+                        attributes: ['componentName']
+                    }]
                 });
+
+                const existingDuplicate = potentialDuplicates.find((dup) =>
+                    rangesOverlap(
+                        new Date(dup.startDate),
+                        dup.endDate ? new Date(dup.endDate) : null,
+                        normalizedStartDate,
+                        normalizedEndDate
+                    )
+                );
 
                 if (existingDuplicate) {
                     const freqLabels: Record<string, string> = {
@@ -1057,10 +1286,11 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
                         'annually_key': 'Annually',
                         'one_time_key': 'One Time'
                     };
-                    const dupFreq = (existingDuplicate as { adjustedFrequency?: string }).adjustedFrequency;
+                    const dupFreq = (existingDuplicate as any).adjustedFrequency;
                     const dupStart = new Date(existingDuplicate.startDate);
                     const dupDate = dupStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                    const dupFreqLabel = freqLabels[dupFreq || ''] || dupFreq || 'Monthly';
+                    const dupFreqLabel = freqLabels[dupFreq] || dupFreq || 'Monthly';
+
                     errors.push({
                         componentId,
                         error: `"${component.componentName}" is already added on ${dupDate} with ${dupFreqLabel} frequency`
@@ -1070,14 +1300,15 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
 
                 // Create new adjustment
                 const newAdjustmentId = await createUUIDV4();
+
                 const newAdjustment = await dbOutput.employeeComponentAdjustments.create({
                     adjustmentId: newAdjustmentId,
                     employeeId: employeeId,
                     componentId: componentId,
                     adjustedAmount: parseFloat(String(adjustedAmount)),
                     adjustedFrequency: adjustedFrequency || null,
-                    startDate: startDate ? new Date(startDate) : new Date(),
-                    endDate: endDate ? new Date(endDate) : null,
+                    startDate: normalizedStartDate,
+                    endDate: normalizedEndDate,
                     isDeleted: false
                 }, { transaction });
 
@@ -1219,10 +1450,10 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             const generateFreqConfig = await dbOutput.employeeComponentConfigurator.findOne({
                 where: { componentType: 'leave_accural_frequency', isDeleted: false }
             });
-            const generateFrequencies: Record<string, string[]> = generateFreqConfig?.componentValue
-                ? (typeof generateFreqConfig.componentValue === 'string'
-                    ? JSON.parse(generateFreqConfig.componentValue)
-                    : generateFreqConfig.componentValue)
+            const generateFrequencies: Record<string, string[]> = generateFreqConfig?.componentValue 
+                ? (typeof generateFreqConfig.componentValue === 'string' 
+                    ? JSON.parse(generateFreqConfig.componentValue) 
+                    : generateFreqConfig.componentValue) 
                 : {};
 
             // Create a map for quick lookup of payroll records by employeeId
@@ -1234,7 +1465,8 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             // Get unique employeeIds
             const employeeIds = Array.from(payrollRecordMap.keys());
 
-            // Bulk fetch all employees with their basic details and address
+            // Bulk fetch employees with payslip records for the selected month.
+            // Keep offboarded employees eligible if a month payslip already exists.
             const employeesBasicDataForPayroll = await dbOutput.employeeBasicDetails.findAll({
                 include: [
                     {
@@ -1246,7 +1478,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                 ],
                 where: { 
                     empUuid: { [Op.in]: employeeIds },
-                    isDeleted: false 
+                    isDeleted: false
                 },
                 attributes: ['empUuid', 'empFirstName', 'empLastName']
             });
@@ -1267,6 +1499,12 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                     jobDetails: jobDetails || null
                 };
             });
+
+            const globalSalaryCategory = await dbOutput.salaryCategories.findOne({
+                where: getGlobalSalaryCategoryWhere(),
+                attributes: ['salaryCategoryId']
+            });
+            const globalSalaryCategoryId = globalSalaryCategory?.salaryCategoryId || null;
 
             // Process each employee
             for (const employee of employees) {
@@ -1329,17 +1567,28 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                         continue;
                     }
 
-                    // Fetch all component configurations for this salary category
+                    const categoryIdsToFetch = [
+                        salaryCategory.salaryCategoryId,
+                        ...(globalSalaryCategoryId ? [globalSalaryCategoryId] : [])
+                    ];
+
+                    // Fetch all component configurations for specific + global categories
                     const allComponents: salaryComponentsAttributes[] = await dbOutput.salaryComponents.findAll({
                         where: {
-                            salaryCategoryId: salaryCategory.salaryCategoryId,
+                            salaryCategoryId: { [Op.in]: categoryIdsToFetch },
                             componentType: { [Op.or]: [componentTypes.DEFAULT_ADDITION, componentTypes.DEFAULT_DEDUCTION] },
                             isDeleted: false
                         }
                     });
 
+                    const specificComponents = allComponents.filter(comp => comp.salaryCategoryId === salaryCategory.salaryCategoryId);
+                    const globalComponents = globalSalaryCategoryId
+                        ? allComponents.filter(comp => comp.salaryCategoryId === globalSalaryCategoryId)
+                        : [];
+                    const mergedComponents = mergeSalaryComponentsWithSpecificPriority(globalComponents, specificComponents);
+
                     // Get default additions
-                    const defaultAdditionComponents = allComponents.filter(comp => comp.componentType === componentTypes.DEFAULT_ADDITION);
+                    const defaultAdditionComponents = mergedComponents.filter(comp => comp.componentType === componentTypes.DEFAULT_ADDITION);
 
                     let monthlyCTC = 0;
                     const payrollItemsToCreate: Array<{
@@ -1366,7 +1615,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                     }
 
                     // Get default deductions
-                    const defaultDeductionComponents = allComponents.filter(comp => comp.componentType === componentTypes.DEFAULT_DEDUCTION);
+                    const defaultDeductionComponents = mergedComponents.filter(comp => comp.componentType === componentTypes.DEFAULT_DEDUCTION);
 
                     let totalDefaultDeductions = 0;
 
@@ -1404,8 +1653,19 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                         console.log(`Checking component: "${configComp.componentName}" (lowercase: "${componentName}"), isLOP: ${isLopComponent}, unpaidLeaveDays: ${unpaidLeaveDays}`);
 
                         if (isLopComponent) {
-                            const lopPerDay = parseFloat(String(configComp.amount));
-                            console.log(`LOP component found! LOP per day: ₹${lopPerDay}, Unpaid leave days: ${unpaidLeaveDays}`);
+                            const daysInMonth = monthEndDate.getDate();
+                            
+                            // Calculate LOP dynamically by summing up components with includeinLop = true
+                            const lopIncludedAmount = defaultAdditionComponents
+                                .filter(c => c.includeinLop)
+                                .reduce((sum, c) => sum + (parseFloat(String(c.amount)) || 0), 0);
+                            
+                            // If no components have includeinLop, fallback to the config component amount
+                            const baseAmount = parseFloat(String(configComp.amount));
+                            const totalLopBase = lopIncludedAmount > 0 ? lopIncludedAmount : baseAmount;
+                            
+                            const lopPerDay = totalLopBase / daysInMonth;
+                            console.log(`LOP component found! LOP base: ₹${totalLopBase}, daysInMonth: ${daysInMonth}, LOP per day: ₹${lopPerDay}, Unpaid leave days: ${unpaidLeaveDays}`);
                             
                             // Only add LOP deduction if there are unpaid leaves
                             if (unpaidLeaveDays > 0) {
@@ -1786,8 +2046,16 @@ export const markPayslipsAsPending = async (req: Request, res: Response): Promis
 // API to fetch all payslips details of employee for the given year
 export const fetchEmployeePayslipsForYear = async (req: Request, res: Response): Promise<void> => {
     try {
-        const employeeId = req.query.employeeId;
+        const employeeId = req.query.employeeId as string | undefined;
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+        if (!employeeId) {
+            res.status(400).json({
+                success: false,
+                message: "Employee ID is required",
+            });
+            return;
+        }
 
         if (isNaN(year)) {
             res.status(400).json({
@@ -1859,10 +2127,17 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
     }
 
     try {
-        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
-        const year = parseInt(req.query.year as string) || new Date().getFullYear();
+        const monthQuery = req.query.month as string | undefined;
+        const yearQuery = req.query.year as string | undefined;
 
-        if (isNaN(month) || isNaN(year)) {
+        const month = monthQuery !== undefined
+            ? parseInt(monthQuery, 10)
+            : new Date().getMonth() + 1;
+        const year = yearQuery !== undefined
+            ? parseInt(yearQuery, 10)
+            : new Date().getFullYear();
+
+        if (isNaN(month) || month < 1 || month > 12 || isNaN(year)) {
             res.status(400).json({
                 success: false,
                 message: "Invalid month or year provided",
@@ -1976,7 +2251,7 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
         let formattedPayslips: {name: string, monthlyCTC: number, additions: number, taxesAndDeductions: number, deductions:number, netPay:number}[] = [];
 
         if(!isPayRollGenerate) {
-            res.send({ success: false, message: "Payroll is not generated yet" });
+            res.status(400).json({ success: false, message: "Payroll is not generated yet" });
             return;
         }
 
@@ -2172,7 +2447,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             fetchEmployeeCurrentJobDetails(payslip.employeeId),
             dbOutput.employeeBankAccountDetails.findOne({
                 where: { empUuid: payslip.employeeId, isDeleted: false },
-                attributes: ['empBenefeciaryName', 'empAccountNumber'],
+                attributes: ['empBenefeciaryName', 'empAccountNumber', 'empUanNumber'],
                 raw: true
             })
         ]);
@@ -2201,9 +2476,20 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
         // Calculate earnings and deductions from payslip items
         const payslipItems = (payslip as unknown as { payslipItems: employeePayslipItemAttributes[] }).payslipItems || [];
         
-        const earnings = payslipItems.filter(
-            item => item.componentType === componentTypes.ADDITION || item.componentType === componentTypes.DEFAULT_ADDITION
-        );
+        const getOrderScore = (componentName: string | undefined | null) => {
+            if (!componentName) return 4;
+            const name = componentName.trim().toLowerCase();
+            if (name === "basic salary") return 1;
+            if (name === "house rent allowance (hra)" || name === "house rent allowance" || name === "hra") return 2;
+            if (name === "special allowance") return 3;
+            return 4;
+        };
+
+        const earnings = payslipItems
+            .filter(
+                item => item.componentType === componentTypes.ADDITION || item.componentType === componentTypes.DEFAULT_ADDITION
+            )
+            .sort((a, b) => getOrderScore(a.componentName) - getOrderScore(b.componentName));
 
         const deductions = payslipItems.filter(
             item => item.componentType === componentTypes.DEDUCTION || item.componentType === componentTypes.DEFAULT_DEDUCTION
@@ -2241,7 +2527,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             pan: employeeBasic.empPanCard || '-',
             bankAccountNo,
             designation: employeeJob?.empTitle || '-',
-            uanNumber: '-', // Add if available in your database
+            uanNumber: employeeBank?.empUanNumber || '-',
             dateOfJoining,
             grossPay: grossPay.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             deductions: totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -2332,10 +2618,10 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
             const netPayFreqConfig = await dbOutput.employeeComponentConfigurator.findOne({
                 where: { componentType: 'leave_accural_frequency', isDeleted: false }
             });
-            const netPayFrequencies: Record<string, string[]> = netPayFreqConfig?.componentValue
-                ? (typeof netPayFreqConfig.componentValue === 'string'
-                    ? JSON.parse(netPayFreqConfig.componentValue)
-                    : netPayFreqConfig.componentValue)
+            const netPayFrequencies: Record<string, string[]> = netPayFreqConfig?.componentValue 
+                ? (typeof netPayFreqConfig.componentValue === 'string' 
+                    ? JSON.parse(netPayFreqConfig.componentValue) 
+                    : netPayFreqConfig.componentValue) 
                 : {};
 
             // Fetch adjusted components only for employees with payslip records
@@ -2384,7 +2670,7 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
 
             const employeeUuidsForNetPay = allPayslipRecords.map(payslip => payslip.employeeId);
             
-            // Fetch employee basic details and address
+            // Fetch active employee basic details and address
             const employeesBasicDataForNetPay = await dbOutput.employeeBasicDetails.findAll({
                 include: [
                     {
@@ -2396,7 +2682,7 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                 ],
                 where: { 
                     empUuid: { [Op.in]: employeeUuidsForNetPay },
-                    isDeleted: false 
+                    isDeleted: false
                 },
                 attributes: ['empUuid', 'empFirstName', 'empLastName'],
                 order: [['empFirstName', 'ASC'], ['empLastName', 'ASC']],
@@ -2456,14 +2742,22 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                     };
             });
 
-            // Fetch all matching salary categories in one query
-            const salaryCategories = await dbOutput.salaryCategories.findAll({
-                where: {
-                    [Op.or]: salaryCategoryQueries.map(q => q.whereClause)
-                },
-                attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
-                raw: true
-            });
+            // Fetch all matching salary categories + global fallback
+            const [salaryCategories, globalSalaryCategory] = await Promise.all([
+                dbOutput.salaryCategories.findAll({
+                    where: {
+                        [Op.or]: salaryCategoryQueries.map(q => q.whereClause)
+                    },
+                    attributes: ['salaryCategoryId', 'employeeType', 'employeeLocation', 'employeeLevel', 'department', 'yearOfStudy'],
+                    raw: true
+                }),
+                dbOutput.salaryCategories.findOne({
+                    where: getGlobalSalaryCategoryWhere(),
+                    attributes: ['salaryCategoryId'],
+                    raw: true
+                })
+            ]);
+            const globalSalaryCategoryId = globalSalaryCategory?.salaryCategoryId || null;
 
             // Map employees to their salary categories
             const salaryCategoryMap = new Map<string, string>();
@@ -2497,7 +2791,12 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
 
             const allDefaultComponents = await dbOutput.salaryComponents.findAll({
                 where: {
-                    salaryCategoryId: { [Op.in]: salaryCategories.map(cat => cat.salaryCategoryId) },
+                    salaryCategoryId: {
+                        [Op.in]: [
+                            ...salaryCategories.map(cat => cat.salaryCategoryId),
+                            ...(globalSalaryCategoryId ? [globalSalaryCategoryId] : [])
+                        ]
+                    },
                     isDeleted: false
                 },
                 attributes: ['componentId', 'salaryCategoryId', 'componentType', 'componentName', 'amount'],
@@ -2511,16 +2810,18 @@ export const getNetPayAmount = async (req: Request, res: Response) => {
                 const salaryCategoryId = value;
                 const empUuid = key;
 
-                const defaultComponents = allDefaultComponents.filter(
-                    c => c.salaryCategoryId === salaryCategoryId
-                );
+                const specificComponents = allDefaultComponents.filter(c => c.salaryCategoryId === salaryCategoryId);
+                const globalComponents = globalSalaryCategoryId
+                    ? allDefaultComponents.filter(c => c.salaryCategoryId === globalSalaryCategoryId)
+                    : [];
+                const defaultComponents = mergeSalaryComponentsWithSpecificPriority(globalComponents, specificComponents);
 
                 const additionAmount = defaultComponents
                     .filter(c => c.componentType === componentTypes.DEFAULT_ADDITION)
                     .reduce((total, c) => total + Number(c.amount || 0), 0);
 
                 const deductionAmount = defaultComponents
-                    .filter(c => c.componentType === componentTypes.DEFAULT_DEDUCTION && !c.componentName.includes('Loss of Pay'))
+                    .filter(c => c.componentType === componentTypes.DEFAULT_DEDUCTION && !String(c.componentName || "").includes('Loss of Pay'))
                     .reduce((total, c) => total + Number(c.amount || 0), 0);
 
                 netPayAmount += additionAmount - deductionAmount;
@@ -2605,7 +2906,7 @@ const checkSalaryCategoryExists = async (
     empLevel: string | null,
     empDepartment: string | null,
     empYearOfStudy: string | null
-): Promise<{ salaryCategoryId: string } | null> => {
+): Promise<{ salaryCategoryId: string; updatedAt?: Date } | null> => {
     const whereClause: Record<string, unknown> = {
         employeeType: empType,
         employeeLocation: employeeLocation,
@@ -2628,10 +2929,130 @@ const checkSalaryCategoryExists = async (
 
     const salaryCategory = await dbOutput.salaryCategories.findOne({
         where: whereClause,
-        attributes: ['salaryCategoryId']
+        attributes: ['salaryCategoryId', 'updatedAt']
     });
 
-    return salaryCategory ? { salaryCategoryId: salaryCategory.salaryCategoryId } : null;
+    return salaryCategory
+        ? {
+            salaryCategoryId: salaryCategory.salaryCategoryId,
+            updatedAt: salaryCategory.updatedAt,
+        }
+        : null;
+};
+
+export const deletePayrollRecords = async (req: Request, res: Response): Promise<void> => {
+    const transaction: Transaction = await outputSequelize.transaction();
+
+    try {
+        const { user } = req as AuthenticatedRequest;
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "Payroll_Edit",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            await transaction.rollback();
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to delete payroll records"
+            });
+            return;
+        }
+
+        const { payslipIds } = req.body;
+
+        if (!payslipIds || !Array.isArray(payslipIds) || payslipIds.length === 0) {
+            await transaction.rollback();
+            res.status(400).json({
+                success: false,
+                message: "payslipIds array is required and cannot be empty"
+            });
+            return;
+        }
+
+        const uniquePayslipIds = [...new Set(payslipIds.filter(Boolean))];
+
+        if (uniquePayslipIds.length === 0) {
+            await transaction.rollback();
+            res.status(400).json({
+                success: false,
+                message: "payslipIds array is required and cannot be empty"
+            });
+            return;
+        }
+
+        const existingRecords = await dbOutput.employeePayslipRecords.findAll({
+            where: {
+                payslipId: { [Op.in]: uniquePayslipIds },
+                isDeleted: false
+            },
+            attributes: ['payslipId'],
+            raw: true,
+            transaction
+        });
+
+        if (!existingRecords || existingRecords.length === 0) {
+            await transaction.rollback();
+            res.status(404).json({
+                success: false,
+                message: "No payroll records found to delete"
+            });
+            return;
+        }
+
+        const validPayslipIds = existingRecords.map((record: any) => record.payslipId);
+
+        const [deletedRecordsCount] = await dbOutput.employeePayslipRecords.update(
+            { isDeleted: true },
+            {
+                where: {
+                    payslipId: { [Op.in]: validPayslipIds },
+                    isDeleted: false
+                },
+                transaction
+            }
+        );
+
+        const [deletedItemsCount] = await dbOutput.employeePayslipItems.update(
+            { isDeleted: true },
+            {
+                where: {
+                    payslipId: { [Op.in]: validPayslipIds },
+                    isDeleted: false
+                },
+                transaction
+            }
+        );
+
+        await transaction.commit();
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully deleted ${deletedRecordsCount} payroll record(s)`,
+            data: {
+                deletedCount: deletedRecordsCount,
+                deletedItemCount: deletedItemsCount
+            }
+        });
+    } catch (error: any) {
+        await transaction.rollback();
+        res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+            devMessage: error.message,
+        });
+    }
+};
+
+const toValidDate = (value: unknown): Date | null => {
+    if (!value) return null;
+    const date = new Date(value as string | number | Date);
+    return Number.isNaN(date.getTime()) ? null : date;
 };
 
 /**
@@ -2644,7 +3065,8 @@ const checkSalaryCategoryExists = async (
 const createPayrollForEmployees = async (
     month?: number,
     year?: number,
-    transaction?: Transaction
+    transaction?: Transaction,
+    targetEmployeeIds?: string[]
 ): Promise<{
     totalEmployees: number;
     payrollsCreated: number;
@@ -2672,17 +3094,26 @@ const createPayrollForEmployees = async (
         errors: [] as Array<{ empUuid: string; error: string }>
     };
 
-    // Fetch all active employees with their address details
+    // Fetch all active employees (isActive = true) with their address details - exclude inactive employees
+    const employeeBaseWhereClause: Record<string, unknown> = {
+        isDeleted: false,
+        isActive: true,
+    };
+
+    if (targetEmployeeIds && targetEmployeeIds.length > 0) {
+        employeeBaseWhereClause.empUuid = { [Op.in]: targetEmployeeIds };
+    }
+
     const employeesBasicDataForCreate = await dbOutput.employeeBasicDetails.findAll({
         include: [
             {
                 model: dbOutput.employeeAddressDetails,
                 as: 'addressDetails',
                 required: false,
-                attributes: ['state']
+                attributes: ['state', 'updatedAt']
             }
         ],
-        where: { isDeleted: false },
+        where: employeeBaseWhereClause,
         attributes: ['empUuid']
     });
 
@@ -2729,34 +3160,6 @@ const createPayrollForEmployees = async (
         employeeCount: employeeIds.length
     });
 
-    // First, check if ANY payroll is already generated for this month (across all employees)
-    // This determines if we should skip creating payroll for new employees
-    const { startDate: payrollCheckStart, endDate: payrollCheckEnd } = getMonthYearDateRange(currentMonth, currentYear);
-    const anyGeneratedPayroll = await dbOutput.employeePayslipRecords.findOne({
-        where: {
-            payrollStartDate: { [Op.between]: [payrollCheckStart, payrollCheckEnd] },
-            status: { [Op.in]: [payrollStatus.PAYROLL_GENERATED] },
-            isDeleted: false
-        },
-        attributes: ['payslipId', 'status'],
-        raw: true
-    });
-
-    if (anyGeneratedPayroll) {
-        console.log(`[${new Date().toISOString()}] Payroll already generated for ${currentMonth}/${currentYear}. Skipping creation for all employees.`);
-        
-        // Mark all employees as skipped since payroll is already generated
-        for (const employee of employees) {
-            result.skippedCount++;
-            result.skippedEmployees.push({
-                empUuid: employee.empUuid,
-                reason: 'Payroll already generated for this month - new employee payroll creation skipped'
-            });
-        }
-        
-        return result;
-    }
-
     // Fetch all existing payslips for the current month for current employees
     // Use explicit date range with UTC dates to avoid timezone conversion issues
     // The dates are stored in UTC in the database, so we compare UTC to UTC
@@ -2769,7 +3172,7 @@ const createPayrollForEmployees = async (
             },
             isDeleted: false
         },
-        attributes: ['employeeId', 'status', 'payslipId', 'payrollStartDate'],
+        attributes: ['employeeId', 'status', 'payslipId', 'payrollStartDate', 'updatedAt'],
         raw: true
         // Don't use transaction here - we want to see all committed records
     });
@@ -2790,9 +3193,9 @@ const createPayrollForEmployees = async (
     }
 
     // Create a map of existing payslips by employeeId
-    const existingPayslipMap = new Map<string, string>();
+    const existingPayslipMap = new Map<string, employeePayslipAttributes>();
     existingPayslips.forEach(p => {
-        existingPayslipMap.set(p.employeeId, p.status);
+        existingPayslipMap.set(p.employeeId, p);
     });
 
     // Process each employee
@@ -2813,11 +3216,12 @@ const createPayrollForEmployees = async (
         const addressDetails = emp.addressDetails;
 
         // Check if payroll already exists for this month
-        const existingStatus = existingPayslipMap.get(empUuid);
+        const existingPayslip = existingPayslipMap.get(empUuid);
+        const existingStatus = existingPayslip?.status;
         
         if (existingStatus) {
-            // Skip if payroll is already generated or finalized
-            if (existingStatus === payrollStatus.PAYROLL_GENERATED || existingStatus === payrollStatus.PAYROLL_FINALIZED) {
+            // Keep generated payroll untouched.
+            if (existingStatus === payrollStatus.PAYROLL_GENERATED) {
                 result.skippedCount++;
                 result.skippedEmployees.push({
                     empUuid,
@@ -2858,6 +3262,74 @@ const createPayrollForEmployees = async (
                 empDepartment,
                 empYearOfStudy
             );
+
+            // If a finalized payroll exists and payroll-impacting configuration changed,
+            // reopen it to pending so current month can be recalculated.
+            if (existingPayslip && existingStatus === payrollStatus.PAYROLL_FINALIZED) {
+                if (!salaryCategory) {
+                    result.skippedCount++;
+                    result.skippedEmployees.push({
+                        empUuid,
+                        reason: "Finalized payroll kept unchanged because salary configuration is missing for current employee details"
+                    });
+                    continue;
+                }
+
+                const latestSalaryComponent = await dbOutput.salaryComponents.findOne({
+                    where: {
+                        salaryCategoryId: salaryCategory.salaryCategoryId,
+                        isDeleted: false,
+                    },
+                    attributes: ['updatedAt'],
+                    order: [['updatedAt', 'DESC']],
+                    raw: true,
+                    ...(transaction ? { transaction } : {}),
+                });
+
+                const payslipUpdatedAt = toValidDate(existingPayslip.updatedAt);
+                const jobDetailsUpdatedAt = toValidDate(jobDetails?.updatedAt);
+                const addressDetailsUpdatedAt = toValidDate(addressDetails?.updatedAt);
+                const salaryCategoryUpdatedAt = toValidDate(salaryCategory.updatedAt);
+                const salaryComponentsUpdatedAt = toValidDate(latestSalaryComponent?.updatedAt);
+
+                const latestConfigChange = [
+                    jobDetailsUpdatedAt,
+                    addressDetailsUpdatedAt,
+                    salaryCategoryUpdatedAt,
+                    salaryComponentsUpdatedAt,
+                ].reduce<Date | null>((latest, current) => {
+                    if (!current) return latest;
+                    if (!latest || current > latest) return current;
+                    return latest;
+                }, null);
+
+                if (payslipUpdatedAt && latestConfigChange && latestConfigChange > payslipUpdatedAt) {
+                    await dbOutput.employeePayslipRecords.update(
+                        {
+                            status: payrollStatus.PENDING,
+                            payrollEndDate: null,
+                            netPay: null,
+                        },
+                        {
+                            where: { payslipId: existingPayslip.payslipId },
+                            ...(transaction ? { transaction } : {}),
+                        }
+                    );
+
+                    result.skippedCount++;
+                    result.skippedEmployees.push({
+                        empUuid,
+                        reason: "Finalized payroll reopened to PENDING due to employee/category configuration changes"
+                    });
+                } else {
+                    result.skippedCount++;
+                    result.skippedEmployees.push({
+                        empUuid,
+                        reason: "Payroll already payroll_finalized for this month"
+                    });
+                }
+                continue;
+            }
 
             if (!salaryCategory) {
                 result.skippedCount++;
@@ -3055,5 +3527,46 @@ export const createPayrollCronJob = async (): Promise<void> => {
         }
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Error in payroll creation cron job:`, error);
+    }
+};
+
+export const reconcilePayrollForEmployees = async (
+    employeeIds: string[],
+    month?: number,
+    year?: number
+): Promise<void> => {
+    if (!employeeIds?.length) {
+        return;
+    }
+
+    const uniqueEmployeeIds = Array.from(new Set(employeeIds));
+    console.log(
+        `[${new Date().toISOString()}] Starting targeted payroll reconciliation for ${uniqueEmployeeIds.length} employee(s).`
+    );
+
+    try {
+        const result = await createPayrollForEmployees(month, year, undefined, uniqueEmployeeIds);
+
+        console.log(
+            `[${new Date().toISOString()}] Targeted payroll reconciliation completed`,
+            {
+                employeeCount: uniqueEmployeeIds.length,
+                payrollsCreated: result.payrollsCreated,
+                skippedCount: result.skippedCount,
+                errorCount: result.errorCount,
+            }
+        );
+
+        if (result.errors.length > 0) {
+            console.error(
+                `[${new Date().toISOString()}] Targeted payroll reconciliation errors:`,
+                result.errors
+            );
+        }
+    } catch (error) {
+        console.error(
+            `[${new Date().toISOString()}] Error during targeted payroll reconciliation:`,
+            error
+        );
     }
 };

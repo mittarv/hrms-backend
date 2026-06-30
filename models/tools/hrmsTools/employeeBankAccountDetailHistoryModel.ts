@@ -11,6 +11,7 @@ export class employeeBankAccountDetailHistory
   declare empAccountNumber?: string | null;
   declare empBenefeciaryName?: string | null;
   declare empAccType?: string | null;
+  declare empUanNumber?: string | null;
   declare isDeleted: boolean;
 
   declare readonly createdAt?: Date;
@@ -46,6 +47,10 @@ export const initEmployeeBankAccountDetailHistory = (sequelize: Sequelize, dataT
         allowNull: true,
       },
       empAccType: {
+        type: dataTypes.STRING,
+        allowNull: true,
+      },
+      empUanNumber: {
         type: dataTypes.STRING,
         allowNull: true,
       },

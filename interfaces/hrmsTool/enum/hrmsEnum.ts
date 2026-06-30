@@ -68,3 +68,30 @@ export enum payrollStatus {
   PAYROLL_FINALIZED = "payroll_finalized",
   PAYROLL_GENERATED = "payroll_generated",
 }
+export enum offboardingStatus {
+  NOT_INITIATED = "not_initiated",
+  INITIATED = "initiated",
+  APPROVED = "approved",
+  ON_HOLD = "on_hold",
+  REJECTED = "rejected",
+}
+
+export enum SecondaryLocationLogStatus {
+  UPCOMING = "Upcoming",
+  PENDING = "Pending",
+  ACTIVE = "Active",
+  COMPLETED = "Completed",
+  REJECTED = "Rejected",
+}
+
+export enum SecondaryLocationRequestType {
+  LOG = "Log",
+  EDIT = "Edit",
+  DELETE = "Delete",
+}
+
+export enum SecondaryLocationRequestStatus {
+  PENDING = "Pending",
+  APPROVED = "Approved",
+  REJECTED = "Rejected",
+}

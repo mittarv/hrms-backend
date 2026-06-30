@@ -10,6 +10,7 @@ export class employeeBankAccountDetails
   declare empAccountNumber?: string | null;
   declare empBenefeciaryName?: string | null;
   declare empAccType?: string | null;
+  declare empUanNumber?: string | null;
   declare effecTiveDate?: Date | null;
   declare isDeleted: boolean;
 
@@ -42,6 +43,10 @@ export const initEmployeeBankAccountDetails = (sequelize: Sequelize, dataTypes: 
         allowNull: true,
       },
       empAccType: {
+        type: dataTypes.STRING,
+        allowNull: true,
+      },
+      empUanNumber: {
         type: dataTypes.STRING,
         allowNull: true,
       },

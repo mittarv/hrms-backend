@@ -22,7 +22,7 @@ export class EmployeeBasicDetails
   declare empLastLogin?: Date | null;
   declare empPanCard?: string | null;
   declare isDeleted: boolean;
-  declare isActive?: number | null;
+  declare isActive?: boolean | null;
 
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
