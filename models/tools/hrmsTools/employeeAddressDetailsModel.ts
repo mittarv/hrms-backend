@@ -16,6 +16,8 @@ export class employeeAddressDetails
   declare country?: string | null;
   declare effectiveDate?: Date | null;
   declare terminationDate?: Date | null;
+  declare secondaryLocation?: string | null;
+  declare isSecondarySameAsPrimary?: boolean;
 
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
@@ -71,6 +73,14 @@ export const initEmployeeAddressDetails = (sequelize: Sequelize, dataTypes: type
       },
       terminationDate: {
         type: dataTypes.DATE,
+        allowNull: true,
+      },
+      secondaryLocation: {
+        type: dataTypes.STRING,
+        allowNull: true,
+      },
+      isSecondarySameAsPrimary: {
+        type: dataTypes.BOOLEAN,
         allowNull: true,
       },
     },

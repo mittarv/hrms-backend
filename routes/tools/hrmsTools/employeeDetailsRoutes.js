@@ -3,6 +3,7 @@ const express = require("express");
 const {
   createEmployeeData,
   getEmployeeDetailsByUuid,
+  getEmployeeDirectoryDetailsByUuid,
   getAllEmployees,
   updateEmployeeDetailsByUuid,
   getAllManagerInformation,
@@ -19,6 +20,7 @@ const {
 router.route("/createEmployeeData").post(isTmsUserAuthenticated, createEmployeeData);
 router.route("/getAllEmployees").get(isTmsUserAuthenticated, getAllEmployees);
 router.route("/getCurrentEmpDetails/:empUuid").get(isTmsUserAuthenticated, getEmployeeDetailsByUuid);
+router.route("/getEmployeeDirectoryDetails/:empUuid").get(isTmsUserAuthenticated, getEmployeeDirectoryDetailsByUuid);
 router.route("/updateCurrentEmpDetails/:empUuid").patch(isTmsUserAuthenticated, updateEmployeeDetailsByUuid);
 router.route("/getAllManager").get(isTmsUserAuthenticated, getAllManagerInformation);
 router.route("/getEmployeeDashboardDetails").get(isTmsUserAuthenticated, getEmployeeDashboardDetails);

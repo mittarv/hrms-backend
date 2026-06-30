@@ -5,6 +5,7 @@ import {
   RegisterAttendanceActionType, 
   hrmsNotificationTypes, 
   payrollStatus,
+  offboardingStatus,
 } from "../enum/hrmsEnum";
 import { Transaction } from "sequelize";
 
@@ -81,6 +82,7 @@ export interface EmployeeLeaveBalanceAttributes {
   totalLeaveUsed: number;
   fiscalYear: number;
   empType: string;
+  isWasCompOff: boolean;
   fiscalYearStart: Date;
   fiscalYearEnd: Date;
   isDeleted?: boolean;
@@ -262,6 +264,7 @@ export interface AuthenticatedUser {
   userId?: string;
   toolsAccess: unknown;
   employeeUuid?: string | null;
+  isActive?: boolean | null;
 }
 
 export interface CategoryData {
@@ -416,6 +419,7 @@ export interface EmployeeBankAccountDetailHistoryAttributes {
   empAccountNumber?: string | null;
   empBenefeciaryName?: string | null;
   empAccType?: string | null;
+  empUanNumber?: string | null;
   isDeleted: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -429,6 +433,7 @@ export interface EmployeeBankAccountDetailsAttributes {
   empAccountNumber?: string | null;
   empBenefeciaryName?: string | null;
   empAccType?: string | null;
+  empUanNumber?: string | null;
   effecTiveDate?: Date | null;
   isDeleted: boolean;
   createdAt?: Date;
@@ -455,7 +460,7 @@ export interface EmployeeBasicDetailsAttributes {
   empLastLogin?: Date | null;
   empPanCard?: string | null;
   isDeleted: boolean;
-  isActive?: number | null;
+  isActive?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -550,6 +555,8 @@ export interface EmployeeLeaveConfiguratorAttributes {
   isDefault: boolean;
   leaveApplicableTo?: string;
   allotAllLeaves: boolean;
+  // isCompOffLeave:boolean;
+  leaveExpiresAfter: number | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -627,11 +634,11 @@ export interface extraWorkDayAttributes {
     empUuid: string;
     leaveConfigId: string;
     workDate: Date;
-    checkIn: string;
-    checkOut: string;
+    //checkIn: string;
+    //checkOut: string;
     remarks: string;
     proof: string;
-    totalDuration: number;
+    //totalDuration: number;
     totalCompOffCredit: number;
     requestBy: string;
     approvalStatus: LeaveApprovalStatus;
@@ -754,10 +761,11 @@ export interface RolePermissionAssociation {
   isDeleted: boolean;
   lastActionBy?: string | null;
 }
+
 export interface EmployeeOffBoardingAttributes {
   offboardingId: string;
   empUuid: string;
-  offboardingStatus: string;
+  offboardingStatus: offboardingStatus;
   lastWorkingDay?: Date;
   hrClearanceStatus: boolean;
   hrClearanceDate?: Date;
@@ -775,68 +783,82 @@ export interface EmployeeOffBoardingAttributes {
   updatedBy?: string;
 }
 
+/** Result of initiate offboarding: offboarding record with employee display name */
 export interface OffboardingWithEmployeeName extends EmployeeOffBoardingAttributes {
   employeeName: string;
 }
 
-export type OffboardingInitiatedEmployeeDetails = EmployeeOffBoardingAttributes & EmployeeJobDetailsAttributes;
+/** Result of get offboarding initiated employee details: offboarding + current job details */
+export type OffboardingInitiatedEmployeeDetails = EmployeeOffBoardingAttributes &
+  EmployeeJobDetailsAttributes;
 
+/** Request params for get offboarding initiated employee details */
 export interface GetOffboardingInitiatedEmployeeDetailsParams {
   empUuid: string;
 }
 
+/** Success response body for get offboarding initiated employee details API (all employees with offboarding in progress) */
 export interface GetOffboardingInitiatedEmployeeDetailsResponse {
   success: true;
   message: string;
   offboardingInitiatedEmployeeDetails: OffboardingInitiatedEmployeeDetails[];
 }
 
+/** Success response body for initiate offboarding API */
 export interface InitiateOffboardingResponse {
   success: true;
   message: string;
   data: OffboardingWithEmployeeName;
 }
 
+/** Result of HR clearance service: offboarding + employee name + status change info */
 export interface HrClearanceResult extends EmployeeOffBoardingAttributes {
   employeeName: string;
   previousStatus: boolean;
   newStatus: boolean;
 }
 
+/** Success response body for HR clearance API */
 export interface HrClearanceResponse {
   success: true;
   message: string;
   hrClearanceResult: HrClearanceResult;
 }
 
+/** Result of Finance clearance service: offboarding + employee name + status change info */
 export interface FinanceClearanceResult extends EmployeeOffBoardingAttributes {
   employeeName: string;
   previousStatus: boolean;
   newStatus: boolean;
 }
 
+/** Success response body for Finance clearance API */
 export interface FinanceClearanceResponse {
   success: true;
   message: string;
   financeClearanceResult: FinanceClearanceResult;
 }
 
+/** Request body for set last working day API (lastWorkingDay as ISO date string) */
 export interface SetLastWorkingDayRequestBody {
   lastWorkingDay: string;
 }
 
+/** Success response body for set last working day API */
 export interface SetLastWorkingDayResponse {
   success: true;
   message: string;
   data: OffboardingWithEmployeeName;
 }
 
+/** Success response body for approve offboarding API */
 export interface ApproveOffboardingResponse {
   success: true;
   message: string;
   data: OffboardingWithEmployeeName;
 }
 
+/** Offboarded employee with basic info, job details and lastWorkingDay from employee_offboarding */
 export interface OffboardedEmployeeWithLastWorkingDay {
   empUuid: string;
   empFirstName: string;

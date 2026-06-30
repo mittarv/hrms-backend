@@ -21,6 +21,7 @@ import allCountryRoutes from "./platform/allCountryRoutes";
 import payrollLevelManagementRoutes from "./tools/hrmsTools/payrollLevelManagementRoutes";
 import employeeOffboardingRoutes from "./tools/hrmsTools/employeeOffboardingRoutes";
 import rewardsRoutes from "./tools/hrmsTools/rewardsRoutes";
+import secondaryLocationRoutes from "./tools/hrmsTools/secondaryLocationRoutes";
 
 //HRMS tool routes
 export function registerHrms(app: Application) {
@@ -37,6 +38,7 @@ export function registerHrms(app: Application) {
     app.use("/api/hrrepository", importantlinkAndPolicyRoutes);
     app.use("/api/hrms/employeeOffboarding", employeeOffboardingRoutes);
     app.use("/api/hrms/rewards", rewardsRoutes);
+    app.use("/api/hrms/secondaryLocation", secondaryLocationRoutes);
 
     // UAM tool routes
     app.use("/api/tms/users", tmsUsersRoutes);

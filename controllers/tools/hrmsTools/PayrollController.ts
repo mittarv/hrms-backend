@@ -2447,7 +2447,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             fetchEmployeeCurrentJobDetails(payslip.employeeId),
             dbOutput.employeeBankAccountDetails.findOne({
                 where: { empUuid: payslip.employeeId, isDeleted: false },
-                attributes: ['empBenefeciaryName', 'empAccountNumber'],
+                attributes: ['empBenefeciaryName', 'empAccountNumber', 'empUanNumber'],
                 raw: true
             })
         ]);
@@ -2527,7 +2527,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             pan: employeeBasic.empPanCard || '-',
             bankAccountNo,
             designation: employeeJob?.empTitle || '-',
-            uanNumber: '-', // Add if available in your database
+            uanNumber: employeeBank?.empUanNumber || '-',
             dateOfJoining,
             grossPay: grossPay.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             deductions: totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),

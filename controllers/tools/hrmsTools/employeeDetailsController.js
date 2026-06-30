@@ -1,4 +1,4 @@
-const { outputSequelize, dbOutput, Op } = require("../../../models/index");
+const { outputSequelize, dbOutput, Op, db } = require("../../../models/index");
 // const { attribute } = require("../../../test/mockData/platform/userMockData");
 const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
 import { 
@@ -6,12 +6,13 @@ import {
   sendEmployeePersonalDetailsUpdateMail,
   sendPersonalDetailsApprovedMail,
   sendPersonalDetailsRejectedMail,
-} from "../../../middlewares/sendEmail";
-import { fetchEmployeeCurrentJobDetails, findHRRepositoryToolAdminUsers } from "../../../utilities/hrmsUtilities/dbCalls";
+} from "../../../middlewares/sendHrmsEmail";
+import { fetchEmployeeCurrentJobDetails, getEmployeeDetailsMailRecipients } from "../../../utilities/hrmsUtilities/dbCalls";
 import { createHRMSNotification } from "../../../utilities/hrmsUtilities/dbCalls";
 import { hrmsNotificationTypes } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
-import { generateUpdateMessage, updateEmployeeLeaveBalanceOnTypeChange, filterUpcomingBirthdays, filterWorkAnniversaries } from "../../../utilities/hrmsUtilities/helperFunctions";
+import { generateUpdateMessage, updateEmployeeLeaveBalanceOnTypeChange, filterUpcomingBirthdays, filterWorkAnniversariesByConversionDate } from "../../../utilities/hrmsUtilities/helperFunctions";
 const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
+import { offboardingStatus } from "../../../interfaces/hrmsTool/enum/hrmsEnum";
 const EmployeeBasicDetails = dbOutput.employeeBasicDetails;
 const EmployeeContactDetails = dbOutput.employeeContactDetails;
 const EmployeeJobDetails = dbOutput.employeeJobDetails;
@@ -28,7 +29,11 @@ const EmployeeLoginHistory = dbOutput.employeeLoginHistory;
 const EmployeeDataRequest = dbOutput.employeeDataRequest;
 const hrmsEmployeeRole = dbOutput.hrmsEmployeeRole;
 const hrmsAccessRole = dbOutput.hrmsAccessRole;
-const TmsUsers = dbOutput.tmsUsers;
+const EmployeeOffboarding = dbOutput.employeeOffboarding;
+const Winner = dbOutput.winner;
+const RewardCycle = dbOutput.rewardCycle;
+const TmsUsers = db.tmsUsers;
+const { reconcilePayrollForEmployees } = require("./PayrollController");
 
 const tableToFieldsMap = {
   EmployeeBasicDetails: [
@@ -53,7 +58,7 @@ const tableToFieldsMap = {
     "empCurrentAdvanceSalaryAmount", "empCurrentAdvanceSalaryEmi", "empPaymentCountryCode"
   ],
   EmployeeBankAccountDetails: [
-    "empIFSCCode", "empAccountNumber", "empBenefeciaryName", "empAccType"
+    "empIFSCCode", "empAccountNumber", "empBenefeciaryName", "empAccType", "empUanNumber"
   ],
   EmployeeAddressDetails: [
     "addressType", "addressLine1", "addressLine2", "addressLine3", 
@@ -65,6 +70,22 @@ const tableToFieldsMap = {
   EmployeeLoginHistory: [
     "loginTimeStamp", "isDeleted"
   ]
+};
+
+const formatWorkLocation = (locationKey) => {
+  if (!locationKey) {
+    return null;
+  }
+
+  const parts = String(locationKey).split("_");
+  if (parts.length <= 1) {
+    return locationKey;
+  }
+
+  return parts
+    .slice(0, -1)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 
@@ -256,17 +277,22 @@ exports.createEmployeeData = async (req, res) => {
       employmentStartDate: emp_latest_hire_date,
     }, { transaction });
 
-    await sendOnboardingEmail(emp_official_email, employeeUuid, transaction);
-
-    // Commit the transaction only if everything succeeds (including email)
     await transaction.commit();
 
     res.status(201).json({
       success: true,
-      message: "Employee data created successfully and onboarding email sent",
+      message: "Employee data created successfully",
     });
+
+    // Send onboarding email asynchronously (non-blocking)
+    (async () => {
+      try {
+        await sendOnboardingEmail(emp_official_email, employeeUuid);
+      } catch (emailError) {
+        console.error("Error sending onboarding email:", emailError);
+      }
+    })();
   } catch (error) {
-    // Rollback the transaction if any error occurs (including email failure)
     await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }
@@ -280,6 +306,40 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
 
     if (!empUuid) {
       return res.status(400).json({ success: false, message: "Employee UUID is required" });
+    }
+
+    // Permission check: user must be viewing their own profile, or have admin access, or have required HRMS permissions
+    const { toolsAccess, employeeUuid: loggedInEmployeeUuid } = req.user;
+    const toolName = "HR Repository";
+    const isOwnProfile = loggedInEmployeeUuid === empUuid;
+
+    if (!isOwnProfile) {
+      const hasPermission = await checkHrmsPermission(
+        loggedInEmployeeUuid,
+        [
+          "ActiveEmployee_read",
+          "ActiveEmployee_update",
+          "ActiveEmployee_onBoarding",
+          "EmployeeDirectoryAdmin_View",
+          "Offboarding_View",
+          "Offboarding_Initiate",
+          "Offboarding_HR_Clearance",
+          "Offboarding_Finance_Clearance",
+          "Offboarding_Approve",
+          "View_Offboarded_Employees",
+          "LeaveAttendance_write",
+          "LeaveAttendanceAdmin_read",
+        ],
+        toolName,
+        toolsAccess
+      );
+
+      if (!hasPermission) {
+        return res.status(403).json({
+          success: false,
+          message: "You don't have permission to view this employee's details",
+        });
+      }
     }
 
     // Fetch the employee's basic details
@@ -329,6 +389,14 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
       return res.status(404).json({ success: false, message: "Employee advance salary details not found" });
     }
 
+    // Fetch the employee's offboarding details
+    const employeeOffboardingDetails = await EmployeeOffboarding.findOne({
+      where: { empUuid }, 
+      attributes:['hrClearanceStatus', 'financeClearanceStatus', 'lastWorkingDay', 'offboardingStatus'],
+      raw: true,
+    });
+
+
     // Tms user details
     const tmsUserDetails = await TmsUsers.findOne(
       {where: {email: employeeContactDetails?.empOfficialEmail}}
@@ -336,6 +404,83 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
 
     // Tms user profile image
     const tmsUserProfileImage = tmsUserDetails?.profilePic;
+
+    // Fetch employee's award history (all past awards)
+    let employeeAwards = [];
+    let currentWinnerStatus = null;
+    try {
+      if (Winner && RewardCycle) {
+        // Get all awards for this employee
+        const awards = await Winner.findAll({
+          where: { employeeEmpUuid: empUuid },
+          include: [{ model: RewardCycle, as: "cycle", attributes: ["id", "month", "year", "currentPhase"] }],
+          order: [["createdAt", "DESC"]],
+        });
+        employeeAwards = awards.map((a) => a.get({ plain: true }));
+
+        // Determine current winner status (for dashboard banner)
+        // Show banner if:
+        // 1. Current cycle is in PENDING or WINNERS phase
+        // 2. Employee is a winner for a cycle that's in WINNERS phase, OR
+        //    Employee is a winner for the previous cycle and current cycle is still PENDING
+        const now = new Date();
+        const currentMonth = now.getMonth() + 1;
+        const currentYear = now.getFullYear();
+
+        // Find the current cycle
+        const currentCycle = await RewardCycle.findOne({
+          where: { month: currentMonth, year: currentYear },
+        });
+
+        if (currentCycle) {
+          const currentPhase = currentCycle.currentPhase;
+          
+          // If current cycle is in WINNERS phase, check if this employee is a winner for this cycle
+          if (currentPhase === "winners") {
+            const currentWins = awards.filter((a) => a.cycleId === currentCycle.id);
+            if (currentWins.length > 0) {
+              currentWinnerStatus = {
+                month: currentMonth,
+                year: currentYear,
+                awards: currentWins.map((w) => ({
+                  awardType: w.awardType,
+                  finalCitation: w.finalCitation,
+                  voteCount: w.voteCount,
+                })),
+              };
+            }
+          }
+          // If current cycle is PENDING, check if employee won in the previous cycle
+          else if (currentPhase === "pending") {
+            const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+            const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+            
+            const prevCycle = await RewardCycle.findOne({
+              where: { month: prevMonth, year: prevYear },
+            });
+            
+            if (prevCycle && prevCycle.currentPhase === "winners") {
+              const prevWins = awards.filter((a) => a.cycleId === prevCycle.id);
+              if (prevWins.length > 0) {
+                currentWinnerStatus = {
+                  month: prevMonth,
+                  year: prevYear,
+                  awards: prevWins.map((w) => ({
+                    awardType: w.awardType,
+                    finalCitation: w.finalCitation,
+                    voteCount: w.voteCount,
+                  })),
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (awardError) {
+      console.error("Error fetching employee awards:", awardError);
+      // Continue without awards data - don't fail the entire request
+    }
+
     // successful response with the fetched data
     return res.status(200).json({
       success: true,
@@ -349,6 +494,9 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
       employeeBankDetails,
       employeeAdvanceSalaryDetails,
       employeeProfileImage : tmsUserProfileImage || null,
+      employeeOffboardingDetails: employeeOffboardingDetails || {},
+      employeeAwards,
+      currentWinnerStatus,
     });
 
   } catch (error) {
@@ -362,11 +510,97 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
   }
 };
 
+// Function to fetch employee directory card details by employee UUID
+exports.getEmployeeDirectoryDetailsByUuid = async (req, res) => {
+  try {
+    const empUuid = req.params.empUuid;
+
+    if (!empUuid) {
+      return res.status(400).json({ success: false, message: "Employee UUID is required" });
+    }
+
+    const { toolsAccess, employeeUuid: loggedInEmployeeUuid } = req.user;
+    const toolName = "HR Repository";
+
+    const hasDirectoryAdminAccess = await checkHrmsPermission(
+      loggedInEmployeeUuid,
+      "EmployeeDirectoryAdmin_View",
+      toolName,
+      toolsAccess
+    );
+
+    const employeeBasicDetails = await EmployeeBasicDetails.findOne({
+      where: { empUuid },
+      attributes: ["empUuid", "empFirstName", "empLastName", "empHireDate", "empCompanyId"],
+      raw: true,
+    });
+
+    if (!employeeBasicDetails) {
+      return res.status(404).json({ success: false, message: "Employee basic details not found" });
+    }
+
+    const employeeContactDetails = await EmployeeContactDetails.findOne({
+      where: { empUuid },
+      attributes: ["empOfficialPhone", "empOfficialEmail"],
+      raw: true,
+    });
+
+    const employeeCurrentJobDetails = await fetchEmployeeCurrentJobDetails(empUuid);
+
+    const employeeAddressDetails = await EmployeeAddressDetails.findOne({
+      where: { empUuid },
+      attributes: ["state"],
+      raw: true,
+    });
+
+    let reportingManager = null;
+    if (hasDirectoryAdminAccess && employeeCurrentJobDetails?.empManager) {
+      const managerDetails = await EmployeeBasicDetails.findOne({
+        where: { empUuid: employeeCurrentJobDetails.empManager },
+        attributes: ["empUuid", "empFirstName", "empLastName"],
+        raw: true,
+      });
+
+      if (managerDetails) {
+        reportingManager = {
+          empUuid: managerDetails.empUuid,
+          name: `${managerDetails.empFirstName || ""} ${managerDetails.empLastName || ""}`.trim() || null,
+        };
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Employee directory details fetched successfully",
+      employeeDirectoryDetails: {
+        employeeUuid: empUuid,
+        employeeName: `${employeeBasicDetails.empFirstName || ""} ${employeeBasicDetails.empLastName || ""}`.trim() || null,
+        workLocation: formatWorkLocation(employeeAddressDetails?.state),
+        hiringDate: employeeBasicDetails.empHireDate || null,
+        phone: employeeContactDetails?.empOfficialPhone || null,
+        emailId: employeeContactDetails?.empOfficialEmail || null,
+        employeeId: hasDirectoryAdminAccess ? employeeBasicDetails.empCompanyId || null : null,
+        reportingManager,
+        canViewSensitiveFields: hasDirectoryAdminAccess,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching employee directory details:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching employee directory details",
+      error: error.message,
+    });
+  }
+};
+
 // Function to fetch all employee details
 exports.getAllEmployees = async (req, res) => {
   try {
     // Fetch all employee UUIDs
     const employeeUuids = await EmployeeBasicDetails.findAll({
+      where: { isDeleted: false, isActive: true },
       attributes: ['empUuid']
     });
 
@@ -376,7 +610,7 @@ exports.getAllEmployees = async (req, res) => {
 
       // Fetch the employee's first name, last name, job type, and department
       const employeeBasicDetails = await EmployeeBasicDetails.findOne({
-        attributes: ['empFirstName', 'empLastName', 'createdAt'],
+        attributes: ['empFirstName', 'empLastName', 'createdAt', "isActive"],
         where: { empUuid: empUuid },
       });
 
@@ -407,6 +641,16 @@ exports.getAllEmployees = async (req, res) => {
         ]
       });
 
+      // Offboarding: null if not initiated, otherwise the current offboarding status
+      const offboardingRecord = await EmployeeOffboarding.findOne({
+        where: { empUuid, isDeleted: false },
+        attributes: ['offboardingStatus'],
+        order: [['createdAt', 'DESC']],
+        raw: true,
+      });
+
+      const offboarding_status = offboardingRecord ? offboardingRecord.offboardingStatus : offboardingStatus.NOT_INITIATED;
+
       return {
         employeeUuid: empUuid,
         employeeFirstName: employeeBasicDetails ? employeeBasicDetails.empFirstName : null,
@@ -417,6 +661,8 @@ exports.getAllEmployees = async (req, res) => {
         employeeOfficialEmail: employeeContactDetails ? employeeContactDetails.empOfficialEmail : null,
         employeeAddedOn: employeeBasicDetails ? employeeBasicDetails.createdAt : null,
         employeeHrmsRoleDetails: employeeHrmsRoleDetails ? employeeHrmsRoleDetails.role : null,
+        employeeIsActive: employeeBasicDetails ? employeeBasicDetails.isActive : null,
+        offboarding_status,
       };
     });
 
@@ -486,7 +732,7 @@ exports.updateEmployeeDetailsByUuid = async (req, res) => {
       "empCurrentAdvanceSalaryAmount", "empCurrentAdvanceSalaryEmi", "empPaymentCountryCode"
     ],
     EmployeeBankAccountDetails: [
-      "empIFSCCode", "empAccountNumber", "empBenefeciaryName", "empAccType"
+      "empIFSCCode", "empAccountNumber", "empBenefeciaryName", "empAccType", "empUanNumber"
     ],
     EmployeeAddressDetails: [
       "addressType", "addressLine1", "addressLine2", "addressLine3", 
@@ -751,7 +997,9 @@ exports.getAllManagerInformation = async (req, res) => {
     const managerInfo = await EmployeeBasicDetails.findAll({
       attributes: ['empUuid', 'empFirstName', 'empLastName','isManager'],
       where: {
-        isManager: true
+        isManager: true,
+        isActive: true,
+        isDeleted: false,
       }
     });
     // console.log(managerInfo);
@@ -795,7 +1043,9 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
     // Fetch all employees with their DOB (only non-null DOB values)
     const allEmployeesWithDob = await EmployeeBasicDetails.findAll({
       where: {
-        empDob: { [Op.ne]: null }
+        empDob: { [Op.ne]: null },
+        isDeleted: false,
+        isActive: true 
       },
       attributes: ['empUuid', 'empFirstName', 'empLastName', 'empDob'],
       raw: true
@@ -804,24 +1054,62 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
     // Filter employees whose birthdays fall within the remaining days of the current month
     const employeeBirthdayDetails = filterUpcomingBirthdays(allEmployeesWithDob, todayMonth, todayDay);
 
-    // Fetch all employees with their hire date (only non-null hire date values)
-    const allEmployeesWithHireDate = await EmployeeBasicDetails.findAll({
+    // Work anniversaries: use employeejobdetails (conversion date) for active employees only.
+    // Get active employee UUIDs from basic details.
+    const activeEmployees = await EmployeeBasicDetails.findAll({
+      where: { isDeleted: false, isActive: true },
+      attributes: ['empUuid', 'empFirstName', 'empLastName'],
+      raw: true
+    });
+    const activeUuidSet = new Set(activeEmployees.map((e) => e.empUuid));
+
+    // Get job details with conversion date (latest per employee when multiple rows exist)
+    const jobDetailsWithConversion = await EmployeeJobDetails.findAll({
       where: {
-        empHireDate: { [Op.ne]: null }
+        empConversionDate: { [Op.ne]: null },
+        isDeleted: false
       },
-      attributes: ['empUuid', 'empFirstName', 'empLastName', 'empHireDate'],
+      attributes: ['empUuid', 'empConversionDate'],
+      order: [['effectiveDate', 'DESC']],
       raw: true
     });
 
-    // Filter employees whose work anniversaries fall on today and have completed at least one year
-    const employeeWorkAnniversaryDetails = filterWorkAnniversaries(allEmployeesWithHireDate, todayMonth, todayDay, todayYear);
+    // Merge: only active employees, with names from basic details; one row per empUuid
+    const empUuidSeen = new Set();
+    const employeesWithConversionDate = [];
+    for (const j of jobDetailsWithConversion) {
+      if (!activeUuidSet.has(j.empUuid) || empUuidSeen.has(j.empUuid)) continue;
+      empUuidSeen.add(j.empUuid);
+      const basic = activeEmployees.find((b) => b.empUuid === j.empUuid);
+      if (basic) {
+        employeesWithConversionDate.push({
+          empUuid: j.empUuid,
+          empFirstName: basic.empFirstName,
+          empLastName: basic.empLastName,
+          empConversionDate: j.empConversionDate
+        });
+      }
+    }
+
+    // 12th month = conversion + 12 months in current month; 14th month = conversion + 14 months in current month
+    const { workAnniversary12Month, workAnniversary14Month } = filterWorkAnniversariesByConversionDate(
+      employeesWithConversionDate,
+      todayMonth,
+      todayYear
+    );
+
+    // Serialize dates for JSON (anniversaryDate is Date)
+    const serializeAnniversary = (list) => list.map((e) => ({ ...e, anniversaryDate: e.anniversaryDate?.toISOString?.() ?? e.anniversaryDate }));
 
     // Return the results
     return res.status(200).json({
       success: true,
       message: "Employee dashboard details fetched successfully",
       employeeBirthdayDetails,
-      employeeWorkAnniversaryDetails,
+      employeeWorkAnniversaryDetails: {
+        workAnniversary12Month: serializeAnniversary(workAnniversary12Month),
+        workAnniversary14Month: serializeAnniversary(workAnniversary14Month)
+      }
     });
   } catch (error) {
     console.error("Error fetching employee dashboard details: ", error);
@@ -1020,7 +1308,22 @@ exports.sendChangesToApprover = async (req, res) => {
       }
     }
 
-    // If user cannot approve employee detail requests, notify HR Repository admins
+    // Capture email data before committing
+    const employeeName = await EmployeeBasicDetails.findOne({
+      where: { empUuid: requestedFor },
+      attributes: ["empFirstName", "empLastName"],
+      raw: true,
+    });
+    const emailFullName = employeeName ? `${employeeName.empFirstName} ${employeeName.empLastName}` : "Unknown Employee";
+
+    // Always notify users with Employee Details permissions when a change is sent for approval
+    const recipients = await getEmployeeDetailsMailRecipients();
+    const emailUsersData = recipients.map((r) => ({ email: r.empOfficialEmail, userId: r.empUuid }));
+
+    if (recipients.length === 0) {
+      console.log("Employee personal details update mail: no recipients (no users with EmployeeDetailsRequest_* or ActiveEmployee_* permissions)");
+    }
+
     const canApproveRequests = await checkHrmsPermission(
       employeeUuid,
       "EmployeeDetailsRequest_write",
@@ -1028,20 +1331,7 @@ exports.sendChangesToApprover = async (req, res) => {
       toolsAccess
     );
 
-    if (!canApproveRequests) {
-      const users = await findHRRepositoryToolAdminUsers();
-      
-      // Fetch employee name from basic details
-      const employeeName = await EmployeeBasicDetails.findOne({
-        where: { empUuid: requestedFor },
-        attributes: ["empFirstName", "empLastName"],
-        raw: true,
-      });
-      
-      const fullName = employeeName ? `${employeeName.empFirstName} ${employeeName.empLastName}` : "Unknown Employee";
-      
-      await sendEmployeePersonalDetailsUpdateMail(users, fullName, transaction);
-    } else {
+    if (canApproveRequests) {
       await createHRMSNotification({
           notification_type: hrmsNotificationTypes.MY_UPDATES,
           message: generateUpdateMessage(sectionChanged),
@@ -1051,6 +1341,18 @@ exports.sendChangesToApprover = async (req, res) => {
     }
 
     await transaction.commit();
+
+    // Send email asynchronously (non-blocking) after transaction commits
+    if (emailUsersData && emailUsersData.length > 0 && emailFullName) {
+      console.log(`sendChangesToApprover: triggering personal details update email to ${emailUsersData.length} recipient(s) for ${emailFullName}`);
+      (async () => {
+        try {
+          await sendEmployeePersonalDetailsUpdateMail(emailUsersData, emailFullName);
+        } catch (emailError) {
+          console.error("Error sending personal details update email:", emailError);
+        }
+      })();
+    }
 
     return res.status(200).json({
       success: true,
@@ -1087,7 +1389,6 @@ exports.approveOrRejectRequest = async (req, res) => {
   const toolName = "HR Repository";
   const employeeUuid = user?.employeeUuid;
 
-  const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
   const hasPermission = await checkHrmsPermission(
     employeeUuid,
     "EmployeeDetailsRequest_write",
@@ -1102,12 +1403,15 @@ exports.approveOrRejectRequest = async (req, res) => {
     });
   }
 
-  // Start a transaction
-  const transaction = await outputSequelize.transaction();
+  const ER_LOCK_WAIT_TIMEOUT = 'ER_LOCK_WAIT_TIMEOUT';
+  const maxRetries = 2; // initial attempt + 1 retry on lock timeout
+  let lastError;
 
-try{
-  // Map field names to their corresponding table names
-  const fieldToTableMap = Object.entries(tableToFieldsMap).reduce(
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const transaction = await outputSequelize.transaction();
+    try {
+      // Map field names to their corresponding table names
+      const fieldToTableMap = Object.entries(tableToFieldsMap).reduce(
     (map, [table, fields]) => {
       fields.forEach((field) => {
         map[field] = table;
@@ -1118,6 +1422,16 @@ try{
   );
   
   if(action.toLowerCase() === "approve") {
+    const approvalEmailsToSend = [];
+    const payrollEmployeesToSync = new Set();
+    const payrollImpactingFields = new Set([
+      "empType",
+      "empLevel",
+      "empDepartment",
+      "empYearOfStudy",
+      "empConversionDate",
+      "state",
+    ]);
     for (const requestId of requestIds) {
       const employeeBasicDetailUpdates = {};
       const employeeContactDetailUpdates = {};
@@ -1131,12 +1445,23 @@ try{
 
       const request = await EmployeeDataRequest.findOne({
         where: { requestId },
+        lock: transaction.LOCK.UPDATE,
+        transaction,
       });
 
       if (!request) {
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Request not found",
+        });
+      }
+
+      if (request.isApproved || request.isRejected) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Request already processed (approved or rejected)",
         });
       }
 
@@ -1146,7 +1471,16 @@ try{
         newData
       } = request;
 
+      const hasPayrollImpactingChanges = Object.keys(newData || {}).some((field) =>
+        payrollImpactingFields.has(field)
+      );
+
+      if (hasPayrollImpactingChanges && requestedFor) {
+        payrollEmployeesToSync.add(requestedFor);
+      }
+
       if(requestedBy === actionedBy) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Employee can't approve/reject their own requests",
@@ -1347,24 +1681,70 @@ try{
         attributes: ["empFirstName", "empLastName"],
         raw: true,
       });
-      await sendPersonalDetailsApprovedMail(employeeEmailId?.empOfficialEmail, requestedFor, transaction, employeeName?.empFirstName+" "+employeeName?.empLastName);
+      // Collect email data for async sending
+      if (employeeEmailId?.empOfficialEmail) {
+        approvalEmailsToSend.push({
+          email: employeeEmailId.empOfficialEmail,
+          empUuid: requestedFor,
+          name: (employeeName?.empFirstName || '') + " " + (employeeName?.empLastName || ''),
+        });
+      }
     }
     await transaction.commit();
+
+    // Send approval emails asynchronously (non-blocking)
+    (async () => {
+      try {
+        for (const emailData of approvalEmailsToSend) {
+          await sendPersonalDetailsApprovedMail(emailData.email, emailData.empUuid, undefined, emailData.name);
+        }
+      } catch (emailError) {
+        console.error("Error sending personal details approval email:", emailError);
+      }
+    })();
+
+    // Run payroll reconciliation asynchronously for employees whose approved changes
+    // can affect payroll category resolution.
+    if (payrollEmployeesToSync.size > 0) {
+      const affectedEmployees = Array.from(payrollEmployeesToSync);
+      console.log(
+        `approveOrRejectRequest: triggering async payroll reconciliation for ${affectedEmployees.length} employee(s)`
+      );
+      (async () => {
+        try {
+          await reconcilePayrollForEmployees(affectedEmployees);
+        } catch (syncError) {
+          console.error("Error during async payroll reconciliation after approval:", syncError);
+        }
+      })();
+    }
+
     return res.status(200).json({
       success: true,
       message: "Request(s) approved successfully and notified to employee",
     });
   }else{
+    const rejectionEmailsToSend = [];
     for (const requestId of requestIds) {
-      
       const request = await EmployeeDataRequest.findOne({
         where: { requestId },
+        lock: transaction.LOCK.UPDATE,
+        transaction,
       });
 
       if (!request) {
+        await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Request not found",
+        });
+      }
+
+      if (request.isApproved || request.isRejected) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Request already processed (approved or rejected)",
         });
       }
 
@@ -1374,6 +1754,7 @@ try{
       } = request;
 
       if(requestedBy === actionedBy) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: "Employee can't approve/reject their own requests",
@@ -1395,25 +1776,56 @@ try{
         attributes: ["empFirstName", "empLastName"],
         raw: true,
       });
-    await sendPersonalDetailsRejectedMail(employeeEmailId?.empOfficialEmail, requestedFor, transaction, employeeName?.empFirstName+" "+employeeName?.empLastName);
+      // Collect email data for async sending
+      if (employeeEmailId?.empOfficialEmail) {
+        rejectionEmailsToSend.push({
+          email: employeeEmailId.empOfficialEmail,
+          empUuid: requestedFor,
+          name: (employeeName?.empFirstName || '') + " " + (employeeName?.empLastName || ''),
+        });
+      }
     }
 
 
     await transaction.commit();
+
+    // Send rejection emails asynchronously (non-blocking)
+    (async () => {
+      try {
+        for (const emailData of rejectionEmailsToSend) {
+          await sendPersonalDetailsRejectedMail(emailData.email, emailData.empUuid, undefined, emailData.name);
+        }
+      } catch (emailError) {
+        console.error("Error sending personal details rejection email:", emailError);
+      }
+    })();
+
     return res.status(200).json({
       success: true,
       message: "Request(s) rejected successfully",
     });
   }
 
-  } catch (error) {
-    await transaction.rollback();
-    console.error("Error processing approval/rejection: ", error);
-    return res.status(500).json({
-      success: false,
-      message: "An error occurred while processing request",
-    });
+    } catch (error) {
+      await transaction.rollback();
+      lastError = error;
+      const isLockTimeout = error?.parent?.code === ER_LOCK_WAIT_TIMEOUT || error?.code === ER_LOCK_WAIT_TIMEOUT;
+      if (isLockTimeout && attempt < maxRetries) {
+        continue; // retry once
+      }
+      console.error("Error processing approval/rejection: ", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while processing request",
+      });
+    }
   }
+
+  console.error("Error processing approval/rejection (retries exhausted): ", lastError);
+  return res.status(500).json({
+    success: false,
+    message: "An error occurred while processing request",
+  });
 };
 
 exports.getPendingRequests = async (req, res) => {
@@ -1424,7 +1836,7 @@ exports.getPendingRequests = async (req, res) => {
     const employeeUuid = user?.employeeUuid;
 
     // Check permission: admin access (>= 900) OR EmployeeDetailsRequest_read permission
-    const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
+
     const hasPermission = await checkHrmsPermission(
       employeeUuid,
       "EmployeeDetailsRequest_read",
@@ -1486,3 +1898,130 @@ exports.getPendingRequests = async (req, res) => {
   }
 };
 
+
+
+// Ensure you import your models correctly here
+// const { EmployeeDataRequest, EmployeeBasicDetails } = require('../models'); 
+
+exports.getProcessedRequests = async (req, res) => {
+  try {
+    const { user } = req;
+    const toolsAccess = user?.toolsAccess || {};
+    const toolName = "HR Repository";
+    const employeeUuid = user?.employeeUuid;
+
+    // 1. Check Permission
+    const hasPermission = await checkHrmsPermission(
+      employeeUuid,
+      "EmployeeDetailsRequest_read",
+      toolName,
+      toolsAccess
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to view employee detail requests",
+      });
+    }
+
+    // 2. Extract and Parse Pagination Params with strict defaults
+    const { startDate, endDate, page, pageSize } = req.query;
+    
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, parseInt(pageSize) || 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    const whereConditions = {
+      [Op.or]: [
+        { isApproved: true },
+        { isRejected: true }
+      ]
+    }; 
+
+    if (startDate && endDate) {
+      whereConditions.createdAt = {
+        [Op.between]: [
+          new Date(startDate + " 00:00:00"), 
+          new Date(endDate + " 23:59:59")
+        ]
+      };
+    }
+
+    // 3. Query Database
+    // We use [Op.or] but also ensure we are looking for actual truthy values
+    const { count, rows } = await EmployeeDataRequest.findAndCountAll({
+      where: whereConditions,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset: offset,
+      raw: true,
+      // Check your terminal to see the generated SQL!
+    });
+
+    // If no rows found, return early with empty data to avoid mapping errors
+    if (!rows || rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No processed requests found",
+        data: [],
+        pagination: {
+          totalRecords: count,
+          totalPages: Math.ceil(count / limitNum),
+          currentPage: pageNum,
+          pageSize: limitNum,
+        },
+      });
+    }
+
+    // 4. Resolve Employee Names
+    // Optimized with Promise.all to fetch names in parallel
+    const updatedRequests = await Promise.all(
+      rows.map(async (request) => {
+        const [requestedForName, requestedByName] = await Promise.all([
+          EmployeeBasicDetails.findOne({
+            where: { empUuid: request.requestedFor },
+            attributes: ["empFirstName", "empLastName"],
+            raw: true,
+          }),
+          EmployeeBasicDetails.findOne({
+            where: { empUuid: request.requestedBy },
+            attributes: ["empFirstName", "empLastName"],
+            raw: true,
+          }),
+        ]);
+
+        return {
+          ...request,
+          requestedFor: requestedForName
+            ? `${requestedForName.empFirstName} ${requestedForName.empLastName}`
+            : "Unknown",
+          requestedBy: requestedByName
+            ? `${requestedByName.empFirstName} ${requestedByName.empLastName}`
+            : "Unknown",
+        };
+      })
+    );
+
+    // 5. Final Response
+    return res.status(200).json({
+      success: true,
+      message: "Processed requests fetched successfully",
+      allProcessedRequests: updatedRequests,
+      pagination: {
+        totalRecords: count,
+        totalPages: Math.ceil(count / limitNum) || 1,
+        currentPage: pageNum,
+        pageSize: limitNum,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error fetching processed requests: ", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching processed requests",
+      error: error.message // Helpful for debugging, remove in production
+    });
+  }
+};

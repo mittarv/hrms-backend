@@ -2,6 +2,27 @@
 import { dbOutput } from "../models/index";
 
 export const setupHrmsAssociations = (): void => {
+    // =========================================== Secondary Location Associations ===========================================
+    if (dbOutput.configureSecondaryLocation && dbOutput.configEmployeeType) {
+        dbOutput.configureSecondaryLocation.hasMany(dbOutput.configEmployeeType, {
+            foreignKey: 'configId',
+            sourceKey: 'configId',
+            as: 'employeeTypes',
+            constraints: false,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+
+        dbOutput.configEmployeeType.belongsTo(dbOutput.configureSecondaryLocation, {
+            foreignKey: 'configId',
+            targetKey: 'configId',
+            as: 'configuration',
+            constraints: false,
+            onDelete: 'CASCADE',
+            onUpdate: 'CASCADE'
+        });
+    }
+
     // ============================================================ employeeLeaveBalanceDetails ORM relations  ==================================================================
     // Many-to-One
     dbOutput.employeeLeaveBalanceDetails.belongsTo(dbOutput.employeeBasicDetails, {

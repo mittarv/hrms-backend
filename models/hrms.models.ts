@@ -46,6 +46,10 @@ import { initUamToolsUser } from "./tools/uam/uamToolUsersModel";
 import { initImportantLinkList } from "./tools/hrRepository/importantLinkList";
 import { initPolicyList } from "./tools/hrRepository/policyList";
 import { initAllCountryDetails } from "./platform/regionalSettings/allCountryDetailsModel";
+import { initConfigureSecondaryLocation } from "./tools/hrmsTools/secondaryLocation/configureSecondaryLocationModel";
+import { initConfigEmployeeType } from "./tools/hrmsTools/secondaryLocation/configEmployeeTypeModel";
+import { initSecondaryLocationLog } from "./tools/hrmsTools/secondaryLocation/secondaryLocationLogModel";
+import { initSecondaryLocationRequest } from "./tools/hrmsTools/secondaryLocation/secondaryLocationRequestsModel";
 
 
 export function initializeHrmsModels(dbOutput: any, outputSequelize: Sequelize, dataTypes: typeof DataTypes) {
@@ -113,4 +117,10 @@ export function initializeHrmsModels(dbOutput: any, outputSequelize: Sequelize, 
 
   // ====================================partner feature tool models ============================================================
 dbOutput.allCountryDetails = initAllCountryDetails(outputSequelize, DataTypes);
+
+  // Secondary Location models
+  dbOutput.configureSecondaryLocation = initConfigureSecondaryLocation(outputSequelize, dataTypes);
+  dbOutput.configEmployeeType = initConfigEmployeeType(outputSequelize, dataTypes);
+  dbOutput.secondaryLocationLog = initSecondaryLocationLog(outputSequelize, dataTypes);
+  dbOutput.secondaryLocationRequest = initSecondaryLocationRequest(outputSequelize, dataTypes);
 }

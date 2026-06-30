@@ -75,3 +75,23 @@ export enum offboardingStatus {
   ON_HOLD = "on_hold",
   REJECTED = "rejected",
 }
+
+export enum SecondaryLocationLogStatus {
+  UPCOMING = "Upcoming",
+  PENDING = "Pending",
+  ACTIVE = "Active",
+  COMPLETED = "Completed",
+  REJECTED = "Rejected",
+}
+
+export enum SecondaryLocationRequestType {
+  LOG = "Log",
+  EDIT = "Edit",
+  DELETE = "Delete",
+}
+
+export enum SecondaryLocationRequestStatus {
+  PENDING = "Pending",
+  APPROVED = "Approved",
+  REJECTED = "Rejected",
+}
