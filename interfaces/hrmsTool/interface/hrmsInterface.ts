@@ -6,6 +6,9 @@ import {
   hrmsNotificationTypes, 
   payrollStatus,
   offboardingStatus,
+  SecondaryLocationLogStatus,
+  SecondaryLocationRequestStatus,
+  SecondaryLocationRequestType
 } from "../enum/hrmsEnum";
 import { Transaction } from "sequelize";
 
@@ -388,6 +391,8 @@ export interface EmployeeAddressDetailsAttributes {
   country?: string | null;
   effectiveDate?: Date | null;
   terminationDate?: Date | null;
+  secondaryLocation?: string | null;
+  isSecondarySameAsPrimary?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -634,11 +639,11 @@ export interface extraWorkDayAttributes {
     empUuid: string;
     leaveConfigId: string;
     workDate: Date;
-    //checkIn: string;
-    //checkOut: string;
+    checkIn: string;
+    checkOut: string;
     remarks: string;
     proof: string;
-    //totalDuration: number;
+    totalDuration: number;
     totalCompOffCredit: number;
     requestBy: string;
     approvalStatus: LeaveApprovalStatus;
@@ -870,4 +875,58 @@ export interface OffboardedEmployeeWithLastWorkingDay {
       empDepartment?: string;
   } | null;
   lastWorkingDay?: string | Date | null;
+}
+
+
+export interface ConfigEmployeeTypeAttributes {
+  id: string;
+  configId: string;
+  employeeType: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface ConfigureSecondaryLocationAttributes {
+  configId: string;
+  location: string;
+  durationWeeks: number;
+  maximumSplitsPerYear: number;
+  minimumIntimationPeriodDays: number;
+  createdBy: string;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SecondaryLocationLogAttributes {
+  logId: string;
+  employeeUuid: string;
+  secondaryLocation: string;
+  startDate: Date;
+  endDate: Date;
+  durationDays: number;
+  status: SecondaryLocationLogStatus;
+  loggedBy: string;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
+  isDeleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SecondaryLocationRequestAttributes {
+  requestId: string;
+  employeeUuid: string;
+  originalLogId?: string | null;
+  startDate: Date;
+  endDate: Date;
+  durationDays: number;
+  requestType: SecondaryLocationRequestType;
+  reason: string;
+  status: SecondaryLocationRequestStatus;
+  rejectionReason?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

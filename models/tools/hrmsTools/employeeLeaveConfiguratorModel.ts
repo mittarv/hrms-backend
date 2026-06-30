@@ -24,6 +24,7 @@ export class employeeLeaveConfigurator
   declare isDefault: boolean;
   declare leaveApplicableTo?: string;
   declare allotAllLeaves: boolean;
+  declare leaveExpiresAfter: number | null;
 
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
@@ -119,6 +120,10 @@ export const initEmployeeLeaveConfigurator = (sequelize: Sequelize, dataTypes: t
         type: dataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      },
+      leaveExpiresAfter: {
+        type: dataTypes.INTEGER,
+        allowNull: true,
       },
     },
     {

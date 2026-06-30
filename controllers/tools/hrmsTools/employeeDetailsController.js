@@ -32,7 +32,7 @@ const hrmsAccessRole = dbOutput.hrmsAccessRole;
 const EmployeeOffboarding = dbOutput.employeeOffboarding;
 const Winner = dbOutput.winner;
 const RewardCycle = dbOutput.rewardCycle;
-const TmsUsers = db.tmsUsers;
+const TmsUsers = dbOutput.tmsUsers;
 const { reconcilePayrollForEmployees } = require("./PayrollController");
 
 const tableToFieldsMap = {

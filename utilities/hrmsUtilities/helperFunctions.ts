@@ -790,7 +790,8 @@ export const updateEmployeeLeaveBalanceOnTypeChange = async (employeeId: string,
                   fiscalYearEnd: newFiscalYearEnd,
                   createdAt: new Date(),
                   updatedAt: new Date(),
-                  isDeleted: false
+                  isDeleted: false,
+                  isWasCompOff: false
               });
           }
       }
