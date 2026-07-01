@@ -1102,3 +1102,74 @@ export const getYearDateRange = (year: number): { startDate: Date; endDate: Date
   
   return { startDate, endDate };
 };
+
+
+/**
+ * Utility function to add months to a date correctly, handling end-of-month cases
+ * (e.g. Jan 31 + 1 month → Feb 28/29, not Mar 3).
+ */
+const addMonthsToDate = (date: Date, months: number): Date => {
+  const d = new Date(date);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, lastDay));
+  return d;
+};
+
+export interface WorkAnniversaryEmployee {
+  empUuid?: string;
+  empFirstName?: string;
+  empLastName?: string;
+  anniversaryDate: Date;
+}
+
+/**
+ * Filter employees whose 12th or 14th month work anniversary (from conversion date) falls in the current month.
+ * Used for dashboard: 12th month = conversion + 12 months, 14th month = conversion + 14 months.
+ *
+ * @param employees - Array of records with empUuid, empFirstName, empLastName, empConversionDate
+ * @param todayMonth - Current month (1-12)
+ * @param todayYear - Current year
+ * @returns Object with workAnniversary12Month and workAnniversary14Month arrays
+ */
+export const filterWorkAnniversariesByConversionDate = (
+  employees: Array<{ empUuid?: string; empFirstName?: string; empLastName?: string; empConversionDate?: Date | null }>,
+  todayMonth: number,
+  todayYear: number
+): { workAnniversary12Month: WorkAnniversaryEmployee[]; workAnniversary14Month: WorkAnniversaryEmployee[] } => {
+  const workAnniversary12Month: WorkAnniversaryEmployee[] = [];
+  const workAnniversary14Month: WorkAnniversaryEmployee[] = [];
+
+  for (const emp of employees) {
+    if (!emp.empConversionDate) continue;
+    const conversion = new Date(emp.empConversionDate);
+
+    const anniversary12 = addMonthsToDate(conversion, 12);
+    const month12 = anniversary12.getUTCMonth() + 1;
+    const year12 = anniversary12.getUTCFullYear();
+    if (month12 === todayMonth && year12 === todayYear) {
+      workAnniversary12Month.push({
+        empUuid: emp.empUuid,
+        empFirstName: emp.empFirstName,
+        empLastName: emp.empLastName,
+        anniversaryDate: anniversary12,
+      });
+    }
+
+    const anniversary14 = addMonthsToDate(conversion, 14);
+    const month14 = anniversary14.getUTCMonth() + 1;
+    const year14 = anniversary14.getUTCFullYear();
+    if (month14 === todayMonth && year14 === todayYear) {
+      workAnniversary14Month.push({
+        empUuid: emp.empUuid,
+        empFirstName: emp.empFirstName,
+        empLastName: emp.empLastName,
+        anniversaryDate: anniversary14,
+      });
+    }
+  }
+
+  return { workAnniversary12Month, workAnniversary14Month };
+};
