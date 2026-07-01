@@ -41,6 +41,64 @@ jobs:
           git tag -a $RELEASE_TAG -m "Release $RELEASE_TAG"
           git push origin $RELEASE_TAG
 
+      # - name: Create .env file
+      #   shell: pwsh
+      #   env:
+      #     PORT: ${{ vars.PORT }}
+      #     NODE_ENV: ${{ vars.NODE_ENV }}
+      #     IP: ${{ vars.IP }}
+      #     SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      #     REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+      #     SMTP_HOST: ${{ vars.SMTP_HOST }}
+      #     SMTP_PORT: ${{ vars.SMTP_PORT }}
+      #     SMTP_USER: ${{ vars.SMTP_USER }}
+      #     SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      #     HRMS_SMTP_FROM: ${{ vars.HRMS_SMTP_FROM }}
+      #     HRMS_DASHBOARD_URL: ${{ vars.HRMS_DASHBOARD_URL }}
+      #     EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+      #     EVENT_HUB_NAME: ${{ vars.EVENT_HUB_NAME }}
+      #     AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+      #     AZURE_SERVICE_BUS_QUEUE_NAME: ${{ vars.AZURE_SERVICE_BUS_QUEUE_NAME }}
+      #     BATCH_SIZE: ${{ vars.BATCH_SIZE }}
+      #     FLUSH_INTERVAL: ${{ vars.FLUSH_INTERVAL }}
+      #     SLOW_THRESHOLD: ${{ vars.SLOW_THRESHOLD }}
+      #     DATABASE_OUTPUT_NAME: ${{ vars.DATABASE_OUTPUT_NAME }}
+      #     DATABASE_OUTPUT_USER: ${{ vars.DATABASE_OUTPUT_USER }}
+      #     DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+      #     DATABASE_OUTPUT_PORT: ${{ vars.DATABASE_OUTPUT_PORT }}
+      #     DATABASE_OUTPUT_HOST: ${{ vars.DATABASE_OUTPUT_HOST }}
+      #     DATABASE_OUTPUT_DIALECT: ${{ vars.DATABASE_OUTPUT_DIALECT }}
+      #     CRON_JOB_MACHINE_HOSTNAME: ${{ vars.CRON_JOB_MACHINE_HOSTNAME }}
+      #     HOST_PORT: ${{ vars.HOST_PORT }}
+      #   run: |
+      #     @"
+      #     PORT=$env:PORT
+      #     NODE_ENV=$env:NODE_ENV
+      #     IP=$env:IP
+      #     SECRET_KEY=$env:SECRET_KEY
+      #     REFRESH_TOKEN_SECRET=$env:REFRESH_TOKEN_SECRET
+      #     SMTP_HOST=$env:SMTP_HOST
+      #     SMTP_PORT=$env:SMTP_PORT
+      #     SMTP_USER=$env:SMTP_USER
+      #     SMTP_PASS=$env:SMTP_PASS
+      #     HRMS_SMTP_FROM=$env:HRMS_SMTP_FROM
+      #     HRMS_DASHBOARD_URL=$env:HRMS_DASHBOARD_URL
+      #     EVENT_HUB_CONNECTION_STRING=$env:EVENT_HUB_CONNECTION_STRING
+      #     EVENT_HUB_NAME=$env:EVENT_HUB_NAME
+      #     AZURE_SERVICE_BUS_CONNECTION_STRING=$env:AZURE_SERVICE_BUS_CONNECTION_STRING
+      #     AZURE_SERVICE_BUS_QUEUE_NAME=$env:AZURE_SERVICE_BUS_QUEUE_NAME
+      #     BATCH_SIZE=$env:BATCH_SIZE
+      #     FLUSH_INTERVAL=$env:FLUSH_INTERVAL
+      #     SLOW_THRESHOLD=$env:SLOW_THRESHOLD
+      #     DATABASE_OUTPUT_NAME=$env:DATABASE_OUTPUT_NAME
+      #     DATABASE_OUTPUT_USER=$env:DATABASE_OUTPUT_USER
+      #     DATABASE_OUTPUT_PASSWORD=$env:DATABASE_OUTPUT_PASSWORD
+      #     DATABASE_OUTPUT_PORT=$env:DATABASE_OUTPUT_PORT
+      #     DATABASE_OUTPUT_HOST=$env:DATABASE_OUTPUT_HOST
+      #     DATABASE_OUTPUT_DIALECT=$env:DATABASE_OUTPUT_DIALECT
+      #     CRON_JOB_MACHINE_HOSTNAME=$env:CRON_JOB_MACHINE_HOSTNAME
+      #     HOST_PORT=$env:HOST_PORT
+      #     "@ | Set-Content .env
       - name: Create .env file
         shell: pwsh
         env:
@@ -49,6 +107,13 @@ jobs:
           IP: ${{ vars.IP }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          # -------- MISSING SSO SECRETS --------
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # -------- MISSING TMS CONFIG (Optional) --------
+          TMS_SUPER_ADMIN_EMAILS: ${{ vars.TMS_SUPER_ADMIN_EMAILS }}
+          TMS_ALLOWED_DOMAINS: ${{ vars.TMS_ALLOWED_DOMAINS }}
+          # -------------------------------------
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_USER: ${{ vars.SMTP_USER }}
@@ -77,6 +142,10 @@ jobs:
           IP=$env:IP
           SECRET_KEY=$env:SECRET_KEY
           REFRESH_TOKEN_SECRET=$env:REFRESH_TOKEN_SECRET
+          GOOGLE_CLIENT_ID=$env:GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET=$env:GOOGLE_CLIENT_SECRET
+          TMS_SUPER_ADMIN_EMAILS=$env:TMS_SUPER_ADMIN_EMAILS
+          TMS_ALLOWED_DOMAINS=$env:TMS_ALLOWED_DOMAINS
           SMTP_HOST=$env:SMTP_HOST
           SMTP_PORT=$env:SMTP_PORT
           SMTP_USER=$env:SMTP_USER
