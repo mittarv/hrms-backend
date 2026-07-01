@@ -206,26 +206,26 @@ jobs:
         run: |
           Remove-Item .env -Force
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Release ${{ env.RELEASE_TAG }}
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ env.RELEASE_TAG }}
+      #     name: Release ${{ env.RELEASE_TAG }}
+      #     generate_release_notes: true
+      #     draft: false
+      #     prerelease: false
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deployment Summary
-        shell: pwsh
-        run: |
-          @"
-          ## Deployment Successful! 🚀
+      # - name: Deployment Summary
+      #   shell: pwsh
+      #   run: |
+      #     @"
+      #     ## Deployment Successful! 🚀
 
-          **Release Tag:** ${{ env.RELEASE_TAG }}
+      #     **Release Tag:** ${{ env.RELEASE_TAG }}
 
-          **Commit:** ${{ github.sha }}
-          **Branch:** ${{ github.ref_name }}
-          **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
-          "@ >> $env:GITHUB_STEP_SUMMARY
+      #     **Commit:** ${{ github.sha }}
+      #     **Branch:** ${{ github.ref_name }}
+      #     **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
+      #     "@ >> $env:GITHUB_STEP_SUMMARY
