@@ -17,9 +17,11 @@ import {
 import {
     AttendanceStatusType,
     LeaveApprovalStatus,
+    hrmsConstants,
     hrmsNotificationTypes
 } from "../../interfaces/hrmsTool/enum/hrmsEnum";
 import { createUUIDV4 } from "../uuidV4Generator";
+import { checkHrmsPermission } from "./dbCalls/hrmsAccessServices";
 import { isValidTime, formatTimeInTimezone } from "./helperFunctions";
 
 // Database models
@@ -1657,6 +1659,46 @@ export const getActiveEmployeesOfficialEmails = async () => {
     } catch (error) {
         console.error("Error getting active employees official emails:", error);
         return [];
+    }
+};
+
+const EMPLOYEE_DETAILS_MAIL_PERMISSIONS = [
+    'EmployeeDetailsRequest_write',
+    'EmployeeDetailsRequest_read',
+    'ActiveEmployee_update',
+    'ActiveEmployee_read',
+];
+
+/**
+ * Get employees who should receive employee personal details update notification emails.
+ * Anyone with any of: EmployeeDetailsRequest_write, EmployeeDetailsRequest_read, ActiveEmployee_update, ActiveEmployee_read.
+ * @returns Array of { empUuid, empOfficialEmail }
+ */
+export const getEmployeeDetailsMailRecipients = async () => {
+    try {
+        const activeContacts = await getActiveEmployeesOfficialEmails();
+        if (!activeContacts || activeContacts.length === 0) return [];
+
+        const recipients: Array<{ empUuid: string; empOfficialEmail: string }> = [];
+        for (const c of activeContacts) {
+            try {
+                const hasPerm = await checkHrmsPermission(
+                    c.empUuid,
+                    EMPLOYEE_DETAILS_MAIL_PERMISSIONS,
+                    hrmsConstants.HR_REPOSITORY,
+                    undefined
+                );
+                if (hasPerm && c.empOfficialEmail) {
+                    recipients.push({ empUuid: c.empUuid, empOfficialEmail: c.empOfficialEmail });
+                }
+            } catch (permErr) {
+                console.error('Error checking Employee Details permission for emp', c.empUuid, permErr);
+            }
+        }
+        return recipients;
+    } catch (error) {
+        console.error('Error fetching employee details mail recipients:', error);
+        throw error;
     }
 };
 

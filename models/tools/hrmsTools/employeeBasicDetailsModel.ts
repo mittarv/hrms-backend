@@ -106,8 +106,9 @@ export const initEmployeeBasicDetails = (sequelize: Sequelize, dataTypes: typeof
         defaultValue: false,
       },
       isActive: {
-        type: dataTypes.INTEGER,
+        type: dataTypes.BOOLEAN,
         allowNull: true,
+        defaultValue: true,
       },
     },
     {
