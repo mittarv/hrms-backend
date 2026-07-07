@@ -1481,13 +1481,13 @@ exports.approveOrRejectRequest = async (req, res) => {
         payrollEmployeesToSync.add(requestedFor);
       }
 
-      // if(requestedBy === actionedBy) {
-      //   await transaction.rollback();
-      //   return res.status(400).json({
-      //     success: false,
-      //     message: "Employee can't approve/reject their own requests",
-      //   });
-      // } 
+      if(requestedBy === actionedBy) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Employee can't approve/reject their own requests",
+        });
+      } 
 
       for (const [field, rawValue] of Object.entries(newData)) {
         const value = (field === 'empManager' || field === 'updatedBy') && rawValue === "" ? null : rawValue;
