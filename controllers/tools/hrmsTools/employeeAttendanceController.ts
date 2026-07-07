@@ -63,6 +63,9 @@ import {
     CheckOutstandingCheckoutService,
     UpdateCheckoutService,
     findHRRepositoryToolAdminUsers,
+    fetchEmployeeExtraWorkHistory,
+    fetchAllHistoryLeaveRequests,
+    fetchExtraWorkLogRequestsServiceHistory,
     findEmployeeDetailsByUuid,
     fetchUsedLeavesTillDate,
     fetchEmployeeCurrentJobDetails,
@@ -3934,5 +3937,158 @@ export const updateCompOffLeave = async (req: Request, res: Response) => {
         console.error("Error in updateCompOffLeave", err);
         sendError(res, "An unexpected error occurred");
         return;
+    }
+};
+/**
+ * API to fetch the full history of extra work days for a specific employee.
+ * This provides the data for the "Comp Off Tracker" table.
+ */
+export const getEmployeeExtraWorkHistory = async (req: Request, res: Response) => {
+    try {
+        const employeeId: string = req.params.empUuid as string;
+        const extraWorkHistory = await fetchEmployeeExtraWorkHistory(employeeId)
+
+        res.status(200).json({
+            success: true,
+            message: "Extra work history fetched successfully",
+            extraWorkHistory
+        });
+
+    } catch (error) {
+        console.error("Error in getExtraWorkHistory:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : error,
+        });
+    }
+};
+
+export const getAllHistoryLeaveRequests = async (req: Request, res: Response) => {
+    try {
+        const { user } = req as AuthenticatedRequest;
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+
+        // Check permission: admin access (>= 900) OR LeaveRequest_read permission
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "LeaveRequest_read",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            res.status(403).json({
+                success: false,
+                message: "You don't have permission to view leave requests"
+            });
+            return;
+        }
+        const { start, end, page, pageSize } = req.query as {
+            start: string,
+            end: string,
+            page: string,      // Query params come in as strings
+            pageSize: string
+        };
+        
+        // 2. PARSE the strings into numbers
+        const pageNum = page ? parseInt(page) : 1;
+        const limitNum = pageSize ? parseInt(pageSize) : 10;
+        
+        const startDate: Date | undefined = isValidDate(start) ? new Date(start): undefined;
+        const endDate: Date | undefined = isValidDate(end) ? new Date(end) : undefined;
+        
+        // 3. PASS page and pageSize to the service function
+        const allHistoryRequests = await fetchAllHistoryLeaveRequests(
+            startDate, 
+            endDate, 
+            pageNum, 
+            limitNum
+        );
+        
+        // Convert Buffer attachmentPath to string for JSON response
+        const serializedRequests = allHistoryRequests.data.map((request: Record<string, unknown> & { toJSON?: () => Record<string, unknown> }) => {
+            const plain = request.toJSON ? request.toJSON() : { ...request };
+            if (plain.attachmentPath && Buffer.isBuffer(plain.attachmentPath)) {
+                plain.attachmentPath = plain.attachmentPath.toString('utf-8');
+            }
+            return plain;
+        });
+        
+        res.status(200).json({
+            success: true,
+            message: "All pending requests fetched successfully",
+            allHistoryRequests: serializedRequests,
+            pagination: {
+                totalRecords: allHistoryRequests.totalRecords,
+                totalPages: allHistoryRequests.totalPages,
+                currentPage: allHistoryRequests.currentPage,
+                pageSize: allHistoryRequests.pageSize
+            }
+        });
+        return;
+        
+    } catch(error) {
+        console.error("Database error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : error,
+        });
+        return;
+    }
+}
+
+export const getExtraWorkLogRequestsHistory = async (req: Request, res: Response) => {
+    try {
+        const { user } = req as AuthenticatedRequest;
+        const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+        const toolName = hrmsConstants.HR_REPOSITORY;
+
+        // 1. Permission Check
+        const hasPermission = await checkHrmsPermission(
+            employeeUuid,
+            "ExtraWorkDayRequests_read",
+            toolName,
+            toolsAccess as Record<string, number> | undefined
+        );
+
+        if (!hasPermission) {
+            return res.status(403).json({
+                success: false,
+                message: "You don't have permission to view extra work day requests"
+            });
+        }
+
+        // 2. Parse Query Params
+        // Convert strings to numbers and set defaults
+        const { startDate, endDate, PageNum, PageSize } = req.query;
+        const page = Math.max(1, parseInt(PageNum as string) || 1);
+        const size = Math.max(1, parseInt(PageSize as string) || 10);
+
+        // 3. Call Service
+        const result = await fetchExtraWorkLogRequestsServiceHistory(
+            page, 
+            size, 
+            startDate as string, 
+            endDate as string
+        );
+
+        // 4. Success Response
+        return res.status(200).json({
+            success: true,
+            message: "Extra work log requests fetched successfully",
+            allProcessedRequests: result.rows,           // The actual records
+            pagination: result.pagination // The metadata for the frontend
+        });
+
+    } catch (error) {
+        console.error("Error in getExtraWorkLogRequestsHistory Controller:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error. Please try again later.",
+            error: error instanceof Error ? error.message : "Unknown error",
+        });
     }
 };

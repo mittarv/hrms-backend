@@ -10,7 +10,8 @@ import {
     fetchEmployeePayslipsForYear,
     exportPayrollAsCSV,
     downloadPayslip,
-    getNetPayAmount
+    getNetPayAmount,
+    deletePayrollRecords
 } from '../../../controllers/tools/hrmsTools/PayrollController';
 
 const router = express.Router();
@@ -25,5 +26,6 @@ router.route("/fetchEmployeePayslipsForYear").get(isTmsUserAuthenticated, fetchE
 router.route("/exportPayrollAsCSV").get(isTmsUserAuthenticated, exportPayrollAsCSV);
 router.route("/downloadPayslip").get(isTmsUserAuthenticated, downloadPayslip);
 router.route("/getNetPayAmount").get(isTmsUserAuthenticated, getNetPayAmount);
+router.route("/deletePayrollRecords").patch(isTmsUserAuthenticated, deletePayrollRecords);
 
 export default router;
