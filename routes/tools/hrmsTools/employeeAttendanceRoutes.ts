@@ -24,7 +24,10 @@ import {
     getCompOffleaveBalance,
     registerCompOffLeave,
     updateCompOffLeave,
-    getCompOffLeaveEligibility
+    getCompOffLeaveEligibility,
+    getEmployeeExtraWorkHistory,
+    getAllHistoryLeaveRequests,
+    getExtraWorkLogRequestsHistory
 } from "../../../controllers/tools/hrmsTools/employeeAttendanceController";
 import { isTmsUserAuthenticated } from "../../../middlewares/isAuthenticated";
 import { populateEmployeeTypeInLeaveBalance, populateFiscalYearForAllEmployees } from '../../../controllers/tools/hrmsTools/productionAPIs';
@@ -58,5 +61,9 @@ router.route('/getCompOffleaveBalance').get(isTmsUserAuthenticated, getCompOffle
 router.route('/:empUuid/registerCompOffLeave').post(isTmsUserAuthenticated, registerCompOffLeave);
 router.route('/:attendanceId/updateCompOffLeave').patch(isTmsUserAuthenticated, updateCompOffLeave);
 router.route('/:empUuid/getCompOffLeaveEligibility').get(isTmsUserAuthenticated, getCompOffLeaveEligibility);
+router.route('/:empUuid/getEmployeeExtraWorkHistory').get(isTmsUserAuthenticated, getEmployeeExtraWorkHistory);
+
+router.route("/getAllHistoryLeaveRequests").get(isTmsUserAuthenticated, getAllHistoryLeaveRequests);
+router.route("/getExtraWorkLogRequestsHistory").get(isTmsUserAuthenticated, getExtraWorkLogRequestsHistory);
 
 export default router;

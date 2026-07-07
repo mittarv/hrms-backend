@@ -1717,3 +1717,144 @@ export const checkIsEmployeeManager = async (empUuid: string): Promise<boolean> 
         return false;
     }
 };
+export const fetchEmployeeExtraWorkHistory = async (empUuid: string) => {
+    try {
+        const empExtraWorkHistory = await employeeExtraWorkLog.findAll({
+            where: { empUuid, isDeleted: false },
+            attributes: { exclude: ['proof'] },
+            order: [['updatedAt', 'DESC']]
+        });
+        return empExtraWorkHistory;
+    } catch (error) {
+        console.error("Error fetching employee extra work history:", error);
+        throw error;
+    }
+};
+
+export const fetchAllHistoryLeaveRequests = async (
+    startDate?: Date,
+    endDate?: Date,
+    page: number = 1,
+    pageSize: number = 10
+) => {
+    // 1. Interfaces for Type Safety
+    interface ApplicationDateCondition {
+        [Op.between]?: [Date, Date];
+        [Op.gte]?: Date;
+        [Op.lte]?: Date;
+    }
+
+    interface LeaveStatusCondition {
+        [Op.in]: LeaveApprovalStatus[];
+    }
+
+    interface ApprovalUpdate {
+        approvalStatus: LeaveStatusCondition;
+        applicationDate?: ApplicationDateCondition;
+        isDeleted: boolean;
+    }
+
+    // 2. Define the Query Filters
+    const whereCondition: ApprovalUpdate = {
+        approvalStatus: {
+            [Op.in]: [LeaveApprovalStatus.REJECTED, LeaveApprovalStatus.APPROVED],
+        },
+        isDeleted: false
+    };
+
+    // 3. Handle Date Range Logic
+    if (startDate && endDate) {
+        whereCondition.applicationDate = { [Op.between]: [startDate, endDate] };
+    } else if (startDate) {
+        whereCondition.applicationDate = { [Op.gte]: startDate };
+    } else if (endDate) {
+        whereCondition.applicationDate = { [Op.lte]: endDate };
+    }
+
+    // 4. Calculate Offset (How many records to skip)
+    const offset = (page - 1) * pageSize;
+
+    try {
+        // 5. Query the Database
+        const { count, rows } = await employeeLeaveRequest.findAndCountAll({
+            where: whereCondition as any,
+            // We can now safely include attachmentPath because we only fetch 10 at a time
+            attributes: { exclude: [] }, 
+            order: [['applicationDate', 'DESC']], // History usually shows newest first
+            limit: pageSize,
+            offset: offset,
+        });
+
+        // 6. Return Structured Data for Frontend
+        return {
+            totalRecords: count,
+            totalPages: Math.ceil(count / pageSize),
+            currentPage: Number(page),
+            pageSize: Number(pageSize),
+            data: rows
+        };
+    } catch (error) {
+        console.error("Error in fetchAllHistoryLeaveRequests service:", error);
+        throw error;
+    }
+};
+
+export const fetchExtraWorkLogRequestsServiceHistory = async (
+    pageNum: number = 1, 
+    pageSize: number = 10, 
+    startDate?: string, 
+    endDate?: string
+) => {
+    try {
+        const limitNum = pageSize;
+        const offset = (pageNum - 1) * limitNum;
+
+        const whereClause: any = {
+            approvalStatus: {
+                [Op.in]: [LeaveApprovalStatus.APPROVED, LeaveApprovalStatus.REJECTED]
+            },
+            isDeleted: false
+        };
+
+        // Date range logic
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            start.setUTCHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            whereClause.workDate = { [Op.between]: [start, end] };
+        } else if (startDate) {
+            const start = new Date(startDate);
+            start.setUTCHours(0, 0, 0, 0);
+            whereClause.workDate = { [Op.gte]: start };
+        } else if (endDate) {
+            const end = new Date(endDate);
+            end.setUTCHours(23, 59, 59, 999);
+            whereClause.workDate = { [Op.lte]: end };
+        }
+
+        // Execute paginated query
+        const { count, rows } = await employeeExtraWorkLog.findAndCountAll({
+            where: whereClause,
+            order: [['updatedAt', 'DESC']],
+            limit: limitNum,
+            offset: offset,
+            raw: true // CRITICAL: This keeps the data as a Buffer object
+        });
+
+        // Return rows directly. 
+        // Express/JSON.stringify will handle the conversion to { type: "Buffer", data: [...] }
+        return {
+            rows: rows, 
+            pagination: {
+                totalRecords: count,
+                totalPages: Math.ceil(count / limitNum) || 1,
+                currentPage: pageNum,
+                pageSize: limitNum
+            }
+        };
+    } catch (error) {
+        console.error("Error in fetchExtraWorkLogRequestsServiceHistory Service:", error);
+        throw error;
+    }
+};

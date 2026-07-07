@@ -11,6 +11,7 @@ const {
   sendChangesToApprover,
   approveOrRejectRequest,
   getPendingRequests,
+  getProcessedRequests,
 } = require("../../../controllers/tools/hrmsTools/employeeDetailsController");
 const router = express.Router();
 const {
@@ -27,5 +28,6 @@ router.route("/getEmployeeDashboardDetails").get(isTmsUserAuthenticated, getEmpl
 router.route("/sendChangesToApprover").post(isTmsUserAuthenticated,sendChangesToApprover);
 router.route("/approveOrRejectRequest").post(isTmsUserAuthenticated,approveOrRejectRequest);
 router.route("/getPendingRequests").get(isTmsUserAuthenticated,getPendingRequests);
+router.route("/getProcessedRequests").get(isTmsUserAuthenticated,getProcessedRequests);
 
 module.exports = router;

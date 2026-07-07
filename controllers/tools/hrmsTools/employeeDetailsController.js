@@ -62,7 +62,8 @@ const tableToFieldsMap = {
   ],
   EmployeeAddressDetails: [
     "addressType", "addressLine1", "addressLine2", "addressLine3", 
-    "city", "pin", "state", "country", "TerminationDate"
+    "city", "pin", "state", "country", "TerminationDate",
+    "secondaryLocation", "isSecondarySameAsPrimary"
   ],
   EmploymentHistory: [
     "empStartDate", "empEndDate", "updatedBy"
@@ -736,7 +737,8 @@ exports.updateEmployeeDetailsByUuid = async (req, res) => {
     ],
     EmployeeAddressDetails: [
       "addressType", "addressLine1", "addressLine2", "addressLine3", 
-      "city", "pin", "state", "country", "TerminationDate"
+      "city", "pin", "state", "country", "TerminationDate",
+      "secondaryLocation", "isSecondarySameAsPrimary"
     ],
     EmploymentHistory: [
       "empStartDate", "empEndDate", "updatedBy"
@@ -1479,13 +1481,13 @@ exports.approveOrRejectRequest = async (req, res) => {
         payrollEmployeesToSync.add(requestedFor);
       }
 
-      if(requestedBy === actionedBy) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "Employee can't approve/reject their own requests",
-        });
-      }
+      // if(requestedBy === actionedBy) {
+      //   await transaction.rollback();
+      //   return res.status(400).json({
+      //     success: false,
+      //     message: "Employee can't approve/reject their own requests",
+      //   });
+      // } 
 
       for (const [field, rawValue] of Object.entries(newData)) {
         const value = (field === 'empManager' || field === 'updatedBy') && rawValue === "" ? null : rawValue;
@@ -1865,12 +1867,14 @@ exports.getPendingRequests = async (req, res) => {
           where: { empUuid: request.requestedFor },
           attributes: ["empFirstName", "empLastName"],
           raw: true,
+          order: [['createdAt', 'DESC']]
         });
 
         const requestedByName = await EmployeeBasicDetails.findOne({
           where: { empUuid: request.requestedBy },
           attributes: ["empFirstName", "empLastName"],
           raw: true,
+           order: [['createdAt', 'DESC']]
         });
 
         return {
