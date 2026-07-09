@@ -926,21 +926,41 @@ exports.updateEmployeeDetailsByUuid = async (req, res) => {
       // Get the previous data
       const previousDataInstance = await EmployeeBankAccountDetails.findOne({where: {empUuid: employeeUuid}});
 
-      // Create a new history record
-      const previousData = previousDataInstance.toJSON();
-      previousData.bankAccountHistoryId = await createUUIDV4();
+      if (previousDataInstance) {
+        // Create a new history record
+        const previousData = previousDataInstance.toJSON();
+        previousData.bankAccountHistoryId = await createUUIDV4();
+        
+        // Remove effecTiveDate since it does not exist in the history table
+        delete previousData.effecTiveDate;
+        delete previousData.effectiveDate;
 
-      // Create a new bank account history record
-      await EmployeeBankAccountDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, {
-        where : {empUuid: employeeUuid},
-        transaction
-      });
+        // Create a new bank account history record
+        await EmployeeBankAccountDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, {
+          transaction
+        });
 
-      // Update the employee bank account details
-      await EmployeeBankAccountDetails.update(employeeBankAccountDetailUpdates, {
-        where : {empUuid: employeeUuid},
-        transaction
-      });
+        // Update the employee bank account details
+        await EmployeeBankAccountDetails.update(employeeBankAccountDetailUpdates, {
+          where : {empUuid: employeeUuid},
+          transaction
+        });
+      } else {
+        // If no previous record exists, create a new one
+        employeeBankAccountDetailUpdates.accountId = await createUUIDV4();
+        employeeBankAccountDetailUpdates.empUuid = employeeUuid;
+        await EmployeeBankAccountDetails.create(employeeBankAccountDetailUpdates, { transaction });
+        
+        // And optionally create its history
+        const historyData = { ...employeeBankAccountDetailUpdates };
+        delete historyData.effecTiveDate;
+        delete historyData.effectiveDate;
+        historyData.bankAccountHistoryId = await createUUIDV4();
+        
+        await EmployeeBankAccountDetailHistory.create({...historyData, createdAt: new Date(), updatedAt: new Date()}, {
+          transaction
+        });
+      }
     }
 
     // Update the employee address details

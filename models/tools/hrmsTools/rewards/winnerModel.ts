@@ -62,7 +62,7 @@ export const initWinner = (sequelize: Sequelize, dataTypes: typeof DataTypes) =>
       createdAt: "createdAt",
       updatedAt: "updatedAt",
       indexes: [
-        { unique: true, fields: ["cycleId", "awardType"] },
+        { unique: true, fields: ["cycleId", "awardType", "employeeEmpUuid"] },
         { fields: ["employeeEmpUuid"] },
         { fields: ["cycleId"] },
       ],

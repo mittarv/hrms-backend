@@ -110,11 +110,14 @@ export const getDashboard = async (
       return sendError(res, "Employee context required", 401);
     }
     const yearQuery = Number(req.query.year);
+    const monthQuery = Number(req.query.month);
     const selectedYear = Number.isInteger(yearQuery) ? yearQuery : undefined;
+    const selectedMonth = Number.isInteger(monthQuery) ? monthQuery : undefined;
     
     const data = await rewardsService.getDashboardData(
       employeeUuid,
       selectedYear,
+      selectedMonth
     );
     return res.json({
       success: true,
@@ -137,15 +140,35 @@ export const getCurrentCycle = async (
   res: Response,
 ) => {
   try {
-    const cycle = await rewardsService.getCurrentCycle();
+    const { month, year, getAll } = req.query;
+
+    if (getAll === 'true') {
+      const cycles = await rewardsService.getAllCycles();
+      return res.json({
+        success: true,
+        message: "All cycles retrieved successfully.",
+        data: cycles,
+      });
+    }
+
+    let cycle;
+    if (month && year) {
+      cycle = await rewardsService.getCycleByMonthYear(Number(month), Number(year));
+      if (!cycle) {
+        return sendError(res, "Cycle not found for the specified month and year.", 404);
+      }
+    } else {
+      cycle = await rewardsService.getCurrentCycle();
+    }
+
     return res.json({
       success: true,
-      message: "Current cycle retrieved successfully.",
+      message: "Cycle retrieved successfully.",
       data: cycle,
     });
   } catch (e) {
     console.error("Rewards getCurrentCycle error:", e);
-    return sendError(res, "Failed to get current rewards cycle.", 500);
+    return sendError(res, "Failed to get rewards cycle.", 500);
   }
 };
 
@@ -766,7 +789,7 @@ export const announceWinners = async (
         ? req.params.cycleId[0]
         : req.params.cycleId
       )?.trim?.() ?? "";
-    const { employeeChoiceEmpUuid, leadershipChoiceEmpUuid } = req.body;
+    const { employeeChoiceEmpUuids, leadershipChoiceEmpUuids } = req.body;
     if (!cycleId) {
       return sendError(res, "cycleId is required.");
     }
@@ -783,7 +806,8 @@ export const announceWinners = async (
 
     // Check if ending without winners (no nominees case)
     const endWithoutWinners =
-      !employeeChoiceEmpUuid && !leadershipChoiceEmpUuid;
+      (!employeeChoiceEmpUuids || employeeChoiceEmpUuids.length === 0) && 
+      (!leadershipChoiceEmpUuids || leadershipChoiceEmpUuids.length === 0);
 
     if (endWithoutWinners) {
       // End phase without selecting winners
@@ -796,18 +820,18 @@ export const announceWinners = async (
       });
     }
 
-    // Normal flow - require both winners
-    if (!employeeChoiceEmpUuid || !leadershipChoiceEmpUuid) {
+    // Normal flow - require arrays
+    if (!Array.isArray(employeeChoiceEmpUuids) || !Array.isArray(leadershipChoiceEmpUuids)) {
       return sendError(
         res,
-        "Both employeeChoiceEmpUuid and leadershipChoiceEmpUuid are required.",
+        "employeeChoiceEmpUuids and leadershipChoiceEmpUuids are required and must be arrays.",
       );
     }
 
     await rewardsService.announceWinners(
       cycleId,
-      employeeChoiceEmpUuid,
-      leadershipChoiceEmpUuid,
+      employeeChoiceEmpUuids,
+      leadershipChoiceEmpUuids,
       employeeUuid,
     );
 
@@ -831,62 +855,76 @@ export const announceWinners = async (
         const winnerList = winners.map((w) =>
           w.get({ plain: true }),
         ) as WinnerWithEmployee[];
-        const employeeChoiceWinner = winnerList.find(
+        const employeeChoiceWinners = winnerList.filter(
           (w) => w.awardType === "employee_choice",
         );
-        const leadershipChoiceWinner = winnerList.find(
+        const leadershipChoiceWinners = winnerList.filter(
           (w) => w.awardType === "leadership_choice",
         );
 
-        const empChoiceName = employeeChoiceWinner?.employee
-          ? `${employeeChoiceWinner.employee.empFirstName || ""} ${employeeChoiceWinner.employee.empLastName || ""}`.trim()
-          : "";
-        const leadChoiceName = leadershipChoiceWinner?.employee
-          ? `${leadershipChoiceWinner.employee.empFirstName || ""} ${leadershipChoiceWinner.employee.empLastName || ""}`.trim()
-          : "";
+        const formatNames = (winnersList: WinnerWithEmployee[]) => {
+          if (winnersList.length === 0) return "";
+          if (winnersList.length === 1) {
+            const emp = winnersList[0].employee;
+            return emp ? `${emp.empFirstName || ""} ${emp.empLastName || ""}`.trim() : "An employee";
+          }
+          return `${winnersList.length} employees`;
+        };
 
-        const isSameEmployee =
-          employeeChoiceEmpUuid === leadershipChoiceEmpUuid;
+        const empChoiceName = formatNames(employeeChoiceWinners);
+        const leadChoiceName = formatNames(leadershipChoiceWinners);
 
-        const orgMessage = isSameEmployee
-          ? `${empChoiceName || "An employee"} won both Employee's Choice and Leadership Choice rewards for ${monthYear}!`
-          : `${empChoiceName || "An employee"} won Employee's Choice and ${leadChoiceName || "an employee"} won Leadership Choice for ${monthYear}!`;
+        let orgMessage = "";
+        if (empChoiceName && leadChoiceName) {
+           orgMessage = `${empChoiceName} won Employee's Choice and ${leadChoiceName} won Leadership Choice for ${monthYear}!`;
+        } else if (empChoiceName) {
+           orgMessage = `${empChoiceName} won Employee's Choice for ${monthYear}!`;
+        } else if (leadChoiceName) {
+           orgMessage = `${leadChoiceName} won Leadership Choice for ${monthYear}!`;
+        }
 
-        await createHRMSNotification({
-          notification_type: hrmsNotificationTypes.ORGANIZATION_UPDATES,
-          message: orgMessage,
-          sender_employee_id: employeeUuid,
-        });
-
-        if (employeeChoiceWinner?.employeeEmpUuid) {
-          const empMsg = isSameEmployee
-            ? `Congrats on winning both Employee's Choice and Leadership Choice for ${monthYear}! Keep up the Good Work.`
-            : `Congrats on winning the Employee's Choice award for ${monthYear}! Keep up the Good Work.`;
+        if (orgMessage) {
           await createHRMSNotification({
-            notification_type: hrmsNotificationTypes.MY_UPDATES,
-            message: empMsg,
+            notification_type: hrmsNotificationTypes.ORGANIZATION_UPDATES,
+            message: orgMessage,
             sender_employee_id: employeeUuid,
-            recipient_employee_id: employeeChoiceWinner.employeeEmpUuid,
           });
         }
-        if (leadershipChoiceWinner?.employeeEmpUuid && !isSameEmployee) {
-          await createHRMSNotification({
-            notification_type: hrmsNotificationTypes.MY_UPDATES,
-            message: `Congrats on winning the Leadership Choice award for ${monthYear}! Keep up the Good Work.`,
-            sender_employee_id: employeeUuid,
-            recipient_employee_id: leadershipChoiceWinner.employeeEmpUuid,
-          });
+
+        // Individual notifications
+        const allWinnerUuids = [...new Set([...employeeChoiceEmpUuids, ...leadershipChoiceEmpUuids])];
+        
+        for (const uuid of allWinnerUuids) {
+          const wonEmp = employeeChoiceEmpUuids.includes(uuid);
+          const wonLead = leadershipChoiceEmpUuids.includes(uuid);
+          
+          let empMsg = "";
+          if (wonEmp && wonLead) {
+            empMsg = `Congrats on winning both Employee's Choice and Leadership Choice for ${monthYear}! Keep up the Good Work.`;
+          } else if (wonEmp) {
+            empMsg = `Congrats on winning the Employee's Choice award for ${monthYear}! Keep up the Good Work.`;
+          } else if (wonLead) {
+            empMsg = `Congrats on winning the Leadership Choice award for ${monthYear}! Keep up the Good Work.`;
+          }
+
+          if (empMsg) {
+            await createHRMSNotification({
+              notification_type: hrmsNotificationTypes.MY_UPDATES,
+              message: empMsg,
+              sender_employee_id: employeeUuid,
+              recipient_employee_id: uuid,
+            });
+          }
         }
       } catch (err) {
-        console.error("Rewards announceWinners notification error:", err);
+        console.error("Error sending winner notifications", err);
       }
     })();
-    return;
-  } catch (e) {
-    console.error("Rewards announceWinners error:", e);
-    return sendError(
+  } catch (error) {
+    console.error("Error announcing winners:", error);
+    sendError(
       res,
-      e instanceof Error ? e.message : "Failed to announce winners.",
+      error instanceof Error ? error.message : "Error announcing winners.",
       500,
     );
   }

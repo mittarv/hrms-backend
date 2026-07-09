@@ -3,8 +3,32 @@ const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
 const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 
 const EmployeeLeaveConfigurator = dbOutput.employeeLeaveConfigurator;
-
 exports.createLeave = async (req, res) => {
+
+  const {
+        leaveType,
+        accuralFrequency,
+        totalAllotedLeaves,
+        accuralRate,
+        leaveExpiresAfter,
+        
+    } = req.body;
+
+    // Validate required fields (No transaction opened yet, so no leak)
+    if (!leaveType || !accuralFrequency || totalAllotedLeaves === undefined || accuralRate === undefined) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing required fields. Please check your input.",
+        });
+    }
+
+    if (leaveExpiresAfter !== null && leaveExpiresAfter <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Leave Expires After must be greater than 0",
+        });
+    }
+  const t = await sequelize.transaction();
   try {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
@@ -20,6 +44,7 @@ exports.createLeave = async (req, res) => {
     );
 
     if (!hasPermission) {
+      await t.rollback();
       return res.status(403).json({
         success: false,
         message: "You don't have permission to create leave configuration",
@@ -27,63 +52,29 @@ exports.createLeave = async (req, res) => {
     }
 
     let leaveConfigId = await createUUIDV4();
-    const {
-      leaveType,
-      employeeType,
-      accuralFrequency,
-      totalAllotedLeaves,
-      accuralRate,
-      minimumNoticePeriod,
-      maximumNoticePeriod,
-      continuousLeavesLimit,
-      excludePaidWeekend,
-      appliedGender,
-      isHalfDayAllowed,
-      isProofRequired,
-      isReasonRequired,
-      isActive,
-      effectiveDate,
-      terminationDate,
-      isDefault,
-      leaveApplicableTo,
-      allotAllLeaves,
-    } = req.body;
+    
 
-    // Validate required fields
-    if (
-      !leaveType ||
-      !accuralFrequency ||
-      totalAllotedLeaves === undefined ||
-      accuralRate === undefined
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields. Please check your input.",
-      });
+    if (leaveExpiresAfter !== null && leaveExpiresAfter !== undefined) {
+      await EmployeeLeaveConfigurator.update(
+      { leaveExpiresAfter: null },
+      {
+        where: { leaveExpiresAfter: { [Op.ne]: null } },
+        transaction: t
+      }
+      );
     }
-
     const leaveConfig = await EmployeeLeaveConfigurator.create({
+      ...req.body,
       leaveConfigId,
-      leaveType,
-      employeeType,
-      accuralFrequency,
-      totalAllotedLeaves,
-      accuralRate,
-      minimumNoticePeriod,
-      maximumNoticePeriod,
-      continuousLeavesLimit,
-      excludePaidWeekend,
-      appliedGender,
-      isHalfDayAllowed: isHalfDayAllowed || false,
-      isProofRequired,
-      isReasonRequired,
-      effectiveDate: effectiveDate || new Date(),
-      terminationDate: terminationDate || null,
-      isActive: isActive,
-      isDefault: isDefault || false,
-      leaveApplicableTo : JSON.stringify(leaveApplicableTo) || null,
-      allotAllLeaves: allotAllLeaves || false,
-    });
+      isHalfDayAllowed: req.body.isHalfDayAllowed || false,
+      effectiveDate: req.body.effectiveDate || new Date(),
+      isDefault: req.body.isDefault || false,
+      leaveApplicableTo : JSON.stringify(req.body.leaveApplicableTo) || null,
+      allotAllLeaves: req.body.allotAllLeaves || false,
+      leaveExpiresAfter : leaveExpiresAfter ?? null
+    },{ transaction: t});
+
+    await t.commit();
 
     return res.status(201).json({
       success: true,
@@ -91,6 +82,7 @@ exports.createLeave = async (req, res) => {
       data: leaveConfig,
     });
   } catch (error) {
+    await t.rollback();
     if (error.name === "SequelizeValidationError") {
       // For checking whether the error is due to validation
       return res.status(422).json({
@@ -155,6 +147,7 @@ exports.updateLeaveConfiguration = async (req, res) => {
       isDefault,
       leaveApplicableTo,
       allotAllLeaves,
+      leaveExpiresAfter,
     } = req.body;
     // Check if leaveConfigId exists
     if (!leaveConfigId) {
@@ -184,6 +177,7 @@ exports.updateLeaveConfiguration = async (req, res) => {
         isDefault,
         leaveApplicableTo : JSON.stringify(leaveApplicableTo) || null,
         allotAllLeaves,
+        leaveExpiresAfter: leaveExpiresAfter !== undefined ? leaveExpiresAfter : null,
       },
       { where: { leaveConfigId } }
     );
