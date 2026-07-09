@@ -118,39 +118,6 @@ export const getEffectiveCurrentCycle = async (transaction?: Transaction) => {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-  const prevCycle = await rewardCycle.findOne({
-    where: { month: prevMonth, year: prevYear },
-    transaction,
-  });
-
-  const prevAttrs = prevCycle?.get({ plain: true }) as RewardCycleAttributes | undefined;
-
-  // Case 1: Previous month cycle exists but is not completed → return it
-  if (prevAttrs && prevAttrs.status !== RewardCycleStatus.COMPLETED) {
-    return prevCycle!;
-  }
-
-  // Case 2: Previous month is completed with winners announced → check current month
-  if (
-    prevAttrs &&
-    prevAttrs.status === RewardCycleStatus.COMPLETED &&
-    prevAttrs.winnersAnnouncedDate
-  ) {
-    // Get or create current month's cycle
-    const currentCycle = await getOrCreateCycle(currentMonth, currentYear, transaction);
-    const currentAttrs = currentCycle.get({ plain: true }) as RewardCycleAttributes;
-
-    // If current month hasn't started nomination phase yet, keep showing previous month
-    // This allows past citations to persist until next month's nomination starts
-    if (currentAttrs.currentPhase === RewardCyclePhase.PENDING) {
-      return prevCycle!;
-    }
-  }
-
-  // Case 3: Default → return current month's cycle
   return getOrCreateCycle(currentMonth, currentYear, transaction);
 };
 
@@ -167,12 +134,33 @@ export const getCycleById = async (
   return rewardCycle.findByPk(cycleId, { transaction });
 };
 
+/** Get cycle by month and year */
+export const getCycleByMonthYear = async (
+  month: number,
+  year: number,
+  transaction?: Transaction,
+) => {
+  return rewardCycle.findOne({ where: { month, year }, transaction });
+};
+
+/** Get all cycles for history */
+export const getAllCycles = async (transaction?: Transaction) => {
+  return rewardCycle.findAll({ order: [['year', 'DESC'], ['month', 'DESC']], transaction });
+};
+
 /** Get dashboard data: current cycle (effective = incomplete previous month or current month) + past winners */
 export const getDashboardData = async (
   empUuid: string,
   year?: number,
+  month?: number,
 ) => {
-  const currentCycle = await getEffectiveCurrentCycle();
+  let currentCycle;
+  if (typeof month === 'number' && typeof year === 'number') {
+    const specificCycle = await getCycleByMonthYear(month, year);
+    currentCycle = specificCycle || await getEffectiveCurrentCycle();
+  } else {
+    currentCycle = await getEffectiveCurrentCycle();
+  }
   await currentCycle.reload();
 
   const effectiveAttrs = currentCycle.get({ plain: true }) as RewardCycleAttributes;
@@ -925,8 +913,8 @@ export const endPhase = async (
 /** Announce winners (admin). Replaces any existing winners for this cycle. */
 export const announceWinners = async (
   cycleId: string,
-  employeeChoiceEmpUuid: string,
-  leadershipChoiceEmpUuid: string,
+  employeeChoiceEmpUuids: string[],
+  leadershipChoiceEmpUuids: string[],
   announcedByEmpUuid: string,
   transaction?: Transaction,
 ) => {
@@ -963,35 +951,43 @@ export const announceWinners = async (
     };
 
     const now = new Date();
-    const [citation1, citation2] = await Promise.all([
-      getCitation(employeeChoiceEmpUuid),
-      getCitation(leadershipChoiceEmpUuid),
+    
+    // Get citations for all selected employees
+    const getCitationMap = async (uuids: string[]) => {
+      const citations = await Promise.all(uuids.map(uuid => getCitation(uuid)));
+      return new Map(uuids.map((uuid, index) => [uuid, citations[index]]));
+    };
+
+    const [employeeCitations, leadershipCitations] = await Promise.all([
+      getCitationMap(employeeChoiceEmpUuids),
+      getCitationMap(leadershipChoiceEmpUuids),
     ]);
 
+    const winnerRecords = [
+      ...employeeChoiceEmpUuids.map(uuid => ({
+        cycleId,
+        employeeEmpUuid: uuid,
+        awardType: AwardType.EMPLOYEE_CHOICE,
+        voteCount: countMapEmployee.get(uuid) ?? 0,
+        finalCitation: employeeCitations.get(uuid) ?? "",
+        announcedAt: now,
+        announcedByEmpUuid,
+      })),
+      ...leadershipChoiceEmpUuids.map(uuid => ({
+        cycleId,
+        employeeEmpUuid: uuid,
+        awardType: AwardType.LEADERSHIP_CHOICE,
+        voteCount: countMapLeadership.get(uuid) ?? 0,
+        finalCitation: leadershipCitations.get(uuid) ?? "",
+        announcedAt: now,
+        announcedByEmpUuid,
+      })),
+    ];
+
     await winner.destroy({ where: { cycleId }, transaction: t });
-    await winner.bulkCreate(
-      [
-        {
-          cycleId,
-          employeeEmpUuid: employeeChoiceEmpUuid,
-          awardType: AwardType.EMPLOYEE_CHOICE,
-          voteCount: countMapEmployee.get(employeeChoiceEmpUuid) ?? 0,
-          finalCitation: citation1,
-          announcedAt: now,
-          announcedByEmpUuid,
-        },
-        {
-          cycleId,
-          employeeEmpUuid: leadershipChoiceEmpUuid,
-          awardType: AwardType.LEADERSHIP_CHOICE,
-          voteCount: countMapLeadership.get(leadershipChoiceEmpUuid) ?? 0,
-          finalCitation: citation2,
-          announcedAt: now,
-          announcedByEmpUuid,
-        },
-      ],
-      { transaction: t },
-    );
+    if (winnerRecords.length > 0) {
+      await winner.bulkCreate(winnerRecords, { transaction: t });
+    }
 
     await cycle.update(
       {
