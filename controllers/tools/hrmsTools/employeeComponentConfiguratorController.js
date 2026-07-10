@@ -37,20 +37,25 @@ exports.updateComponentType = async (req, res) => {
             return res.status(400).json({ success: false, message: "componentType and componentValue are required" });
         }
 
-        const component = await EmployeeComponentConfigurator.findOne({
+        let component = await EmployeeComponentConfigurator.findOne({
             where: { componentType, isDeleted: false }
         });
-
-        if (!component) {
-            return res.status(404).json({ success: false, message: "Component type not found" });
-        }
 
         // componentValue should be passed as an object from frontend, so we stringify it here
         const stringifiedValue = typeof componentValue === 'string' ? componentValue : JSON.stringify(componentValue);
 
-        await component.update({
-            componentValue: stringifiedValue
-        });
+        if (!component) {
+            // Self-heal: Create the component if it's missing
+            component = await EmployeeComponentConfigurator.create({
+                componentType,
+                componentValue: stringifiedValue,
+                isDeleted: false
+            });
+        } else {
+            await component.update({
+                componentValue: stringifiedValue
+            });
+        }
 
         res.status(200).json({
             success: true,
