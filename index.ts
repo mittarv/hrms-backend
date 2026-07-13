@@ -35,8 +35,15 @@ const app = createApp();
 startCronJobs();
 
 import { syncDatabases } from "./models";
+import { syncDefaultConfigs } from "./utilities/hrmsUtilities/syncDefaultConfigs";
+import { syncUamPermissions } from "./utilities/hrmsUtilities/syncUamPermissions";
+
 // Sync Database
-syncDatabases();
+syncDatabases().then(() => {
+  // Auto-seed default HRMS configurations after DB is ready
+  syncDefaultConfigs();
+  syncUamPermissions();
+});
 
 //server listening
 startServer(app);
