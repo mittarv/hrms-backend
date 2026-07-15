@@ -11,7 +11,8 @@ import {
     exportPayrollAsCSV,
     downloadPayslip,
     getNetPayAmount,
-    deletePayrollRecords
+    deletePayrollRecords,
+    updatePayslipStatus
 } from '../../../controllers/tools/hrmsTools/PayrollController';
 
 const router = express.Router();
@@ -27,5 +28,6 @@ router.route("/exportPayrollAsCSV").get(isTmsUserAuthenticated, exportPayrollAsC
 router.route("/downloadPayslip").get(isTmsUserAuthenticated, downloadPayslip);
 router.route("/getNetPayAmount").get(isTmsUserAuthenticated, getNetPayAmount);
 router.route("/deletePayrollRecords").patch(isTmsUserAuthenticated, deletePayrollRecords);
+router.route("/updatePayslipStatus").post(isTmsUserAuthenticated, updatePayslipStatus);
 
 export default router;

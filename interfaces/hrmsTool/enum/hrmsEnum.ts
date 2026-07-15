@@ -67,6 +67,7 @@ export enum payrollStatus {
   PENDING = "pending",
   PAYROLL_FINALIZED = "payroll_finalized",
   PAYROLL_GENERATED = "payroll_generated",
+  SKIPPED = "skipped",
 }
 export enum offboardingStatus {
   NOT_INITIATED = "not_initiated",

@@ -973,7 +973,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         const nonFinalizedCount = await dbOutput.employeePayslipRecords.count({
         where: {
             ...monthYearFilter,
-            status: { [Op.ne]: payrollStatus.PAYROLL_FINALIZED }
+            status: { [Op.notIn]: [payrollStatus.PAYROLL_FINALIZED, payrollStatus.SKIPPED, payrollStatus.PAYROLL_GENERATED] }
             }
         });
 
@@ -1437,7 +1437,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                 })
             ]) as [employeePayslipAttributes[], any];
 
-            if(finalizedPayrollRecords.some(record => record.status != payrollStatus.PAYROLL_FINALIZED)) {
+            if(finalizedPayrollRecords.some(record => record.status != payrollStatus.PAYROLL_FINALIZED && record.status != payrollStatus.SKIPPED && record.status != payrollStatus.PAYROLL_GENERATED)) {
                 throw new Error("INVALID_PAYROLL_STATUS");
             }
             if(!unpaidLeaveConfig) {
@@ -1459,7 +1459,9 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             // Create a map for quick lookup of payroll records by employeeId
             const payrollRecordMap = new Map();
             finalizedPayrollRecords.forEach(record => {
-                payrollRecordMap.set(record.employeeId, record);
+                if (record.status === payrollStatus.PAYROLL_FINALIZED) {
+                    payrollRecordMap.set(record.employeeId, record);
+                }
             });
 
             // Get unique employeeIds
@@ -3569,4 +3571,138 @@ export const reconcilePayrollForEmployees = async (
             error
         );
     }
-};
+}
+
+export const updatePayslipStatus = async (req: Request, res: Response): Promise<void> => {
+    const { user } = req as AuthenticatedRequest;
+    
+    // Check user permissions
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+    
+    // Check permission: admin access (>= 900) OR Payroll_Edit permission
+    const hasPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Payroll_Edit",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasPermission) {
+        res.status(403).json({
+            status: "error",
+            message: "You don't have permission to edit payroll"
+        });
+        return;
+    }
+    const { payslipIds, status } = req.body as { payslipIds: string[], status: string };
+
+    if (!payslipIds?.length) {
+        res.status(400).json({
+            success: false,
+            message: "payslipIds are required",
+        });
+        return;
+    }
+
+    if (!status || (status !== payrollStatus.SKIPPED && status !== payrollStatus.PAYROLL_GENERATED && status !== payrollStatus.PAYROLL_FINALIZED && status !== payrollStatus.PENDING)) {
+        res.status(400).json({
+            success: false,
+            message: "Valid status (PENDING, SKIPPED, PAYROLL_GENERATED, or PAYROLL_FINALIZED) is required",
+        });
+        return;
+    }
+
+    try {
+        const result = await outputSequelize.transaction(async (transaction) => {
+            // Fetch all payslip records for the given IDs
+            const payslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
+                where: {
+                    payslipId: payslipIds,
+                    isDeleted: false,
+                },
+                attributes: ['payslipId', 'status'],
+                raw: true,
+                transaction
+            });
+
+            // Validate
+            const foundIds = payslips.map(p => p.payslipId);
+            const missingIds = payslipIds.filter(id => !foundIds.includes(id));
+            if (missingIds.length > 0) {
+                throw new Error('NOT_FOUND');
+            }
+
+            // Filter payslips based on target status
+            let validPayslipIds: string[] = [];
+            
+            if (status === payrollStatus.SKIPPED) {
+                // To skip, they must be finalized
+                validPayslipIds = payslips
+                    .filter(p => p.status === payrollStatus.PAYROLL_FINALIZED)
+                    .map(p => p.payslipId);
+                
+                if (validPayslipIds.length === 0) {
+                    throw new Error('NO_VALID_PAYSLIPS_FOR_SKIP');
+                }
+            } else if (status === payrollStatus.PAYROLL_GENERATED || status === payrollStatus.PAYROLL_FINALIZED || status === payrollStatus.PENDING) {
+                // To restore to generated or finalized, they must be skipped
+                validPayslipIds = payslips
+                    .filter(p => p.status === payrollStatus.SKIPPED)
+                    .map(p => p.payslipId);
+                
+                if (validPayslipIds.length === 0) {
+                    throw new Error('NO_VALID_PAYSLIPS_FOR_RESTORE');
+                }
+            }
+
+            // Bulk update statuses
+            await dbOutput.employeePayslipRecords.update(
+                { status: status },
+                {
+                    where: { payslipId: validPayslipIds },
+                    transaction,
+                }
+            );
+
+            return validPayslipIds.length;
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Payroll marked as ${status} for ${result} payslips`
+        });
+    } catch (error) {
+        console.error("Error marking payroll as skipped:", error);
+
+        if (error instanceof Error) {
+            if (error.message.startsWith("NOT_FOUND")) {
+                res.status(404).json({
+                    success: false,
+                    message: "One or more payslip records not found. None were marked as skipped.",
+                });
+                return;
+            }
+            if (error.message.startsWith("NO_VALID_PAYSLIPS_FOR_SKIP")) {
+                res.status(400).json({
+                    success: false,
+                    message: "No valid payslips found. Only finalized payrolls can be skipped.",
+                });
+                return;
+            }
+            if (error.message.startsWith("NO_VALID_PAYSLIPS_FOR_RESTORE")) {
+                res.status(400).json({
+                    success: false,
+                    message: "No valid payslips found. Only skipped payrolls can be restored.",
+                });
+                return;
+            }
+        }
+
+        res.status(500).json({
+            success: false,
+            message: "Internal server error while marking payroll as skipped",
+            error: error instanceof Error ? error.message : "Unknown error",
+        });
+    }
+};;
