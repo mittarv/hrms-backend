@@ -1,0 +1,231 @@
+name: Build, Deploy to Docker and Create Release Self hosted
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_NAME: hrms-backend
+  DOCKER_CONTAINER_NAME: hrms-backend
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy using Docker
+    environment: hrms-backend
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Generate release tag
+        id: tag
+        shell: pwsh
+        run: |
+          $RELEASE_DATE = Get-Date -Format "yyyy-MM-dd"
+          $SHORT_SHA = git rev-parse --short HEAD
+          $RELEASE_TAG = "release-$RELEASE_DATE-$SHORT_SHA"
+
+          Write-Host "Release tag: $RELEASE_TAG"
+
+          "release_tag=$RELEASE_TAG" >> $env:GITHUB_OUTPUT
+          "RELEASE_TAG=$RELEASE_TAG" >> $env:GITHUB_ENV
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a $RELEASE_TAG -m "Release $RELEASE_TAG"
+          git push origin $RELEASE_TAG
+
+      # - name: Create .env file
+      #   shell: pwsh
+      #   env:
+      #     PORT: ${{ vars.PORT }}
+      #     NODE_ENV: ${{ vars.NODE_ENV }}
+      #     IP: ${{ vars.IP }}
+      #     SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      #     REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+      #     SMTP_HOST: ${{ vars.SMTP_HOST }}
+      #     SMTP_PORT: ${{ vars.SMTP_PORT }}
+      #     SMTP_USER: ${{ vars.SMTP_USER }}
+      #     SMTP_PASS: ${{ secrets.SMTP_PASS }}
+      #     HRMS_SMTP_FROM: ${{ vars.HRMS_SMTP_FROM }}
+      #     HRMS_DASHBOARD_URL: ${{ vars.HRMS_DASHBOARD_URL }}
+      #     EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+      #     EVENT_HUB_NAME: ${{ vars.EVENT_HUB_NAME }}
+      #     AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+      #     AZURE_SERVICE_BUS_QUEUE_NAME: ${{ vars.AZURE_SERVICE_BUS_QUEUE_NAME }}
+      #     BATCH_SIZE: ${{ vars.BATCH_SIZE }}
+      #     FLUSH_INTERVAL: ${{ vars.FLUSH_INTERVAL }}
+      #     SLOW_THRESHOLD: ${{ vars.SLOW_THRESHOLD }}
+      #     DATABASE_OUTPUT_NAME: ${{ vars.DATABASE_OUTPUT_NAME }}
+      #     DATABASE_OUTPUT_USER: ${{ vars.DATABASE_OUTPUT_USER }}
+      #     DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+      #     DATABASE_OUTPUT_PORT: ${{ vars.DATABASE_OUTPUT_PORT }}
+      #     DATABASE_OUTPUT_HOST: ${{ vars.DATABASE_OUTPUT_HOST }}
+      #     DATABASE_OUTPUT_DIALECT: ${{ vars.DATABASE_OUTPUT_DIALECT }}
+      #     CRON_JOB_MACHINE_HOSTNAME: ${{ vars.CRON_JOB_MACHINE_HOSTNAME }}
+      #     HOST_PORT: ${{ vars.HOST_PORT }}
+      #   run: |
+      #     @"
+      #     PORT=$env:PORT
+      #     NODE_ENV=$env:NODE_ENV
+      #     IP=$env:IP
+      #     SECRET_KEY=$env:SECRET_KEY
+      #     REFRESH_TOKEN_SECRET=$env:REFRESH_TOKEN_SECRET
+      #     SMTP_HOST=$env:SMTP_HOST
+      #     SMTP_PORT=$env:SMTP_PORT
+      #     SMTP_USER=$env:SMTP_USER
+      #     SMTP_PASS=$env:SMTP_PASS
+      #     HRMS_SMTP_FROM=$env:HRMS_SMTP_FROM
+      #     HRMS_DASHBOARD_URL=$env:HRMS_DASHBOARD_URL
+      #     EVENT_HUB_CONNECTION_STRING=$env:EVENT_HUB_CONNECTION_STRING
+      #     EVENT_HUB_NAME=$env:EVENT_HUB_NAME
+      #     AZURE_SERVICE_BUS_CONNECTION_STRING=$env:AZURE_SERVICE_BUS_CONNECTION_STRING
+      #     AZURE_SERVICE_BUS_QUEUE_NAME=$env:AZURE_SERVICE_BUS_QUEUE_NAME
+      #     BATCH_SIZE=$env:BATCH_SIZE
+      #     FLUSH_INTERVAL=$env:FLUSH_INTERVAL
+      #     SLOW_THRESHOLD=$env:SLOW_THRESHOLD
+      #     DATABASE_OUTPUT_NAME=$env:DATABASE_OUTPUT_NAME
+      #     DATABASE_OUTPUT_USER=$env:DATABASE_OUTPUT_USER
+      #     DATABASE_OUTPUT_PASSWORD=$env:DATABASE_OUTPUT_PASSWORD
+      #     DATABASE_OUTPUT_PORT=$env:DATABASE_OUTPUT_PORT
+      #     DATABASE_OUTPUT_HOST=$env:DATABASE_OUTPUT_HOST
+      #     DATABASE_OUTPUT_DIALECT=$env:DATABASE_OUTPUT_DIALECT
+      #     CRON_JOB_MACHINE_HOSTNAME=$env:CRON_JOB_MACHINE_HOSTNAME
+      #     HOST_PORT=$env:HOST_PORT
+      #     "@ | Set-Content .env
+      - name: Create .env file
+        shell: pwsh
+        env:
+          PORT: ${{ vars.PORT }}
+          NODE_ENV: ${{ vars.NODE_ENV }}
+          IP: ${{ vars.IP }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          # -------- MISSING SSO SECRETS --------
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # -------- MISSING TMS CONFIG (Optional) --------
+          TMS_SUPER_ADMIN_EMAILS: ${{ vars.TMS_SUPER_ADMIN_EMAILS }}
+          TMS_ALLOWED_DOMAINS: ${{ vars.TMS_ALLOWED_DOMAINS }}
+          # -------------------------------------
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_USER: ${{ vars.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          HRMS_SMTP_FROM: ${{ vars.HRMS_SMTP_FROM }}
+          HRMS_DASHBOARD_URL: ${{ vars.HRMS_DASHBOARD_URL }}
+          EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+          EVENT_HUB_NAME: ${{ vars.EVENT_HUB_NAME }}
+          AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+          AZURE_SERVICE_BUS_QUEUE_NAME: ${{ vars.AZURE_SERVICE_BUS_QUEUE_NAME }}
+          BATCH_SIZE: ${{ vars.BATCH_SIZE }}
+          FLUSH_INTERVAL: ${{ vars.FLUSH_INTERVAL }}
+          SLOW_THRESHOLD: ${{ vars.SLOW_THRESHOLD }}
+          DATABASE_OUTPUT_NAME: ${{ vars.DATABASE_OUTPUT_NAME }}
+          DATABASE_OUTPUT_USER: ${{ vars.DATABASE_OUTPUT_USER }}
+          DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+          DATABASE_OUTPUT_PORT: ${{ vars.DATABASE_OUTPUT_PORT }}
+          DATABASE_OUTPUT_HOST: ${{ vars.DATABASE_OUTPUT_HOST }}
+          DATABASE_OUTPUT_DIALECT: ${{ vars.DATABASE_OUTPUT_DIALECT }}
+          CRON_JOB_MACHINE_HOSTNAME: ${{ vars.CRON_JOB_MACHINE_HOSTNAME }}
+          HOST_PORT: ${{ vars.HOST_PORT }}
+        run: |
+          @"
+          PORT=$env:PORT
+          NODE_ENV=$env:NODE_ENV
+          IP=$env:IP
+          SECRET_KEY=$env:SECRET_KEY
+          REFRESH_TOKEN_SECRET=$env:REFRESH_TOKEN_SECRET
+          GOOGLE_CLIENT_ID=$env:GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET=$env:GOOGLE_CLIENT_SECRET
+          TMS_SUPER_ADMIN_EMAILS=$env:TMS_SUPER_ADMIN_EMAILS
+          TMS_ALLOWED_DOMAINS=$env:TMS_ALLOWED_DOMAINS
+          SMTP_HOST=$env:SMTP_HOST
+          SMTP_PORT=$env:SMTP_PORT
+          SMTP_USER=$env:SMTP_USER
+          SMTP_PASS=$env:SMTP_PASS
+          HRMS_SMTP_FROM=$env:HRMS_SMTP_FROM
+          HRMS_DASHBOARD_URL=$env:HRMS_DASHBOARD_URL
+          EVENT_HUB_CONNECTION_STRING=$env:EVENT_HUB_CONNECTION_STRING
+          EVENT_HUB_NAME=$env:EVENT_HUB_NAME
+          AZURE_SERVICE_BUS_CONNECTION_STRING=$env:AZURE_SERVICE_BUS_CONNECTION_STRING
+          AZURE_SERVICE_BUS_QUEUE_NAME=$env:AZURE_SERVICE_BUS_QUEUE_NAME
+          BATCH_SIZE=$env:BATCH_SIZE
+          FLUSH_INTERVAL=$env:FLUSH_INTERVAL
+          SLOW_THRESHOLD=$env:SLOW_THRESHOLD
+          DATABASE_OUTPUT_NAME=$env:DATABASE_OUTPUT_NAME
+          DATABASE_OUTPUT_USER=$env:DATABASE_OUTPUT_USER
+          DATABASE_OUTPUT_PASSWORD=$env:DATABASE_OUTPUT_PASSWORD
+          DATABASE_OUTPUT_PORT=$env:DATABASE_OUTPUT_PORT
+          DATABASE_OUTPUT_HOST=$env:DATABASE_OUTPUT_HOST
+          DATABASE_OUTPUT_DIALECT=$env:DATABASE_OUTPUT_DIALECT
+          CRON_JOB_MACHINE_HOSTNAME=$env:CRON_JOB_MACHINE_HOSTNAME
+          HOST_PORT=$env:HOST_PORT
+          "@ | Set-Content .env
+
+      - name: Stop and remove existing container
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $env:COMPOSE_PROJECT_NAME = "hrms-backend"
+
+          docker compose down --remove-orphans
+
+          docker stop hrms-backend
+          docker rm hrms-backend
+
+      - name: Build and deploy with Docker Compose
+        shell: pwsh
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DATABASE_OUTPUT_PASSWORD: ${{ secrets.DATABASE_OUTPUT_PASSWORD }}
+          EVENT_HUB_CONNECTION_STRING: ${{ secrets.EVENT_HUB_CONNECTION_STRING }}
+          AZURE_SERVICE_BUS_CONNECTION_STRING: ${{ secrets.AZURE_SERVICE_BUS_CONNECTION_STRING }}
+        run: |
+          $env:COMPOSE_PROJECT_NAME = "hrms-backend"
+          docker compose up -d --build --force-recreate hrms-backend
+
+      - name: Verify container is running
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds 15
+          docker ps -f name=hrms-backend
+
+      - name: Clean up .env file
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Remove-Item .env -Force
+
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ env.RELEASE_TAG }}
+      #     name: Release ${{ env.RELEASE_TAG }}
+      #     generate_release_notes: true
+      #     draft: false
+      #     prerelease: false
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Deployment Summary
+      #   shell: pwsh
+      #   run: |
+      #     @"
+      #     ## Deployment Successful! 🚀
+
+      #     **Release Tag:** ${{ env.RELEASE_TAG }}
+
+      #     **Commit:** ${{ github.sha }}
+      #     **Branch:** ${{ github.ref_name }}
+      #     **Release:** https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
+      #     "@ >> $env:GITHUB_STEP_SUMMARY
