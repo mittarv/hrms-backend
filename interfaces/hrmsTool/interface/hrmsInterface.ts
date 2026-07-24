@@ -230,6 +230,7 @@ export interface LeaveConfigWithAccrual {
 
 export interface SalaryCategoriesAttributes {
   salaryCategoryId: string;
+  empCompanyId?: string;
   employeeType: string;
   employeeLocation: string;
   employeeLevel?: string;
@@ -242,6 +243,7 @@ export interface SalaryCategoriesAttributes {
 
 export interface salaryComponentsAttributes {
   componentId: string;
+  empCompanyId?: string;
   salaryCategoryId: string;
   componentName: string;
   componentType: string;
@@ -473,6 +475,7 @@ export interface EmployeeBasicDetailsAttributes {
 // Interface for employee component configurator
 export interface EmployeeComponentConfiguratorAttributes {
   id: number;
+  empCompanyId?: string;
   componentType: string;
   componentValue: string;
   isDeleted?: boolean;
@@ -541,6 +544,7 @@ export interface EmployeeJobDetailHistoryAttributes
 // Interface for employee leave configurator
 export interface EmployeeLeaveConfiguratorAttributes {
   leaveConfigId: string;
+  empCompanyId?: string;
   leaveType: string;
   employeeType: string;
   accuralFrequency: string;

@@ -7,6 +7,7 @@ export class salaryComponents
   implements salaryComponentsAttributes
 {
   declare componentId: string;
+  declare empCompanyId: string;
   declare salaryCategoryId: string;
   declare componentName: string;
   declare componentType: string;

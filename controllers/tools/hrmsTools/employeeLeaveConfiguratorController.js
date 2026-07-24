@@ -1,4 +1,4 @@
-const { dbOutput } = require("../../../models/index");
+const { dbOutput, sequelize } = require("../../../models/index");
 const { createUUIDV4 } = require("../../../utilities/uuidV4Generator");
 const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 
@@ -54,17 +54,19 @@ exports.createLeave = async (req, res) => {
     let leaveConfigId = await createUUIDV4();
     
 
+    const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
     if (leaveExpiresAfter !== null && leaveExpiresAfter !== undefined) {
       await EmployeeLeaveConfigurator.update(
       { leaveExpiresAfter: null },
       {
-        where: { leaveExpiresAfter: { [Op.ne]: null } },
+        where: { leaveExpiresAfter: { [Op.ne]: null }, empCompanyId, isActive: true },
         transaction: t
       }
       );
     }
     const leaveConfig = await EmployeeLeaveConfigurator.create({
       ...req.body,
+      empCompanyId,
       leaveConfigId,
       isHalfDayAllowed: req.body.isHalfDayAllowed || false,
       effectiveDate: req.body.effectiveDate || new Date(),
@@ -156,6 +158,8 @@ exports.updateLeaveConfiguration = async (req, res) => {
         message: "leaveConfigId is required.",
       });
     }
+    const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
+
     const [updated] = await EmployeeLeaveConfigurator.update(
       {
         leaveType,
@@ -179,7 +183,7 @@ exports.updateLeaveConfiguration = async (req, res) => {
         allotAllLeaves,
         leaveExpiresAfter: leaveExpiresAfter !== undefined ? leaveExpiresAfter : null,
       },
-      { where: { leaveConfigId } }
+      { where: { leaveConfigId, empCompanyId, isActive: true } }
     );
 
     // Check if the update was successful
@@ -216,7 +220,30 @@ exports.updateLeaveConfiguration = async (req, res) => {
 
 exports.getAllLeaves = async (req, res) => {
   try {
-    const leaves = await EmployeeLeaveConfigurator.findAll();
+    const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
+    let leaves = await EmployeeLeaveConfigurator.findAll({
+      where: { empCompanyId, isActive: true }
+    });
+
+    if (leaves.length === 0 && empCompanyId !== "DEFAULT_COMPANY") {
+      const defaultLeaves = await EmployeeLeaveConfigurator.findAll({
+        where: { empCompanyId: "DEFAULT_COMPANY", isActive: true }
+      });
+      if (defaultLeaves.length > 0) {
+        const newLeaves = defaultLeaves.map(leave => {
+          const leaveObj = leave.toJSON();
+          delete leaveObj.id; // Let DB auto-increment or generate new ID
+          return {
+            ...leaveObj,
+            empCompanyId,
+            isActive: true
+          };
+        });
+        
+        leaves = await EmployeeLeaveConfigurator.bulkCreate(newLeaves, { individualHooks: true });
+      }
+    }
+
     return res.status(200).json({
       success: true,
       leaveDetails: leaves.map((leave) => ({
@@ -263,7 +290,8 @@ exports.getLeaveDetailsByUuid = async (req, res) => {
     }
 
     // Fetch the employee's basic details
-    const leaveDetails = await EmployeeLeaveConfigurator.findOne({ where: { leaveConfigId } });
+    const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
+    const leaveDetails = await EmployeeLeaveConfigurator.findOne({ where: { leaveConfigId, empCompanyId, isActive: true } });
     if (!leaveDetails) {
       return res.status(404).json({ success: false, message: "leave details not found" });
     }

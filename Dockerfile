@@ -11,17 +11,18 @@ RUN apk add --no-cache python3 make g++
 # Copy only package files first (for better caching)
 COPY package*.json ./
 
-# Install dependencies using ci for reproducible builds
-RUN npm ci --no-audit && npm cache clean --force
+# Allow passing BUILD_TARGET during build (commented out for unified image)
+# ARG BUILD_TARGET=saas
 
-# Copy source code and build
+# Copy source code
 COPY . .
+# RUN if [ "$BUILD_TARGET" = "self-hosted" ]; then rm -rf modules/multi-org; fi
+
 RUN npx tsc --outDir dist && \
     cp -r views dist/ && \
     mkdir -p dist/keys dist/config && \
     (cp -r keys dist/ 2>/dev/null || true) && \
     (cp config/*.p8 dist/config/ 2>/dev/null || true)
-
 
 # ============================
 # 2️⃣ Production Stage

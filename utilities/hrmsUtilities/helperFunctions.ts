@@ -236,9 +236,14 @@ export const getDateDiffInDays = (date1: Date, date2: Date): number  => {
   return Math.abs(diff / msInDay);
 }
 
-export const getFiscalYearForLeave = (empConversionDate: Date, leaveDate: Date): number => {
-  const hireDay = empConversionDate.getDate();
-  const hireMonth = empConversionDate.getMonth() + 1;
+export const getFiscalYearForLeave = (empConversionDate: Date | string | undefined | null, leaveDate: Date): number => {
+  let parsedConversionDate = empConversionDate ? new Date(empConversionDate) : null;
+  if (!parsedConversionDate || isNaN(parsedConversionDate.getTime())) {
+    parsedConversionDate = new Date(leaveDate.getFullYear(), 0, 1);
+  }
+
+  const hireDay = parsedConversionDate.getDate();
+  const hireMonth = parsedConversionDate.getMonth() + 1;
 
   const leaveDay = leaveDate.getDate();
   const leaveMonth = leaveDate.getMonth() + 1;
@@ -248,7 +253,7 @@ export const getFiscalYearForLeave = (empConversionDate: Date, leaveDate: Date):
   if (leaveMonth < hireMonth || (leaveMonth === hireMonth && leaveDay < hireDay)) {
       return leaveYear - 1;
   }
-
+  
   return leaveYear;
 }
 export const generateUpdateMessage = function(changes) {
@@ -411,9 +416,14 @@ export const calculateAccruedLeaves = (
 /**
  * Get fiscal year start date based on employee conversion date
  */
-export const getFiscalYearStartAndEndDate = (empConversionDate: Date, targetDate: Date): {fiscalYearStart: Date, fiscalYearEnd: Date} => {
-  const conversionDay = empConversionDate.getDate();
-  const conversionMonth = empConversionDate.getMonth();
+export const getFiscalYearStartAndEndDate = (empConversionDate: Date | string | undefined | null, targetDate: Date): {fiscalYearStart: Date, fiscalYearEnd: Date} => {
+  let parsedConversionDate = empConversionDate ? new Date(empConversionDate) : null;
+  if (!parsedConversionDate || isNaN(parsedConversionDate.getTime())) {
+    parsedConversionDate = new Date(Date.UTC(targetDate.getFullYear(), 0, 1));
+  }
+  
+  const conversionDay = parsedConversionDate.getDate();
+  const conversionMonth = parsedConversionDate.getMonth();
   const targetYear = targetDate.getFullYear();
 
   let fiscalYearStart = new Date(Date.UTC(targetYear, conversionMonth, conversionDay));  

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { Transaction } from 'sequelize';
 import { outputSequelize } from '../../../models/index';
 import { AuthenticatedRequest } from '../../../middlewares/isAuthenticated';
@@ -707,19 +708,129 @@ export const revokeEmployeeAccess = async (req: Request, res: Response): Promise
 export const getMyHrmsAccess = async (req: Request, res: Response): Promise<void> => {
   try {
     const { user } = req as AuthenticatedRequest;
-    const { employeeUuid } = user as AuthenticatedUser;
+    let { employeeUuid, email, userId } = user as AuthenticatedUser;
+    let tenantId = (req as any).tenantId;
+    let assignedRole: string | null = null;
+    
+    // Resolve tenantId if middleware didn't provide it
+    if (!tenantId) {
+      const subdomain = req.headers['x-tenant-subdomain'] || req.query.tenant;
+      if (subdomain) {
+        const Organization = outputSequelize.models.organization;
+        if (Organization) {
+          let fullHost = req.headers.host || "";
+          fullHost = fullHost.split(":")[0];
+          
+          const Op = require('sequelize').Op;
+          const org = await Organization.findOne({ 
+            where: { 
+              [Op.or]: [
+                { subdomain: subdomain },
+                { slugDomain: subdomain },
+                { domain: fullHost }
+              ],
+              status: 'ACTIVE' 
+            } 
+          });
+          if (org) {
+            tenantId = (org as any).id;
+          }
+        }
+      }
+    }
+
+    // --- SaaS Auto-Onboarding Logic ---
+    if (tenantId && email && userId) {
+      try {
+        const Organization = outputSequelize.models.organization;
+        const UserOrganizationMapping = outputSequelize.models.userOrganizationMapping;
+        if (Organization && UserOrganizationMapping) {
+          const org = await Organization.findByPk(tenantId);
+          if (org && (org as any).status === 'ACTIVE') {
+            const orgAdminEmail = (org as any).adminEmail;
+            const orgAllowedDomain = (org as any).allowedDomain;
+
+            let existingMapping = await UserOrganizationMapping.findOne({
+              where: { userId: parseInt(userId, 10), organizationId: tenantId, isDeleted: false }
+            });
+
+            if (existingMapping) {
+              assignedRole = (existingMapping as any).role;
+            } else {
+              if (orgAdminEmail && orgAdminEmail.toLowerCase() === email.toLowerCase()) {
+                assignedRole = "ADMIN";
+              } else if (orgAllowedDomain && email.toLowerCase().endsWith(orgAllowedDomain.toLowerCase())) {
+                assignedRole = "MEMBER";
+              }
+              if (assignedRole) {
+                await UserOrganizationMapping.create({
+                  userId: parseInt(userId, 10),
+                  organizationId: tenantId,
+                  role: assignedRole
+                });
+                console.log(`Auto-assigned user ${email} as ${assignedRole} for tenant ${tenantId}`);
+              }
+            }
+
+          }
+        }
+      } catch (err) {
+        console.error("Error in SaaS auto-onboarding logic:", err);
+      }
+    }
+
     if (!employeeUuid) {
+      // The organization admin is allowed into HRMS before they have an employee
+      // profile. They must create that profile through the onboarding form, rather
+      // than receiving an incomplete profile during login.
+      if ((user as any).userType === 900 || assignedRole === "ADMIN") {
+        res.status(200).json({
+          success: true,
+          message: 'Complete your employee onboarding to finish setting up HRMS.',
+          myHrmsAccess: { permissions: [], roleName: [] },
+          onboardingRequired: true,
+        });
+        return;
+      }
       res.status(400).json({
         success: false,
         message: 'Employee UUID is required',
+        debug: {
+          tenantId,
+          email,
+          userId,
+          hasOrgModel: !!outputSequelize.models.organization,
+          hasContactModel: !!outputSequelize.models.employeeContactDetails,
+          hasBasicModel: !!outputSequelize.models.employeeBasicDetails
+        }
       });
       return;
     }
+    // ----------------------------------
+
+    let orgLogo: string | null = null;
+    if (tenantId) {
+      try {
+        const Organization = outputSequelize.models.organization;
+        if (Organization) {
+          const org = await Organization.findByPk(tenantId);
+          if (org && (org as any).logo) {
+            const logoData = (org as any).logo;
+            orgLogo = Buffer.isBuffer(logoData) ? logoData.toString('utf-8') : logoData;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching org logo:", err);
+      }
+    }
+
     const permissions = await getMyHrmsPermissionsService(employeeUuid);
     res.status(200).json({
       success: true,
       message: 'My hrms permissions fetched successfully',
       myHrmsAccess: permissions,
+      orgLogo: orgLogo,
+      employeeUuid: employeeUuid
     });
   } catch (error) {
     console.error('Error fetching my hrms permissions:', error);

@@ -214,10 +214,9 @@ module.exports = {
             // Bulk insert salary categories
             await queryInterface.bulkInsert('salarycategories', salaryCategoriesToInsert, { transaction });
             
-            console.log(`Inserting ${salaryComponentsToInsert.length} salary components...`);
-            // Bulk insert salary components
-            await queryInterface.bulkInsert('salary_components', salaryComponentsToInsert, { transaction });
-            
+            if (salaryComponentsToInsert.length > 0) {
+                await queryInterface.bulkInsert('salary_components', salaryComponentsToInsert, { transaction });
+            }    
             console.log('Salary categories and components creation completed successfully!');
         });
     },

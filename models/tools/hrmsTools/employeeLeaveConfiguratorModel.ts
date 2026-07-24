@@ -25,6 +25,7 @@ export class employeeLeaveConfigurator
   declare leaveApplicableTo?: string;
   declare allotAllLeaves: boolean;
   declare leaveExpiresAfter: number | null;
+  declare empCompanyId: string;
 
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
@@ -37,6 +38,11 @@ export const initEmployeeLeaveConfigurator = (sequelize: Sequelize, dataTypes: t
         allowNull: false,
         primaryKey: true,
         type: dataTypes.UUID,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
       },
       leaveType: {
         type: dataTypes.STRING,

@@ -5,6 +5,7 @@ export class salaryCategories
   extends Model<SalaryCategoriesAttributes, Partial<SalaryCategoriesAttributes>> implements SalaryCategoriesAttributes
 {
   declare salaryCategoryId: string;
+  declare empCompanyId: string;
   declare employeeType: string;
   declare employeeLocation: string;
   declare employeeLevel?: string;
@@ -22,6 +23,11 @@ export const initSalaryCategories = (sequelize: Sequelize, dataTypes: typeof Dat
         type: dataTypes.STRING,
         primaryKey: true,
         allowNull: false,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
       },
       employeeType: {
         type: dataTypes.STRING,

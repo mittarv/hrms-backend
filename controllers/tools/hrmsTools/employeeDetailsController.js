@@ -141,6 +141,21 @@ exports.createEmployeeData = async (req, res) => {
       .json({ success: false, message: "Please provide all required fields" });
   }
 
+  // A super admin without an employee profile is completing their own first
+  // onboarding. The email must remain the authenticated TMS email so the HRMS
+  // profile can be resolved on later requests.
+  const isInitialAdminSelfOnboarding =
+    user?.userType === 900 && !user?.employeeUuid;
+  if (
+    isInitialAdminSelfOnboarding &&
+    user?.email?.toLowerCase() !== emp_official_email.toLowerCase()
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Use your signed-in TMS email to create your admin profile",
+    });
+  }
+
   // Start a transaction
   const transaction = await outputSequelize.transaction();
 
@@ -278,11 +293,42 @@ exports.createEmployeeData = async (req, res) => {
       employmentStartDate: emp_latest_hire_date,
     }, { transaction });
 
+    // An organization admin creates their own employee profile through this
+    // onboarding form. Assign the HRMS role only after the submitted profile
+    // exists, so profile data is never replaced by login-time placeholders.
+    const isSelfOnboardingAdmin =
+      isInitialAdminSelfOnboarding &&
+      user?.email?.toLowerCase() === emp_official_email?.toLowerCase();
+    if (isSelfOnboardingAdmin) {
+      const superAdminRole = await hrmsAccessRole.findOne({
+        where: { roleName: "Super Admin", isDeleted: false },
+        transaction,
+      });
+
+      if (superAdminRole) {
+        await hrmsEmployeeRole.findOrCreate({
+          where: {
+            empUuid: employeeUuid,
+            roleId: superAdminRole.roleId,
+            isDeleted: false,
+          },
+          defaults: {
+            empUuid: employeeUuid,
+            roleId: superAdminRole.roleId,
+            assignedBy: employeeUuid,
+            isDeleted: false,
+          },
+          transaction,
+        });
+      }
+    }
+
     await transaction.commit();
 
     res.status(201).json({
       success: true,
       message: "Employee data created successfully",
+      employeeUuid,
     });
 
     // Send onboarding email asynchronously (non-blocking)
@@ -314,7 +360,7 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
     const toolName = "HR Repository";
     const isOwnProfile = loggedInEmployeeUuid === empUuid;
 
-    if (!isOwnProfile) {
+    if (!isOwnProfile && req.user.userType !== 900) {
       const hasPermission = await checkHrmsPermission(
         loggedInEmployeeUuid,
         [
@@ -368,27 +414,15 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
 
     // Fetch the employee's salary details
     const employeeSalaryDetails = await EmployeeSalaryDetails.findOne({ where: { empUuid } });
-    if (!employeeSalaryDetails) {
-      return res.status(404).json({ success: false, message: "Employee salary details not found" });
-    }
 
     // Fetch the employee's address details
     const employeeAddressDetails = await EmployeeAddressDetails.findOne({ where: { empUuid } });
-    if (!employeeAddressDetails) {
-      return res.status(404).json({ success: false, message: "Employee address details not found" });
-    }
 
     // Fetch the employee's bank account details
     const employeeBankDetails = await EmployeeBankAccountDetails.findOne({ where: { empUuid } });
-    if (!employeeBankDetails) {
-      return res.status(404).json({ success: false, message: "Employee Bank account details not found" });
-    }
 
     // Fetch the employee's advance salary details
     const employeeAdvanceSalaryDetails = await EmployeeAdvanceSalaryDetails.findOne({ where: { empUuid } });
-    if (!employeeAdvanceSalaryDetails) {
-      return res.status(404).json({ success: false, message: "Employee advance salary details not found" });
-    }
 
     // Fetch the employee's offboarding details
     const employeeOffboardingDetails = await EmployeeOffboarding.findOne({
@@ -399,9 +433,12 @@ exports.getEmployeeDetailsByUuid = async (req, res) => {
 
 
     // Tms user details
-    const tmsUserDetails = await TmsUsers.findOne(
-      {where: {email: employeeContactDetails?.empOfficialEmail}}
-    );
+    let tmsUserDetails = null;
+    if (employeeContactDetails?.empOfficialEmail) {
+      tmsUserDetails = await TmsUsers.findOne(
+        {where: {email: employeeContactDetails.empOfficialEmail}}
+      );
+    }
 
     // Tms user profile image
     const tmsUserProfileImage = tmsUserDetails?.profilePic;
@@ -599,9 +636,25 @@ exports.getEmployeeDirectoryDetailsByUuid = async (req, res) => {
 // Function to fetch all employee details
 exports.getAllEmployees = async (req, res) => {
   try {
-    // Fetch all employee UUIDs
+    const employeeUuid = req.user?.employeeUuid;
+    if (!employeeUuid) {
+      return res.status(400).json({ success: false, message: "Employee UUID is required to fetch directory" });
+    }
+
+    // Determine the user's organization (tenantId)
+    const callerBasicDetails = await EmployeeBasicDetails.findOne({
+      where: { empUuid: employeeUuid, isDeleted: false }
+    });
+
+    if (!callerBasicDetails || !callerBasicDetails.empCompanyId) {
+      return res.status(403).json({ success: false, message: "You must belong to an organization to view employees" });
+    }
+
+    const tenantId = callerBasicDetails.empCompanyId;
+
+    // Fetch all employee UUIDs within the SAME organization
     const employeeUuids = await EmployeeBasicDetails.findAll({
-      where: { isDeleted: false, isActive: true },
+      where: { isDeleted: false, isActive: true, empCompanyId: tenantId },
       attributes: ['empUuid']
     });
 
@@ -621,9 +674,12 @@ exports.getAllEmployees = async (req, res) => {
       const employeeContactDetails = await EmployeeContactDetails.findOne({ where: { empUuid } });
 
       // Tms user details
-      const tmsUserDetails = await TmsUsers.findOne(
-        {where: {email: employeeContactDetails?.empOfficialEmail}}
-      );
+      let tmsUserDetails = null;
+      if (employeeContactDetails?.empOfficialEmail) {
+        tmsUserDetails = await TmsUsers.findOne(
+          {where: {email: employeeContactDetails.empOfficialEmail}}
+        );
+      }
 
       // Tms user profile image
       const employeeProfileImage = tmsUserDetails?.profilePic;
@@ -1501,7 +1557,7 @@ exports.approveOrRejectRequest = async (req, res) => {
         payrollEmployeesToSync.add(requestedFor);
       }
 
-      if(requestedBy === actionedBy) {
+      if(requestedBy === actionedBy && user?.userType !== 900) {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
@@ -1567,19 +1623,26 @@ exports.approveOrRejectRequest = async (req, res) => {
         // Get the previous data
         // Create a new history record
         const [previousDataInstance, newUuid] = await Promise.all([fetchEmployeeCurrentJobDetails(requestedFor), createUUIDV4()]);
-        previousDataInstance.jobHistoryId = newUuid;
+        
+        if (previousDataInstance) {
+          previousDataInstance.jobHistoryId = newUuid;
 
-        // Update previous data with any fields that are being changed
-        Object.assign(previousDataInstance, employeeJobDetailUpdates);
+          // Update previous data with any fields that are being changed
+          Object.assign(previousDataInstance, employeeJobDetailUpdates);
 
-        // Create a new job history record
-        await EmployeeJobDetailHistory.create({...previousDataInstance, createdAt: new Date(), updatedAt: new Date()}, { transaction });
+          // Create a new job history record
+          await EmployeeJobDetailHistory.create({...previousDataInstance, createdAt: new Date(), updatedAt: new Date()}, { transaction });
 
-        // Update the employee job details
-        await EmployeeJobDetails.update(employeeJobDetailUpdates, {
-          where: { empUuid: requestedFor },
-          transaction,
-        });
+          // Update the employee job details
+          await EmployeeJobDetails.update(employeeJobDetailUpdates, {
+            where: { empUuid: requestedFor },
+            transaction,
+          });
+        } else {
+          employeeJobDetailUpdates.jobId = await createUUIDV4();
+          employeeJobDetailUpdates.empUuid = requestedFor;
+          await EmployeeJobDetails.create(employeeJobDetailUpdates, { transaction });
+        }
 
         // Update the employee leave balance
         if(requestedFor && employeeJobDetailUpdates.empConversionDate) {
@@ -1597,18 +1660,24 @@ exports.approveOrRejectRequest = async (req, res) => {
           where: { empUuid: requestedFor },
         });
 
-        // Create a new history record
-        const previousData = previousDataInstance.toJSON();
-        previousData.salaryHistoryId = await createUUIDV4();
+        if (previousDataInstance) {
+          // Create a new history record
+          const previousData = previousDataInstance.toJSON();
+          previousData.salaryHistoryId = await createUUIDV4();
 
-        // Create a new salary history record
-        await EmployeeSalaryDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
+          // Create a new salary history record
+          await EmployeeSalaryDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
 
-        // Update the employee salary details
-        await EmployeeSalaryDetails.update(employeeSalaryDetailUpdates, {
-          where: { empUuid: requestedFor },
-          transaction,
-        });
+          // Update the employee salary details
+          await EmployeeSalaryDetails.update(employeeSalaryDetailUpdates, {
+            where: { empUuid: requestedFor },
+            transaction,
+          });
+        } else {
+          employeeSalaryDetailUpdates.salaryId = await createUUIDV4();
+          employeeSalaryDetailUpdates.empUuid = requestedFor;
+          await EmployeeSalaryDetails.create(employeeSalaryDetailUpdates, { transaction });
+        }
       }
 
       // Update the employee advance salary details and advance salary detail history
@@ -1621,21 +1690,27 @@ exports.approveOrRejectRequest = async (req, res) => {
           { where: { empUuid: requestedFor } }
         );
 
-        // Create a new history record
-        const previousData = previousDataInstance.toJSON();
-        previousData.advanceSalaryHistoryId = await createUUIDV4();
+        if (previousDataInstance) {
+          // Create a new history record
+          const previousData = previousDataInstance.toJSON();
+          previousData.advanceSalaryHistoryId = await createUUIDV4();
 
-        // Create a new advance salary history record
-        await EmployeeAdvanceSalaryDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
+          // Create a new advance salary history record
+          await EmployeeAdvanceSalaryDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
 
-        // Update the employee advance salary details
-        await EmployeeAdvanceSalaryDetails.update(
-          employeeAdvanceSalaryDetailUpdates,
-          {
-            where: { empUuid: requestedFor },
-            transaction,
-          }
-        );
+          // Update the employee advance salary details
+          await EmployeeAdvanceSalaryDetails.update(
+            employeeAdvanceSalaryDetailUpdates,
+            {
+              where: { empUuid: requestedFor },
+              transaction,
+            }
+          );
+        } else {
+          employeeAdvanceSalaryDetailUpdates.advanceSalaryId = await createUUIDV4();
+          employeeAdvanceSalaryDetailUpdates.empUuid = requestedFor;
+          await EmployeeAdvanceSalaryDetails.create(employeeAdvanceSalaryDetailUpdates, { transaction });
+        }
       }
 
       // Update the employee bank account details and bank account detail history
@@ -1648,21 +1723,27 @@ exports.approveOrRejectRequest = async (req, res) => {
           where: { empUuid: requestedFor },
         });
 
-        // Create a new history record
-        const previousData = previousDataInstance.toJSON();
-        previousData.bankAccountHistoryId = await createUUIDV4();
+        if (previousDataInstance) {
+          // Create a new history record
+          const previousData = previousDataInstance.toJSON();
+          previousData.bankAccountHistoryId = await createUUIDV4();
 
-        // Create a new bank account history record
-        await EmployeeBankAccountDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
+          // Create a new bank account history record
+          await EmployeeBankAccountDetailHistory.create({...previousData, createdAt: new Date(), updatedAt: new Date()}, { transaction });
 
-        // Update the employee bank account details
-        await EmployeeBankAccountDetails.update(
-          employeeBankAccountDetailUpdates,
-          {
-            where: { empUuid: requestedFor },
-            transaction,
-          }
-        );
+          // Update the employee bank account details
+          await EmployeeBankAccountDetails.update(
+            employeeBankAccountDetailUpdates,
+            {
+              where: { empUuid: requestedFor },
+              transaction,
+            }
+          );
+        } else {
+          employeeBankAccountDetailUpdates.accountId = await createUUIDV4();
+          employeeBankAccountDetailUpdates.empUuid = requestedFor;
+          await EmployeeBankAccountDetails.create(employeeBankAccountDetailUpdates, { transaction });
+        }
       }
 
       // Update the employee address details
@@ -1670,11 +1751,19 @@ exports.approveOrRejectRequest = async (req, res) => {
         // Set the effective date
         employeeAddressDetailUpdates.effectiveDate = new Date();
 
-        // update the employee address details
-        await EmployeeAddressDetails.update(employeeAddressDetailUpdates, {
-          where: { empUuid: requestedFor },
-          transaction,
-        });
+        const previousDataInstance = await EmployeeAddressDetails.findOne({ where: { empUuid: requestedFor } });
+
+        if (previousDataInstance) {
+          // update the employee address details
+          await EmployeeAddressDetails.update(employeeAddressDetailUpdates, {
+            where: { empUuid: requestedFor },
+            transaction,
+          });
+        } else {
+          employeeAddressDetailUpdates.addressId = await createUUIDV4();
+          employeeAddressDetailUpdates.empUuid = requestedFor;
+          await EmployeeAddressDetails.create(employeeAddressDetailUpdates, { transaction });
+        }
       }
 
       // Create a new employment history record

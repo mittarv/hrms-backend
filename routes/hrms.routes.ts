@@ -22,9 +22,11 @@ import payrollLevelManagementRoutes from "./tools/hrmsTools/payrollLevelManageme
 import employeeOffboardingRoutes from "./tools/hrmsTools/employeeOffboardingRoutes";
 import rewardsRoutes from "./tools/hrmsTools/rewardsRoutes";
 import secondaryLocationRoutes from "./tools/hrmsTools/secondaryLocationRoutes";
+import setupRoutes from "./tools/hrmsTools/setupRoutes";
 
 //HRMS tool routes
 export function registerHrms(app: Application) {
+    app.use("/api/hrms/setup", setupRoutes);
     app.use("/api/hrms/empConfig", employeeComponentConfiguratorRoutes);
     app.use("/api/hrms/empConfig", payrollLevelManagementRoutes);
     app.use("/api/hrms/empDetails", employeeDetailsRoutes);

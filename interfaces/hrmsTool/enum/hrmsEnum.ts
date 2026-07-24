@@ -96,3 +96,9 @@ export enum SecondaryLocationRequestStatus {
   APPROVED = "Approved",
   REJECTED = "Rejected",
 }
+
+export enum OrganizationStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  SUSPENDED = "SUSPENDED"
+}

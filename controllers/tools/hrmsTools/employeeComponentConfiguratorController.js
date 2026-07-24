@@ -5,12 +5,32 @@ const EmployeeComponentConfigurator = dbOutput.employeeComponentConfigurator;
 
 exports.getAllComponentType = async (req, res) => {
     try {
+      const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
       // Fetch component types
-      const allComponentType = await EmployeeComponentConfigurator.findAll({
-        where: { isDeleted: false },
+      let allComponentType = await EmployeeComponentConfigurator.findAll({
+        where: { isDeleted: false, empCompanyId },
         attributes: ['componentType', 'componentValue'],
         raw: true
       });
+
+      if (allComponentType.length === 0 && empCompanyId !== "DEFAULT_COMPANY") {
+        const defaultComponents = await EmployeeComponentConfigurator.findAll({
+          where: { isDeleted: false, empCompanyId: "DEFAULT_COMPANY" },
+          attributes: ['componentType', 'componentValue'],
+          raw: true
+        });
+
+        if (defaultComponents.length > 0) {
+          const newComponents = defaultComponents.map(c => ({
+            componentType: c.componentType,
+            componentValue: c.componentValue,
+            empCompanyId,
+            isDeleted: false
+          }));
+          await EmployeeComponentConfigurator.bulkCreate(newComponents);
+          allComponentType = defaultComponents;
+        }
+      }
   
       // Transform the result into a single object
       const allComponent = allComponentType.reduce((acc, item) => {
@@ -31,14 +51,15 @@ exports.getAllComponentType = async (req, res) => {
 
 exports.updateComponentType = async (req, res) => {
     try {
-        const { componentType, componentValue } = req.body;
+        const { componentType, componentValue, empCompanyId: bodyEmpCompanyId } = req.body;
+        const empCompanyId = req.empCompanyId || bodyEmpCompanyId || "DEFAULT_COMPANY";
 
         if (!componentType || !componentValue) {
             return res.status(400).json({ success: false, message: "componentType and componentValue are required" });
         }
 
         let component = await EmployeeComponentConfigurator.findOne({
-            where: { componentType, isDeleted: false }
+            where: { componentType, empCompanyId, isDeleted: false }
         });
 
         // componentValue should be passed as an object from frontend, so we stringify it here
@@ -48,6 +69,7 @@ exports.updateComponentType = async (req, res) => {
             // Self-heal: Create the component if it's missing
             component = await EmployeeComponentConfigurator.create({
                 componentType,
+                empCompanyId,
                 componentValue: stringifiedValue,
                 isDeleted: false
             });
