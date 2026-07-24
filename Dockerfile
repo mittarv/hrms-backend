@@ -11,6 +11,8 @@ RUN apk add --no-cache python3 make g++
 # Copy only package files first (for better caching)
 COPY package*.json ./
 
+RUN npm ci
+
 # Allow passing BUILD_TARGET during build (commented out for unified image)
 # ARG BUILD_TARGET=saas
 

@@ -35,6 +35,10 @@ export const initSalaryComponents = (sequelize: Sequelize, dataTypes: typeof Dat
         primaryKey: true,
         allowNull: false,
       },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+      },
       salaryCategoryId: {
         type: dataTypes.STRING,
         references: {

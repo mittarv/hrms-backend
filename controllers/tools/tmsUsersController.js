@@ -84,11 +84,23 @@ exports.tmsUserGoogleLogin = async (req, res) => {
       }
     }
 
-    // Auto-upgrade user to Super Admin (900) if they are the Organization Admin
+    // Auto-assign user as organization-scoped ADMIN if they are the Organization Admin
     if (user && organization && organization.adminEmail && organization.adminEmail.toLowerCase() === email.toLowerCase()) {
-      if (user.userType !== 900) {
-        user.userType = 900;
-        await user.save();
+      const UserOrganizationMapping = dbOutput.userOrganizationMapping;
+      if (UserOrganizationMapping) {
+        let existingMapping = await UserOrganizationMapping.findOne({
+          where: { userId: user.userId, organizationId: organization.id, isDeleted: false }
+        });
+        if (!existingMapping) {
+          await UserOrganizationMapping.create({
+            userId: user.userId,
+            organizationId: organization.id,
+            role: "ADMIN"
+          });
+        } else if (existingMapping.role !== "ADMIN") {
+          existingMapping.role = "ADMIN";
+          await existingMapping.save();
+        }
       }
     }
 
