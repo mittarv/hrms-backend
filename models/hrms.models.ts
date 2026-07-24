@@ -129,11 +129,8 @@ dbOutput.allCountryDetails = initAllCountryDetails(outputSequelize, DataTypes);
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { initOrganization } = require('../modules/multi-org/models/OrganizationModel');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { initUserOrganizationMapping } = require('../modules/multi-org/models/UserOrganizationMappingModel');
     
     dbOutput.organization = initOrganization(outputSequelize, dataTypes);
-    dbOutput.userOrganizationMapping = initUserOrganizationMapping(outputSequelize, dataTypes);
   } catch (e) {
     console.warn("Multi-org models failed to load:", e);
   }
