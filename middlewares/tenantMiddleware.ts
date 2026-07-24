@@ -13,40 +13,28 @@ import { extractSubdomainFromHost } from "../utilities/domainUtils";
  */
 export const tenantMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // 1. Try to get tenant from custom header (useful for local dev/testing)
-    let subdomain = req.headers["x-tenant-subdomain"] as string;
+    // 1. Get host and headers
+    let fullHost = (req.headers["x-tenant-domain"] as string) || (req.headers.host || "").split(":")[0].toLowerCase().trim();
+    let tenantHeader = (req.headers["x-tenant-subdomain"] as string) || (req.headers["x-tenant-id"] as string);
 
-    // 2. Fallback: Parse it from the Host header
-    let fullHost = req.headers.host || "";
-    fullHost = fullHost.split(":")[0];
+    let extractedSubdomain = extractSubdomainFromHost(req.headers.host) || "";
 
-    if (!subdomain) {
-      subdomain = extractSubdomainFromHost(req.headers.host) || "";
-    }
-
-    if (!subdomain) {
-      // If we cannot determine a subdomain and we are in multi-org mode, we might throw an error.
-      // But for self-hosted or default cases, we can fallback to a DEFAULT_COMPANY.
-      req.body.empCompanyId = "DEFAULT_COMPANY";
-      return next();
-    }
-    
-
-    // 3. Lookup Organization by subdomain
     const Organization = dbOutput.organization;
 
-    // In self-hosted builds, the Organization model won't exist.
+    // In self-hosted or default builds
     if (!Organization) {
       req.body.empCompanyId = "DEFAULT_COMPANY";
       return next();
     }
 
+    // 2. Lookup Organization prioritizing direct domain match
     const org = await Organization.findOne({ 
       where: { 
         [Op.or]: [
-          { subdomain: subdomain },
-          { slugDomain: subdomain },
-          { domain: fullHost }
+          { domain: fullHost },
+          { allowedDomain: fullHost },
+          ...(extractedSubdomain ? [{ subdomain: extractedSubdomain }, { slugDomain: extractedSubdomain }] : []),
+          ...(tenantHeader ? [{ subdomain: tenantHeader }, { slugDomain: tenantHeader }] : [])
         ],
         status: "ACTIVE",
         isDeleted: false
@@ -54,7 +42,10 @@ export const tenantMiddleware = async (req: Request, res: Response, next: NextFu
     });
 
     if (!org) {
-      return res.status(403).json({ error: "Tenant not found or inactive.", code: "TENANT_INACTIVE" });
+      // Default fallback if no custom tenant matches
+      req.body.empCompanyId = "DEFAULT_COMPANY";
+      (req as any).empCompanyId = "DEFAULT_COMPANY";
+      return next();
     }
 
     // 4. Inject into the request so all downstream controllers/models use it

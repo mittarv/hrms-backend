@@ -54,7 +54,7 @@ exports.tmsUserGoogleLogin = async (req, res) => {
     }
 
     if (organization) {
-      redirectSubdomain = organization.slugDomain;
+      redirectSubdomain = organization.subdomain;
     } else {
       isGuest = true;
     }
@@ -263,7 +263,7 @@ exports.getUserDetailsById = async (req, res) => {
           where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
         });
         if (org) {
-          redirectSubdomain = org.slugDomain;
+          redirectSubdomain = org.subdomain;
         }
       }
     }
