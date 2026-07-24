@@ -28,6 +28,7 @@ import { fetchEmployeeLeavesData, fetchEmployeeCurrentJobDetails } from "../../.
 import { formatItems, generatePayrollCSV, getMonthYearDateRange, getYearDateRange } from "../../../utilities/hrmsUtilities/helperFunctions";
 import { AuthenticatedRequest } from "../../../middlewares/isAuthenticated";
 import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
+import { extractSubdomainFromHost } from "../../../utilities/domainUtils";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -1373,6 +1374,7 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
 // TODO: send payslip mails to employees after payroll generation
 export const generatePayroll = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId || "DEFAULT_COMPANY";
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -1425,6 +1427,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                 }),
                 dbOutput.employeeLeaveConfigurator.findOne({
                     where: {
+                        empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] }, // first for teh current org then fallback for default if there 
                         [Op.and]: [
                             outputSequelize.where(
                                 outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
@@ -1824,6 +1827,16 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
 
     } catch (error) {
         console.error("Error generating payroll:", error);
+
+        if (error instanceof Error && error.message.includes("UNPAID_LEAVE_CONFIG_NOT_FOUND")) {
+            res.status(400).json({
+                success: false,
+                code: "UNPAID_LEAVE_CONFIG_NOT_FOUND",
+                message: "Unpaid Leave configuration is missing. Please configure Unpaid Leave in Leave Configurator.",
+            });
+            return;
+        }
+
         res.status(500).json({
             success: false,
             message: "Internal server error while generating payroll",
@@ -1914,6 +1927,14 @@ export const finalizePayslips = async (req: Request, res: Response): Promise<voi
         console.error("Error finalizing payroll:", error);
 
         if (error instanceof Error) {
+            if (error.message.includes("UNPAID_LEAVE_CONFIG_NOT_FOUND")) {
+                res.status(400).json({
+                    success: false,
+                    code: "UNPAID_LEAVE_CONFIG_NOT_FOUND",
+                    message: "Unpaid Leave configuration is missing. Please configure Unpaid Leave in Leave Configurator.",
+                });
+                return;
+            }
             if (error.message.startsWith("NOT_FOUND")) {
                 res.status(404).json({
                     success: false,
@@ -2405,6 +2426,7 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
 export const downloadPayslip = async (req: Request, res: Response): Promise<void> => {
     try {
         const { payslipId } = req.query;
+        console.log(payslipId,"payslipId")
  
         if (!payslipId) {
             res.status(400).json({
@@ -2434,7 +2456,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
         if (!payslip) {
             res.status(404).json({
                 success: false,
-                message: "Payslip not found"
+                message: "Payslip items not found"
             });
             return;
         }
@@ -2518,9 +2540,88 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
             })
             : '-';
 
+        // Fetch Organization Logo & Address if available
+        let companyLogo: string | null = null;
+        let companyAddress: string = '';
+        const targetOrgId = (req as any).empCompanyId || employeeBasic.empCompanyId;
+        const reqHost = req.headers?.host ? String(req.headers.host).split(':')[0] : "";
+        const reqSubdomain = req.headers?.["x-tenant-subdomain"]
+          ? String(req.headers["x-tenant-subdomain"])
+          : extractSubdomainFromHost(req.headers?.host || "");
+
+        if (dbOutput.organization) {
+            try {
+                let org: any = null;
+                if (targetOrgId && targetOrgId !== "DEFAULT_COMPANY") {
+                    org = await dbOutput.organization.findOne({
+                        where: {
+                            [Op.or]: [
+                                { id: targetOrgId },
+                                { subdomain: targetOrgId },
+                                { slugDomain: targetOrgId }
+                            ]
+                        },
+                        attributes: ['metadata'],
+                        raw: true
+                    }).catch(() => null);
+                }
+
+                if (!org && (reqSubdomain || reqHost)) {
+                    org = await dbOutput.organization.findOne({
+                        where: {
+                            [Op.or]: [
+                                ...(reqSubdomain ? [{ subdomain: reqSubdomain }, { slugDomain: reqSubdomain }] : []),
+                                ...(reqHost ? [{ domain: reqHost }] : [])
+                            ]
+                        },
+                        attributes: ['metadata'],
+                        raw: true
+                    }).catch(() => null);
+                }
+
+                if (!org) {
+                    org = await dbOutput.organization.findOne({
+                        attributes: ['metadata'],
+                        raw: true
+                    }).catch(() => null);
+                }
+
+                if (org && org.metadata) {
+                    let meta = org.metadata;
+                    if (typeof meta === 'string') {
+                        try { meta = JSON.parse(meta); } catch (e) {}
+                    }
+                    if (meta && typeof meta === 'object') {
+                        if (meta.logo && typeof meta.logo === 'string') {
+                            companyLogo = meta.logo;
+                        }
+                        if (meta.address) {
+                            if (typeof meta.address === 'string') {
+                                companyAddress = meta.address;
+                            } else if (typeof meta.address === 'object') {
+                                const addr = meta.address;
+                                const parts = [
+                                    addr.line1 || addr.addressLine1 || addr.street,
+                                    addr.line2 || addr.addressLine2,
+                                    addr.city,
+                                    addr.state,
+                                    addr.pincode || addr.zipCode || addr.postalCode,
+                                    addr.country
+                                ].filter(Boolean);
+                                companyAddress = parts.length > 0 ? parts.join(', ') : Object.values(addr).filter(v => Boolean(v) && typeof v === 'string').join(', ');
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Could not fetch org metadata for payslip:", err);
+            }
+        }
+
         // Prepare template data
         const templateData = {
-            companyAddress: 'Ashoka Bhopal Chambers, 205, Above Standard Chartered Bank,\nSindhi Colony, Begumpet, Secunderabad, Hyderabad, Telangana 500003',
+            companyLogo,
+            companyAddress,
             payrollMonth,
             employeeName: `${employeeBasic.empFirstName} ${employeeBasic.empLastName}`,
             department: departmentName,

@@ -7,6 +7,7 @@ export class salaryComponents
   implements salaryComponentsAttributes
 {
   declare componentId: string;
+  declare empCompanyId: string;
   declare salaryCategoryId: string;
   declare componentName: string;
   declare componentType: string;
@@ -32,6 +33,10 @@ export const initSalaryComponents = (sequelize: Sequelize, dataTypes: typeof Dat
       componentId: {
         type: dataTypes.STRING,
         primaryKey: true,
+        allowNull: false,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
         allowNull: false,
       },
       salaryCategoryId: {

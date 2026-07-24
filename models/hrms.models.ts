@@ -123,4 +123,16 @@ dbOutput.allCountryDetails = initAllCountryDetails(outputSequelize, DataTypes);
   dbOutput.configEmployeeType = initConfigEmployeeType(outputSequelize, dataTypes);
   dbOutput.secondaryLocationLog = initSecondaryLocationLog(outputSequelize, dataTypes);
   dbOutput.secondaryLocationRequest = initSecondaryLocationRequest(outputSequelize, dataTypes);
+
+  // Multi-Org models (commented out BUILD_TARGET check for unified image)
+  // if (process.env.BUILD_TARGET !== 'self-hosted') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { initOrganization } = require('../modules/multi-org/models/OrganizationModel');
+    
+    dbOutput.organization = initOrganization(outputSequelize, dataTypes);
+  } catch (e) {
+    console.warn("Multi-org models failed to load:", e);
+  }
+  // }
 }

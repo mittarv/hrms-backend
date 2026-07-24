@@ -28,10 +28,11 @@ import { checkHrmsPermission } from "../../../utilities/hrmsUtilities/dbCalls/hr
 export const getAllSalaryConfigDetails = async(req, res) => {
     // Extract query parameters from the request
     const { employeeType, employeeLocation, employeeLevel, department, yearOfStudy } = req.query as getRequestQuery; 
+    const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
 
     // Fetch salary configuration details
     try {
-        const salaryConfigData = await getAllSalaryConfigService(employeeType, employeeLocation, employeeLevel, department, yearOfStudy);
+        const salaryConfigData = await getAllSalaryConfigService(empCompanyId, employeeType, employeeLocation, employeeLevel, department, yearOfStudy);
         res.status(200).json({
             status: "success",
             salaryConfigData

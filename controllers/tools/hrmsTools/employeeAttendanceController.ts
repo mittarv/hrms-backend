@@ -898,6 +898,14 @@ export const getAllPendingLeaveRequests = async (req: Request, res: Response) =>
         const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
         const toolName = hrmsConstants.HR_REPOSITORY;
 
+        if (!employeeUuid) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: Employee UUID is missing",
+            });
+            return;
+        }
+
         // Check permission: admin access (>= 900) OR LeaveRequest_read permission
         const hasPermission = await checkHrmsPermission(
             employeeUuid,
@@ -923,8 +931,12 @@ export const getAllPendingLeaveRequests = async (req: Request, res: Response) =>
         const startDate: Date | undefined = isValidDate(start) ? new Date(start): undefined;
         const endDate: Date | undefined = isValidDate(end) ? new Date(end) : undefined;
         
+        // Fetch caller's company to isolate requests
+        const callerBasicDetails = await fetchEmployeeBasicDetails(employeeUuid);
+        const empCompanyId = callerBasicDetails?.empCompanyId;
+
         // Fetch all pending leave requests in the date range
-        const allPendingRequests = await fetchAllPendingLeaveRequests(startDate, endDate);
+        const allPendingRequests = await fetchAllPendingLeaveRequests(startDate, endDate, empCompanyId);
         
         
         res.status(200).json({
@@ -1125,10 +1137,18 @@ export const getEmployeeLeaveBalance = async (req: Request, res: Response) => {
 
         const jobDetails = await fetchEmployeeCurrentJobDetails(employeeId);
 
-        const fiscalYear = getFiscalYearForLeave(jobDetails?.empConversionDate, new Date());
+        if (!jobDetails) {
+            return res.status(200).json({
+                success: true,
+                message: "employee balance details fetched successfully",
+                empBalanceDetails: {balanceDetails: [], fiscalYear: null}
+            });
+        }
+
+        const fiscalYear = getFiscalYearForLeave(jobDetails.empConversionDate, new Date());
 
         // Get the start date of the current fiscal year
-        const { fiscalYearStart } = getFiscalYearStartAndEndDate(jobDetails?.empConversionDate, new Date());
+        const { fiscalYearStart } = getFiscalYearStartAndEndDate(jobDetails.empConversionDate, new Date());
 
         const balanceDetails: EmployeeLeaveBalanceAttributes[] = await fetchLeaveBalanceDetails(jobDetails, fiscalYearStart);
 
@@ -2094,8 +2114,23 @@ export const getEmployeeOnLeave = async (req: Request, res: Response) => {
             return;
         }
 
+        // Fetch caller's company to isolate requests
+        const { user } = req as AuthenticatedRequest;
+        const { employeeUuid } = user as AuthenticatedUser;
+
+        if (!employeeUuid) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: Employee UUID is missing",
+            });
+            return;
+        }
+
+        const callerBasicDetails = await fetchEmployeeBasicDetails(employeeUuid);
+        const empCompanyId = callerBasicDetails?.empCompanyId;
+
         // Fetch all employees on leave in the specified date range
-        const employeesOnLeave = await fetchEmployeesOnLeave(new Date(startDate), new Date(endDate));
+        const employeesOnLeave = await fetchEmployeesOnLeave(new Date(startDate), new Date(endDate), empCompanyId);
 
         if(!employeesOnLeave || employeesOnLeave.length === 0) {
             res.status(200).json({
@@ -2747,6 +2782,14 @@ export const getExtraWorkLogRequests = async (req: Request, res: Response) => {
         // Check user permissions
         const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
         const toolName = hrmsConstants.HR_REPOSITORY;
+
+        if (!employeeUuid) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: Employee UUID is missing",
+            });
+            return;
+        }
         
         // Check permission: admin access (>= 900) OR ExtraWorkDayRequests_read permission
         const hasPermission = await checkHrmsPermission(
@@ -2764,9 +2807,14 @@ export const getExtraWorkLogRequests = async (req: Request, res: Response) => {
             return;
         }
 
-        const {startDate, endDate} = req.query as {startDate?: string, endDate?: string};
         try {
-            const extraWorkLogRequests = await fetchExtraWorkLogRequestsService(startDate, endDate);
+            const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+            
+            // Fetch caller's company to isolate requests
+            const callerBasicDetails = await fetchEmployeeBasicDetails(employeeUuid);
+            const empCompanyId = callerBasicDetails?.empCompanyId;
+
+            const extraWorkLogRequests = await fetchExtraWorkLogRequestsService(startDate, endDate, empCompanyId);
             res.status(200).json({
                 success: true,
                 message: "Extra work log requests fetched successfully",
@@ -3970,6 +4018,14 @@ export const getAllHistoryLeaveRequests = async (req: Request, res: Response) =>
         const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
         const toolName = hrmsConstants.HR_REPOSITORY;
 
+        if (!employeeUuid) {
+            res.status(401).json({
+                success: false,
+                message: "Unauthorized: Employee UUID is missing",
+            });
+            return;
+        }
+
         // Check permission: admin access (>= 900) OR LeaveRequest_read permission
         const hasPermission = await checkHrmsPermission(
             employeeUuid,
@@ -3999,12 +4055,17 @@ export const getAllHistoryLeaveRequests = async (req: Request, res: Response) =>
         const startDate: Date | undefined = isValidDate(start) ? new Date(start): undefined;
         const endDate: Date | undefined = isValidDate(end) ? new Date(end) : undefined;
         
-        // 3. PASS page and pageSize to the service function
+        // Fetch caller's company to isolate requests
+        const callerBasicDetails = await fetchEmployeeBasicDetails(employeeUuid);
+        const empCompanyId = callerBasicDetails?.empCompanyId;
+
+        // 4. Call Service
         const allHistoryRequests = await fetchAllHistoryLeaveRequests(
             startDate, 
             endDate, 
             pageNum, 
-            limitNum
+            limitNum,
+            empCompanyId
         );
         
         // Convert Buffer attachmentPath to string for JSON response
@@ -4046,6 +4107,13 @@ export const getExtraWorkLogRequestsHistory = async (req: Request, res: Response
         const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
         const toolName = hrmsConstants.HR_REPOSITORY;
 
+        if (!employeeUuid) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized: Employee UUID is missing",
+            });
+        }
+
         // 1. Permission Check
         const hasPermission = await checkHrmsPermission(
             employeeUuid,
@@ -4068,11 +4136,16 @@ export const getExtraWorkLogRequestsHistory = async (req: Request, res: Response
         const size = Math.max(1, parseInt(PageSize as string) || 10);
 
         // 3. Call Service
+        // Fetch caller's company to isolate requests
+        const callerBasicDetails = await fetchEmployeeBasicDetails(employeeUuid);
+        const empCompanyId = callerBasicDetails?.empCompanyId;
+
         const result = await fetchExtraWorkLogRequestsServiceHistory(
             page, 
             size, 
             startDate as string, 
-            endDate as string
+            endDate as string,
+            empCompanyId
         );
 
         // 4. Success Response

@@ -55,7 +55,7 @@ export const fetchLeaveConfigDetails = async (leaveConfigId: string) => {
 
     try {
         const empLeaveConfigDetails = await employeeLeaveConfigurator.findOne({
-            where: { leaveConfigId }
+            where: { leaveConfigId, isActive: true }
         });
         return empLeaveConfigDetails?.dataValues;
     } catch (error) {
@@ -70,7 +70,7 @@ export const fetchLeaveConfigDetails = async (leaveConfigId: string) => {
  */
 export const fetchAllLeaveConfigDetails = async () => {
     try {
-        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({ raw: true });
+        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({ where: { isActive: true }, raw: true });
         return allLeaveConfigs;
     } catch (error) {
         console.error("Error fetching all leave configs:", error);
@@ -340,7 +340,7 @@ export const fetchEmployeeLeaveHistory = async (empUuid: string) => {
  * @param {Date} endDate - The end date
  * @returns {Promise<Array>} All pending leave requests
  */
-export const fetchAllPendingLeaveRequests = async (startDate?: Date, endDate?: Date) => {
+export const fetchAllPendingLeaveRequests = async (startDate?: Date, endDate?: Date, empCompanyId?: string) => {
     interface ApplicationDateCondition {
         [Op.between]?: [Date, Date];
         [Op.gte]?: Date;
@@ -354,6 +354,7 @@ export const fetchAllPendingLeaveRequests = async (startDate?: Date, endDate?: D
     interface ApprovalUpdate {
         approvalStatus: LeaveStatusCondition,
         applicationDate?: ApplicationDateCondition,
+        empUuid?: any,
         isDeleted: boolean
     }
 
@@ -376,6 +377,18 @@ export const fetchAllPendingLeaveRequests = async (startDate?: Date, endDate?: D
         whereCondition.applicationDate = {
             [Op.lte]: endDate,
         };
+    }
+
+    if (empCompanyId) {
+        const orgEmployees = await employeeBasicDetails.findAll({
+            where: { empCompanyId, isDeleted: false },
+            attributes: ['empUuid'],
+            raw: true
+        });
+        const validEmpUuids = orgEmployees.map((e: any) => e.empUuid);
+        whereCondition.empUuid = { [Op.in]: validEmpUuids };
+    } else {
+        whereCondition.empUuid = null;
     }
 
     try {
@@ -558,18 +571,32 @@ export const updateEmployeeAttendanceDetails = async (updateData: Partial<Employ
     }
 }
 
-export const fetchEmployeesOnLeave = async (startDate: Date, endDate: Date) => {
+export const fetchEmployeesOnLeave = async (startDate: Date, endDate: Date, empCompanyId?: string) => {
     try {
-        const employeesOnLeave = await employeeAttendance.findAll({
-            where: {
-                attendanceDate: {
-                    [Op.between]: [startDate, endDate]
-                },
-                attendanceStatus: {
-                    [Op.in]: [AttendanceStatusType.ON_LEAVE, AttendanceStatusType.HALF_DAY]
-                },
-                isDeleted: false
+        const whereClause: any = {
+            attendanceDate: {
+                [Op.between]: [startDate, endDate]
             },
+            attendanceStatus: {
+                [Op.in]: [AttendanceStatusType.ON_LEAVE, AttendanceStatusType.HALF_DAY]
+            },
+            isDeleted: false
+        };
+
+        if (empCompanyId) {
+            const orgEmployees = await employeeBasicDetails.findAll({
+                where: { empCompanyId, isDeleted: false },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            const validEmpUuids = orgEmployees.map((e: any) => e.empUuid);
+            whereClause.empUuid = { [Op.in]: validEmpUuids };
+        } else {
+            whereClause.empUuid = null;
+        }
+
+        const employeesOnLeave = await employeeAttendance.findAll({
+            where: whereClause,
         });
         return employeesOnLeave;
     } catch (error) {
@@ -1474,7 +1501,7 @@ export const createWorkRequestService = async (requestedData, user, transaction)
     }
 }
 
-export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDate?: string) => {
+export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDate?: string, empCompanyId?: string) => {
     try {
         const whereClause: any = {
             approvalStatus: LeaveApprovalStatus.PENDING,
@@ -1502,6 +1529,18 @@ export const fetchExtraWorkLogRequestsService = async (startDate?: string, endDa
             whereClause.createdAt = {
                 [Op.lte]: end
             };
+        }
+
+        if (empCompanyId) {
+            const orgEmployees = await employeeBasicDetails.findAll({
+                where: { empCompanyId, isDeleted: false },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            const validEmpUuids = orgEmployees.map((e: any) => e.empUuid);
+            whereClause.empUuid = { [Op.in]: validEmpUuids };
+        } else {
+            whereClause.empUuid = null;
         }
 
         const workLogRequests = await employeeExtraWorkLog.findAll({
@@ -1735,7 +1774,8 @@ export const fetchAllHistoryLeaveRequests = async (
     startDate?: Date,
     endDate?: Date,
     page: number = 1,
-    pageSize: number = 10
+    pageSize: number = 10,
+    empCompanyId?: string
 ) => {
     // 1. Interfaces for Type Safety
     interface ApplicationDateCondition {
@@ -1751,6 +1791,7 @@ export const fetchAllHistoryLeaveRequests = async (
     interface ApprovalUpdate {
         approvalStatus: LeaveStatusCondition;
         applicationDate?: ApplicationDateCondition;
+        empUuid?: any;
         isDeleted: boolean;
     }
 
@@ -1773,6 +1814,19 @@ export const fetchAllHistoryLeaveRequests = async (
 
     // 4. Calculate Offset (How many records to skip)
     const offset = (page - 1) * pageSize;
+
+    // Filter by Organization
+    if (empCompanyId) {
+        const orgEmployees = await employeeBasicDetails.findAll({
+            where: { empCompanyId, isDeleted: false },
+            attributes: ['empUuid'],
+            raw: true
+        });
+        const validEmpUuids = orgEmployees.map((e: any) => e.empUuid);
+        whereCondition.empUuid = { [Op.in]: validEmpUuids };
+    } else {
+        whereCondition.empUuid = null;
+    }
 
     try {
         // 5. Query the Database
@@ -1800,14 +1854,15 @@ export const fetchAllHistoryLeaveRequests = async (
 };
 
 export const fetchExtraWorkLogRequestsServiceHistory = async (
-    pageNum: number = 1, 
-    pageSize: number = 10, 
+    page: number = 1,
+    pageSize: number = 10,
     startDate?: string, 
-    endDate?: string
+    endDate?: string,
+    empCompanyId?: string
 ) => {
     try {
         const limitNum = pageSize;
-        const offset = (pageNum - 1) * limitNum;
+        const offset = (page - 1) * limitNum;
 
         const whereClause: any = {
             approvalStatus: {
@@ -1833,6 +1888,18 @@ export const fetchExtraWorkLogRequestsServiceHistory = async (
             whereClause.workDate = { [Op.lte]: end };
         }
 
+        if (empCompanyId) {
+            const orgEmployees = await employeeBasicDetails.findAll({
+                where: { empCompanyId, isDeleted: false },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            const validEmpUuids = orgEmployees.map((e: any) => e.empUuid);
+            whereClause.empUuid = { [Op.in]: validEmpUuids };
+        } else {
+            whereClause.empUuid = null;
+        }
+
         // Execute paginated query
         const { count, rows } = await employeeExtraWorkLog.findAndCountAll({
             where: whereClause,
@@ -1849,7 +1916,7 @@ export const fetchExtraWorkLogRequestsServiceHistory = async (
             pagination: {
                 totalRecords: count,
                 totalPages: Math.ceil(count / limitNum) || 1,
-                currentPage: pageNum,
+                currentPage: page,
                 pageSize: limitNum
             }
         };

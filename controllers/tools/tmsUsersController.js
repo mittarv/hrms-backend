@@ -8,51 +8,57 @@ const SUPER_ADMIN_EMAILS = process.env.TMS_SUPER_ADMIN_EMAILS
   ? process.env.TMS_SUPER_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase())
   : [];
 
-const ALLOWED_DOMAINS = process.env.TMS_ALLOWED_DOMAINS
-  ? process.env.TMS_ALLOWED_DOMAINS.split(",").map((d) => d.trim().toLowerCase())
-  : ["mittarv.com"];
+// Domain-based auth removes the need for hardcoded ALLOWED_DOMAINS
+// The domain will be checked against the Organization table (verifiedDomain)
 
-const isAllowedDomain = (email) => {
-  const domain = email.split("@")[1]?.toLowerCase();
-  return domain && ALLOWED_DOMAINS.includes(domain);
-};
 
-const exchangeCodeAndGetUser = async (code) => {
-  const { tokens } = await googleClient.getToken(code);
-  if (!tokens || !tokens.id_token) {
-    throw new Error("Failed to exchange authorization code");
-  }
-  const payload = await verifyGoogleToken(tokens.id_token);
-  if (!payload || !payload.email) {
-    throw new Error("Failed to verify Google token");
-  }
-  if (!payload.email_verified) {
-    throw new Error("Google email is not verified");
-  }
-  return payload;
-};
 
 exports.tmsUserGoogleLogin = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { token: googleToken } = req.body;
 
-    if (!code) {
+    if (!googleToken) {
       return res.status(400).json({
         success: false,
-        message: "Authorization code is required",
+        message: "Google ID token is required",
       });
     }
 
-    const googleUser = await exchangeCodeAndGetUser(code);
-    const email = googleUser.email;
-    const name = googleUser.name;
-    const profilePic = googleUser.picture;
-
-    if (!isAllowedDomain(email)) {
-      return res
-        .status(403)
-        .json({ success: false, message: `Please use your ${ALLOWED_DOMAINS.join(", ")} email to login` });
+    const payload = await verifyGoogleToken(googleToken);
+    if (!payload || !payload.email) {
+      throw new Error("Failed to verify Google token");
     }
+    if (!payload.email_verified) {
+      throw new Error("Google email is not verified");
+    }
+    
+    const email = payload.email;
+    const name = payload.name;
+    const profilePic = payload.picture;
+
+    const emailDomain = email.split("@")[1]?.toLowerCase();
+    
+    // Domain-Based Tenant Resolution (Atlassian Model)
+    let organization = null;
+    let isGuest = false;
+    let redirectSubdomain = null;
+
+    if (dbOutput.organization) {
+      console.log(`[SSO] Looking up org for domain: "${emailDomain}"`);
+      organization = await dbOutput.organization.findOne({
+        where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
+      });
+      console.log(`[SSO] Organization found:`, organization ? `${organization.name} (subdomain: ${organization.subdomain})` : 'NONE');
+    } else {
+      console.warn(`[SSO] dbOutput.organization model not loaded! Check BUILD_TARGET env var.`);
+    }
+
+    if (organization) {
+      redirectSubdomain = organization.subdomain;
+    } else {
+      isGuest = true;
+    }
+    console.log(`[SSO] Result: redirectSubdomain=${redirectSubdomain}, isGuest=${isGuest}`);
 
     let user = await TmsUsers.findOne({
       where: { email: email, isDeleted: false },
@@ -65,7 +71,7 @@ exports.tmsUserGoogleLogin = async (req, res) => {
           defaults: {
             email,
             name,
-            userType: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()) ? 900 : 100,
+            userType: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()) ? 900 : (isGuest ? 10 : 100),
             profilePic,
           },
         });
@@ -75,6 +81,26 @@ exports.tmsUserGoogleLogin = async (req, res) => {
         user = await TmsUsers.findOne({
           where: { email: email, isDeleted: false },
         });
+      }
+    }
+
+    // Auto-assign user as organization-scoped ADMIN if they are the Organization Admin
+    if (user && organization && organization.adminEmail && organization.adminEmail.toLowerCase() === email.toLowerCase()) {
+      const UserOrganizationMapping = dbOutput.userOrganizationMapping;
+      if (UserOrganizationMapping) {
+        let existingMapping = await UserOrganizationMapping.findOne({
+          where: { userId: user.userId, organizationId: organization.id, isDeleted: false }
+        });
+        if (!existingMapping) {
+          await UserOrganizationMapping.create({
+            userId: user.userId,
+            organizationId: organization.id,
+            role: "ADMIN"
+          });
+        } else if (existingMapping.role !== "ADMIN") {
+          existingMapping.role = "ADMIN";
+          await existingMapping.save();
+        }
       }
     }
 
@@ -92,6 +118,8 @@ exports.tmsUserGoogleLogin = async (req, res) => {
         success: true,
         message: "User logged in successfully",
         token: encodedUser,
+        redirectSubdomain,
+        isGuest,
       });
     } else {
       return res
@@ -107,18 +135,25 @@ exports.tmsUserGoogleLogin = async (req, res) => {
 
 exports.createTmsUser = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { token: googleToken } = req.body;
 
-    if (!code) {
+    if (!googleToken) {
       return res
         .status(400)
-        .json({ success: false, message: "Authorization code is required" });
+        .json({ success: false, message: "Google ID token is required" });
     }
 
-    const googleUser = await exchangeCodeAndGetUser(code);
-    const email = googleUser.email;
-    const name = googleUser.name;
-    const profilePic = googleUser.picture;
+    const payload = await verifyGoogleToken(googleToken);
+    if (!payload || !payload.email) {
+      throw new Error("Failed to verify Google token");
+    }
+    if (!payload.email_verified) {
+      throw new Error("Google email is not verified");
+    }
+
+    const email = payload.email;
+    const name = payload.name;
+    const profilePic = payload.picture;
 
     if (!isAllowedDomain(email)) {
       return res
@@ -230,7 +265,22 @@ exports.getUserDetailsById = async (req, res) => {
       where: { empOfficialEmail: user.email},
     });
 
-    const response = { ...user, employeeUuid: employeeUuid?.empUuid || null }
+    // Resolve the user's org subdomain for frontend redirect
+    let redirectSubdomain = null;
+    
+    if (dbOutput.organization && user.email) {
+      const emailDomain = user.email.split("@")[1]?.toLowerCase();
+      if (emailDomain) {
+        const org = await dbOutput.organization.findOne({
+          where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
+        });
+        if (org) {
+          redirectSubdomain = org.subdomain;
+        }
+      }
+    }
+
+    const response = { ...user, employeeUuid: employeeUuid?.empUuid || null, redirectSubdomain }
 
     res.status(200).json({ success: true, user: response});
   } catch (error) {

@@ -74,12 +74,30 @@ exports.getUserAllToolsAccess = async (user) => {
     const allUamGroups = await UamUserGroupsModel.findAll();
 
     if(!allUamGroups || allUamGroups.length === 0) {
+      if (userType === 900) {
+        return {
+          "HR Repository": 900,
+          "User Access Management": 900,
+          "Admin Settings": 900,
+          "Asset Repository": 900,
+          "HelpDesk": 900
+        };
+      }
       return userToolAccessMap;
     }
 
     const allUamTools = await UamToolsDetails.findAll();
 
     if(!allUamTools || allUamTools.length === 0) {
+      if (userType === 900) {
+        return {
+          "HR Repository": 900,
+          "User Access Management": 900,
+          "Admin Settings": 900,
+          "Asset Repository": 900,
+          "HelpDesk": 900
+        };
+      }
       return userToolAccessMap;
     }
 

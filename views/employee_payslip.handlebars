@@ -624,9 +624,11 @@
   <div class="payslip-content">
     <header class="payslip-header">
       <div class="payslip_addr_logo_container">
-        <p>{{companyAddress}}</p>
+        <p style="white-space: pre-line;">{{companyAddress}}</p>
         <div class="company_logo">
-          <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/hrms_email_logo.svg" alt="Company Logo" />
+          {{#if companyLogo}}
+          <img src="{{companyLogo}}" alt="Company Logo" style="max-height: 50px; max-width: 180px; object-fit: contain;" />
+          {{/if}}
         </div>
       </div>
       <div class="payslip_title_container">

@@ -5,6 +5,7 @@ export class EmployeeComponentConfigurator
   extends Model<EmployeeComponentConfiguratorAttributes, Partial<EmployeeComponentConfiguratorAttributes>>
   implements EmployeeComponentConfiguratorAttributes {
   declare id: number;
+  declare empCompanyId: string;
   declare componentType: string;
   declare componentValue: string;
   declare isDeleted?: boolean;
@@ -21,6 +22,11 @@ export const initEmployeeComponentConfigurator = (sequelize: Sequelize, dataType
         primaryKey: true,
         autoIncrement: true,
         allowNull: false,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
       },
       componentType: {
         type: dataTypes.STRING,

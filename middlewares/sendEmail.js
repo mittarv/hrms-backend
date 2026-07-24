@@ -285,4 +285,4 @@ export const apporveRejectLeaveRequestMail = async (email, employeeUuid, startDa
       }
     });
   });
-}
+};

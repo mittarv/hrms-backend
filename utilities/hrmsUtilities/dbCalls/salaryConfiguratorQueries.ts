@@ -27,18 +27,57 @@ const {
  * @param yearOfStudy - The year of study (for Intern/Extended Intern).
  * @returns The salary configuration data.
  */
-export const getAllSalaryConfigService = async (employeeType?: string, employeeLocation?: string, employeeLevel?: string, department?: string, yearOfStudy?: string) => {
-    // Or more comprehensive:
-    // const cleanEmployeeLevel = (level) => {
-    //     if (!level || level === 'null' || level === '""' || level.trim() === '') {
-    //         return null;
-    //     }
-    //     return level.replace(/^"|"$/g, '').trim();
-    // };
-    // const empLevel = cleanEmployeeLevel(employeeLevel);
+export const getAllSalaryConfigService = async (empCompanyId: string, employeeType?: string, employeeLocation?: string, employeeLevel?: string, department?: string, yearOfStudy?: string) => {
+    try {
+        let category = await salaryCategories.findOne({
+            where: {
+                empCompanyId,
+                isDeleted: false,
+            }
+        });
+        if (!category) {
+            category = await salaryCategories.create({
+                salaryCategoryId: createUUIDV4(),
+                empCompanyId,
+                employeeType: componentTypes.ALL,
+                employeeLocation: componentTypes.ALL,
+                employeeLevel: componentTypes.ALL,
+                department: null,
+                yearOfStudy: null,
+                isDeleted: false,
+            });
+        }
+        const lopComponent = await salaryComponents.findOne({
+            where: {
+                empCompanyId,
+                componentName: { [Op.like]: "%loss of pay%" },
+                isDeleted: false
+            }
+        });
+        if (!lopComponent && category) {
+            await salaryComponents.create({
+                componentId: createUUIDV4(),
+                empCompanyId,
+                salaryCategoryId: category.salaryCategoryId,
+                componentName: "Loss of Pay(per day)",
+                componentType: "defaultDeduction",
+                amount: 0,
+                isVariable: false,
+                includeinLop: false,
+                isDeleted: false,
+                isDefault: true,
+                createdBy: "system",
+                updatedBy: "system"
+            });
+        }
+    } catch (e) {
+        console.error("Auto-seed Loss of Pay error:", e);
+    }
+
    const [allDefaults, specific] = await Promise.all([
     salaryCategories.findAll({
         where: {
+            empCompanyId,
             employeeType: componentTypes.ALL,
             employeeLocation: componentTypes.ALL,
             employeeLevel: componentTypes.ALL,
@@ -47,10 +86,11 @@ export const getAllSalaryConfigService = async (employeeType?: string, employeeL
             isDeleted: false,
         },
         order: [['createdAt', 'ASC']],
-        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false }, required: false }]
+        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] } }, required: false }]
     }),
     salaryCategories.findAll({
         where: {
+            empCompanyId,
             employeeType: employeeType || null,
             employeeLocation: employeeLocation || null,
             employeeLevel: employeeLevel || null,
@@ -59,7 +99,7 @@ export const getAllSalaryConfigService = async (employeeType?: string, employeeL
             isDeleted: false,
         },
         order: [['createdAt', 'ASC']],
-        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false }, required: false }]
+        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] } }, required: false }]
     })
 ]);
 
