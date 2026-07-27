@@ -23,8 +23,22 @@ const {
  * @returns Array of offboarding initiated employee details (one per employee with active offboarding)
  */
 export const getAllOffboardingInitiatedEmployeeDetailsService = async(
-    transaction: Transaction
+    transaction: Transaction,
+    tenantId?: string
 ): Promise<OffboardingInitiatedEmployeeDetails[]> => {
+    let tenantEmpUuids: string[] | undefined;
+    if (tenantId && tenantId !== "DEFAULT_COMPANY") {
+        const tenantEmployees = await employeeBasicDetails.findAll({
+            where: { empCompanyId: tenantId, isDeleted: false },
+            attributes: ['empUuid'],
+            transaction,
+            raw: true
+        });
+        tenantEmpUuids = (tenantEmployees as any[]).map((e: any) => e.empUuid);
+        if (tenantEmpUuids.length === 0) {
+            return [];
+        }
+    }
 
     const offboardingList = await employeeOffboarding.findAll({
         where: {
@@ -32,6 +46,7 @@ export const getAllOffboardingInitiatedEmployeeDetailsService = async(
                 [Op.in]: [offboardingStatus.INITIATED, offboardingStatus.ON_HOLD],
             },
             isDeleted: false,
+            ...(tenantEmpUuids ? { empUuid: { [Op.in]: tenantEmpUuids } } : {}),
         },
         order: [['createdAt', 'DESC']],
         transaction,
@@ -518,11 +533,12 @@ export const approveOffboardingService = async (
 /**
  * Get all offboarded (inactive) employees with their lastWorkingDay from employee_offboarding (approved record).
  */
-export const getAllOffboardedEmployeesService = async (transaction: Transaction): Promise<OffboardedEmployeeWithLastWorkingDay[]> => {
+export const getAllOffboardedEmployeesService = async (transaction: Transaction, tenantId?: string): Promise<OffboardedEmployeeWithLastWorkingDay[]> => {
     const offboardedEmployees = await employeeBasicDetails.findAll({
         where: {
             isActive: false,
             isDeleted: false,
+            ...(tenantId ? { empCompanyId: tenantId } : {}),
         },
         attributes: ['empUuid', 'empFirstName', 'empLastName'],
         transaction,

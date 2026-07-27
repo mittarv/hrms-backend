@@ -8,10 +8,11 @@ const { hrmsNotificationTypes } = require("../../../interfaces/hrmsTool/enum/hrm
 const { checkHrmsPermission } = require("../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices");
 //===================fetching all the important links from the database and this function will be same for the every user=========================,
 //=============================================I mean super admin and normal admin============================================================================
-exports.getImportantLinkList = async (_, res) => {
+exports.getImportantLinkList = async (req, res) => {
+  const empCompanyId= req.empCompanyId
   try {
     const importantLinkList = await ImportantLinkList.findAll({
-      where: { isDeleted: false },
+      where: { empCompanyId:empCompanyId, isDeleted: false },
       order: [["createdAt"]],
       include: [
         {
@@ -37,10 +38,11 @@ exports.getImportantLinkList = async (_, res) => {
 };
 
 //===================fetching all the policy from the database and this function will be same for the every user=========================,
-exports.getPolicyList = async (_, res) => {
+exports.getPolicyList = async (req, res) => {
+  const empCompanyId= req.empCompanyId
   try {
     const policyList = await PolicyList.findAll({
-      where: { isDeleted: false },
+      where: { empCompanyId:empCompanyId,isDeleted: false },
       order: [["createdAt"]],
       include: [
         {
@@ -68,6 +70,8 @@ exports.getPolicyList = async (_, res) => {
 //===================adding a new policy to the database and this function will be available only for super admin=========================,
 exports.addImportantLink = async (req, res) => {
   let transaction;
+  const empCompanyId = req.empCompanyId
+
   try {
     const { toolArray, lastModifiedBy, createdBy, employeeUuid } = req.body;
     const { user } = req;
@@ -117,7 +121,7 @@ exports.addImportantLink = async (req, res) => {
       }
 
       await ImportantLinkList.create(
-        { toolName, toolLink, lastModifiedBy, createdBy },
+        { toolName, toolLink, lastModifiedBy, createdBy ,empCompanyId},
         { transaction }
       );
 
@@ -169,6 +173,8 @@ exports.addPolicy = async (req, res) => {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
     const toolName = "HR Repository";
+      const empCompanyId= req.empCompanyId
+
 
     // Check permission: admin access (>= 900) OR Policy_create permission
     const hasPermission = await checkHrmsPermission(
@@ -236,6 +242,7 @@ exports.addPolicy = async (req, res) => {
           version,
           remarks,
           approvedBy,
+          empCompanyId
         },
         { transaction }
       );
@@ -284,6 +291,7 @@ exports.updatePolicy = async (req, res) => {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
     const toolName = "HR Repository";
+  const empCompanyId= req.empCompanyId
 
     // Check permission: admin access (>= 900) OR Policy_update permission
     const hasPermission = await checkHrmsPermission(
@@ -311,6 +319,7 @@ exports.updatePolicy = async (req, res) => {
           version: policy.version,
           remarks: policy.remarks,
           approvedBy: policy.approvedBy,
+          empCompanyId: empCompanyId
         },
         {
           where: {
@@ -332,6 +341,8 @@ exports.updateImportantLink = async (req, res) => {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
     const toolName = "HR Repository";
+      const empCompanyId= req.empCompanyId
+
 
     // Check permission: admin access (>= 900) OR ImportantLink_update permission
     const hasPermission = await checkHrmsPermission(
@@ -367,7 +378,7 @@ exports.updateImportantLink = async (req, res) => {
       //removing the checks from update api.
       await ImportantLinkList.update(
         { toolName, toolLink, lastModifiedBy },
-        { where: { id: toolArray[i]["id"] } }
+        { where: { id: toolArray[i]["id"],empCompanyId } }
       );
     }
     return res
@@ -385,6 +396,7 @@ exports.deletePolicy = async (req, res) => {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
     const toolName = "HR Repository";
+  const empCompanyId= req.empCompanyId
 
     // Check permission: admin access (>= 900) OR Policy_delete permission
     const hasPermission = await checkHrmsPermission(
@@ -406,7 +418,7 @@ exports.deletePolicy = async (req, res) => {
         .status(400)
         .send({ success: false, message: "Please provide the id" });
     }
-    await PolicyList.update({ isDeleted: true }, { where: { id } });
+    await PolicyList.update({ isDeleted: true }, { where: { id,empCompanyId } });
     return res.status(200).send({ success: true, message: "Policy Deleted" });
   } catch (error) {
     return res.status(500).send({ success: false, message: error.message });
@@ -419,6 +431,7 @@ exports.deleteImportantLink = async (req, res) => {
     const { user } = req;
     const toolsAccess = user?.toolsAccess || {};
     const toolName = "HR Repository";
+      const empCompanyId= req.empCompanyId
 
     // Check permission: admin access (>= 900) OR ImportantLink_delete permission
     const hasPermission = await checkHrmsPermission(
@@ -440,7 +453,7 @@ exports.deleteImportantLink = async (req, res) => {
         .status(400)
         .send({ success: false, message: "Please provide the id" });
     }
-    await ImportantLinkList.update({ isDeleted: true }, { where: { id } });
+    await ImportantLinkList.update({ isDeleted: true }, { where: { id,empCompanyId } });
     return res
       .status(200)
       .send({ success: true, message: "Important Link Deleted" });

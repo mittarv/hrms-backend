@@ -70,6 +70,7 @@ export const CreateHoliday = async (req: Request, res: Response) => {
     }
 
     // Prepare data for bulk creation
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     const holidaysToCreate = await Promise.all(
       holidaysData.map(async (holiday) => ({
         holidayId: await createUUIDV4(),
@@ -78,6 +79,7 @@ export const CreateHoliday = async (req: Request, res: Response) => {
         eventType: holiday.eventType,
         remarks: holiday.remarks,
         createdBy: holiday.createdBy,
+        ...(empCompanyId ? { empCompanyId } : {}),
       }))
     );
 
@@ -141,9 +143,11 @@ export const GetAllHolidays = async (req: Request, res: Response) => {
     //   return;
     // }
 
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     const holidays = await employeeHoliday.findAll({
       where: {
         isDeleted: false,
+        ...(empCompanyId ? { empCompanyId } : {}),
       },
     });
 
@@ -206,12 +210,14 @@ export const DeleteHoliday = async (req: Request, res: Response) => {
     }
     
     // Perform bulk soft delete directly
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     const [updatedCount] = await employeeHoliday.update(
       { isDeleted: true },
       { 
         where: { 
           holidayId: holidayIds,
-          isDeleted: false 
+          isDeleted: false,
+          ...(empCompanyId ? { empCompanyId } : {}),
         } 
       }
     );
@@ -313,12 +319,14 @@ export const UpdateHoliday = async (req: Request, res: Response) => {
       }
 
       // Perform update
+      const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
       const [updatedCount] = await employeeHoliday.update(
         updateFields,
         {
           where: {
             holidayId: holiday.holidayId,
             isDeleted: false,
+            ...(empCompanyId ? { empCompanyId } : {}),
           },
         }
       );

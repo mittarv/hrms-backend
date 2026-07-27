@@ -35,7 +35,7 @@ export function registerHrms(app: Application) {
     app.use("/api/hrms/empAttendanceManagement", employeeAttendanceRoutes);
     app.use("/api/hrms/Notifications", employeeNotificationsRoutes);
     app.use("/api/hrms/salaryConfigurator", salaryConfiguratorRoutes);
-    app.use("/api/hrms/payroll", PayrollRoutes);
+    app.use("/api/hrms/payroll",PayrollRoutes);
     app.use("/api/hrms/access", hrmsAccessRoutes);
     app.use("/api/hrrepository", importantlinkAndPolicyRoutes);
     app.use("/api/hrms/employeeOffboarding", employeeOffboardingRoutes);

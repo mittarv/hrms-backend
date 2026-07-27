@@ -1,4 +1,6 @@
 const { dbOutput } = require("../../models/index");
+const { createUUIDV4 } = require("../../utilities/uuidV4Generator");
+const { Op } = require("sequelize");
 const TmsUsers = dbOutput.tmsUsers;
 const employeeContactDetails = dbOutput.employeeContactDetails;
 const jwt = require("jsonwebtoken");
@@ -71,7 +73,7 @@ exports.tmsUserGoogleLogin = async (req, res) => {
           defaults: {
             email,
             name,
-            userType: SUPER_ADMIN_EMAILS.includes(email.toLowerCase()) ? 900 : (isGuest ? 10 : 100),
+            userType: organization?.adminEmail === email ? 900 : (isGuest ? 10 : 100),
             profilePic,
           },
         });
@@ -101,6 +103,62 @@ exports.tmsUserGoogleLogin = async (req, res) => {
           existingMapping.role = "ADMIN";
           await existingMapping.save();
         }
+      }
+    }
+
+    // Auto-create HRMS Admin employee profile during first SSO login if the user is an Admin
+    if (user && organization && (user.userType === 900 || user.userType === 100 || (organization.adminEmail && organization.adminEmail.toLowerCase() === email.toLowerCase()))) {
+      try {
+        const EmployeeContactDetails = dbOutput.employeeContactDetails;
+        const EmployeeBasicDetails = dbOutput.employeeBasicDetails;
+        const EmployeeJobDetails = dbOutput.employeeJobDetails;
+        if (EmployeeContactDetails && EmployeeBasicDetails) {
+          let existingEmpInOrg = null;
+          const contactRows = await EmployeeContactDetails.findAll({
+            where: { empOfficialEmail: email, isDeleted: false },
+            attributes: ['empUuid'],
+            raw: true
+          });
+          if (contactRows && contactRows.length > 0) {
+            const empUuids = contactRows.map((r) => r.empUuid);
+            existingEmpInOrg = await EmployeeBasicDetails.findOne({
+              where: { empUuid: { [Op.in]: empUuids }, empCompanyId: organization.id, isDeleted: false }
+            });
+          }
+
+          if (!existingEmpInOrg) {
+            const newUuid = await createUUIDV4();
+            await EmployeeContactDetails.create({
+              contactId: await createUUIDV4(),
+              empOfficialEmail: email,
+              empUuid: newUuid
+            });
+            const nameParts = (name || "Admin").split(" ");
+            const firstName = nameParts[0] || "Admin";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            await EmployeeBasicDetails.create({
+              empUuid: newUuid,
+              empFirstName: firstName,
+              empLastName: lastName,
+              empCompanyId: organization.id,
+              isManager: true,
+              empHireDate: new Date()
+            });
+            if (EmployeeJobDetails) {
+              await EmployeeJobDetails.create({
+                jobId: await createUUIDV4(),
+                empType: "",
+                empTitle: "Admin",
+                empDepartment: "",
+                empUuid: newUuid,
+                effectiveDate: new Date()
+              });
+            }
+            console.log(`[SSO] Auto-created employee profile for admin ${email} (${newUuid}) in tenant ${organization.id}`);
+          }
+        }
+      } catch (empCreateErr) {
+        console.error(`[SSO] Error auto-creating HRMS employee profile for admin:`, empCreateErr);
       }
     }
 

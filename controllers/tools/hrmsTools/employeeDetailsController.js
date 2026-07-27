@@ -160,16 +160,31 @@ exports.createEmployeeData = async (req, res) => {
   const transaction = await outputSequelize.transaction();
 
   try {
-    const existingEmployee = await EmployeeContactDetails.findAll({
+    const existingEmployeeContacts = await EmployeeContactDetails.findAll({
       where: {
         empOfficialEmail: emp_official_email,
+        isDeleted: false,
       },
+      attributes: ["empUuid"],
+      raw: true,
+      transaction,
     });
-    if (existingEmployee.length !== 0) {
-      await transaction.rollback();
-      return res
-        .status(400)
-        .json({ success: false, message: "Employee already exists" });
+    if (existingEmployeeContacts.length > 0) {
+      const existingUuids = existingEmployeeContacts.map((item) => item.empUuid);
+      const existingInOrg = await EmployeeBasicDetails.findOne({
+        where: {
+          empUuid: { [Op.in]: existingUuids },
+          empCompanyId: emp_company_id,
+          isDeleted: false,
+        },
+        transaction,
+      });
+      if (existingInOrg) {
+        await transaction.rollback();
+        return res
+          .status(400)
+          .json({ success: false, message: "Employee already exists in this organization" });
+      }
     }
     let employeeUuid = await createUUIDV4();
     let contactId = await createUUIDV4();
@@ -637,20 +652,19 @@ exports.getEmployeeDirectoryDetailsByUuid = async (req, res) => {
 exports.getAllEmployees = async (req, res) => {
   try {
     const employeeUuid = req.user?.employeeUuid;
-    if (!employeeUuid) {
-      return res.status(400).json({ success: false, message: "Employee UUID is required to fetch directory" });
+    let tenantId = req.empCompanyId || req.body?.empCompanyId;
+    console.log(tenantId,"idjb")
+
+    if (!tenantId && employeeUuid) {
+      const callerBasicDetails = await EmployeeBasicDetails.findOne({
+        where: { empUuid: employeeUuid, isDeleted: false }
+      });
+      tenantId = callerBasicDetails?.empCompanyId;
     }
 
-    // Determine the user's organization (tenantId)
-    const callerBasicDetails = await EmployeeBasicDetails.findOne({
-      where: { empUuid: employeeUuid, isDeleted: false }
-    });
-
-    if (!callerBasicDetails || !callerBasicDetails.empCompanyId) {
+    if (!tenantId) {
       return res.status(403).json({ success: false, message: "You must belong to an organization to view employees" });
     }
-
-    const tenantId = callerBasicDetails.empCompanyId;
 
     // Fetch all employee UUIDs within the SAME organization
     const employeeUuids = await EmployeeBasicDetails.findAll({
@@ -1072,13 +1086,17 @@ exports.updateEmployeeDetailsByUuid = async (req, res) => {
 
 exports.getAllManagerInformation = async (req, res) => {
   try {
+    const empCompanyId = req.empCompanyId || req.body?.empCompanyId;
+    const whereClause = {
+      isManager: true,
+      isActive: true,
+      isDeleted: false,
+    };
+    if (empCompanyId) whereClause.empCompanyId = empCompanyId;
+
     const managerInfo = await EmployeeBasicDetails.findAll({
       attributes: ['empUuid', 'empFirstName', 'empLastName','isManager'],
-      where: {
-        isManager: true,
-        isActive: true,
-        isDeleted: false,
-      }
+      where: whereClause
     });
     // console.log(managerInfo);
 
@@ -1119,11 +1137,15 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
     const todayYear = parseInt(year);
 
     // Fetch all employees with their DOB (only non-null DOB values)
+    const empCompanyId = req.empCompanyId || req.body?.empCompanyId;
+    const tenantFilter = empCompanyId ? { empCompanyId } : {};
+
     const allEmployeesWithDob = await EmployeeBasicDetails.findAll({
       where: {
         empDob: { [Op.ne]: null },
         isDeleted: false,
-        isActive: true 
+        isActive: true,
+        ...tenantFilter
       },
       attributes: ['empUuid', 'empFirstName', 'empLastName', 'empDob'],
       raw: true
@@ -1135,7 +1157,7 @@ exports.getEmployeeDashboardDetails = async (req, res) => {
     // Work anniversaries: use employeejobdetails (conversion date) for active employees only.
     // Get active employee UUIDs from basic details.
     const activeEmployees = await EmployeeBasicDetails.findAll({
-      where: { isDeleted: false, isActive: true },
+      where: { isDeleted: false, isActive: true, ...tenantFilter },
       attributes: ['empUuid', 'empFirstName', 'empLastName'],
       raw: true
     });
@@ -1962,10 +1984,23 @@ exports.getPendingRequests = async (req, res) => {
       });
     }
 
+    // Scope pending requests to the same tenant's employees
+    const empCompanyId = req.empCompanyId || req.body?.empCompanyId;
+    let tenantEmpUuids;
+    if (empCompanyId) {
+      const tenantEmps = await EmployeeBasicDetails.findAll({
+        where: { empCompanyId, isDeleted: false },
+        attributes: ['empUuid'],
+        raw: true
+      });
+      tenantEmpUuids = tenantEmps.map(e => e.empUuid);
+    }
+
     const pendingRequests = await EmployeeDataRequest.findAll({
       where: {
         isApproved: false,
         isRejected: false,
+        ...(tenantEmpUuids ? { requestedFor: { [Op.in]: tenantEmpUuids } } : {}),
       },
       raw: true,
     });

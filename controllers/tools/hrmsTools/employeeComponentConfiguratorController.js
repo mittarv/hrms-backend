@@ -5,33 +5,14 @@ const EmployeeComponentConfigurator = dbOutput.employeeComponentConfigurator;
 
 exports.getAllComponentType = async (req, res) => {
     try {
-      const empCompanyId = req.empCompanyId || req.body.empCompanyId || "DEFAULT_COMPANY";
+      const empCompanyId = req.empCompanyId || req.body.empCompanyId ;
       // Fetch component types
-      let allComponentType = await EmployeeComponentConfigurator.findAll({
+      const allComponentType = await EmployeeComponentConfigurator.findAll({
         where: { isDeleted: false, empCompanyId },
         attributes: ['componentType', 'componentValue'],
         raw: true
       });
 
-      if (allComponentType.length === 0 && empCompanyId !== "DEFAULT_COMPANY") {
-        const defaultComponents = await EmployeeComponentConfigurator.findAll({
-          where: { isDeleted: false, empCompanyId: "DEFAULT_COMPANY" },
-          attributes: ['componentType', 'componentValue'],
-          raw: true
-        });
-
-        if (defaultComponents.length > 0) {
-          const newComponents = defaultComponents.map(c => ({
-            componentType: c.componentType,
-            componentValue: c.componentValue,
-            empCompanyId,
-            isDeleted: false
-          }));
-          await EmployeeComponentConfigurator.bulkCreate(newComponents);
-          allComponentType = defaultComponents;
-        }
-      }
-  
       // Transform the result into a single object
       const allComponent = allComponentType.reduce((acc, item) => {
         acc[item.componentType] = JSON.parse(item.componentValue); // Parse JSON for readability
@@ -52,7 +33,7 @@ exports.getAllComponentType = async (req, res) => {
 exports.updateComponentType = async (req, res) => {
     try {
         const { componentType, componentValue, empCompanyId: bodyEmpCompanyId } = req.body;
-        const empCompanyId = req.empCompanyId || bodyEmpCompanyId || "DEFAULT_COMPANY";
+        const empCompanyId = req.empCompanyId || bodyEmpCompanyId ;
 
         if (!componentType || !componentValue) {
             return res.status(400).json({ success: false, message: "componentType and componentValue are required" });
