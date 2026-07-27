@@ -17,6 +17,7 @@ export interface RewardCycleAttributes {
   votingStartDate: Date | null;
   votingEndDate: Date | null;
   winnersAnnouncedDate: Date | null;
+  empCompanyId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

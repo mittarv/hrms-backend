@@ -11,6 +11,7 @@ export interface AuthenticatedRequest extends Request {
   premium?: boolean;
   customerId?: string;
   productId?: string | null;
+  tenantId?: string | null;
 }
 
 export const isTmsUserAuthenticated = async (req: Request, res: Response, next: NextFunction) => {
@@ -23,7 +24,7 @@ export const isTmsUserAuthenticated = async (req: Request, res: Response, next: 
       });
       return;
     }
-    const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as { id: string, email: string, env: string };
+    const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as { id: string, email: string, env: string, tenantId?: string | null };
 
     if (decoded.env !== process.env.NODE_ENV) {
       res.status(401).json({
@@ -48,27 +49,33 @@ export const isTmsUserAuthenticated = async (req: Request, res: Response, next: 
 
     const toolsAccess = await getUserAllToolsAccess(tmsUser);
 
-    let tenantId = null;
-    const subdomain = req.headers['x-tenant-subdomain'] || req.query.tenant;
-    if (subdomain) {
-      const Organization = dbOutput.organization;
-      if (Organization) {
-        let fullHost = req.headers.host || "";
-        fullHost = fullHost.split(":")[0];
-        
-        const org = await Organization.findOne({ 
-          where: { 
-            [Op.or]: [
-              { subdomain: subdomain },
-              { slugDomain: subdomain },
-              { domain: fullHost }
-            ],
-            status: 'ACTIVE' 
-          }, 
-          raw: true 
-        });
-        if (org) {
-          tenantId = (org as any).id;
+    let tenantId = decoded.tenantId || null;
+    (req as any).tenantId = tenantId; // Set it early for downstream middlewares
+
+    if (!tenantId) {
+      // Fallback for older tokens that don't have tenantId embedded
+      const subdomain = req.headers['x-tenant-subdomain'] || req.query.tenant;
+      if (subdomain) {
+        const Organization = dbOutput.organization;
+        if (Organization) {
+          let fullHost = req.headers.host || "";
+          fullHost = fullHost.split(":")[0];
+          
+          const org = await Organization.findOne({ 
+            where: { 
+              [Op.or]: [
+                { subdomain: subdomain },
+                { slugDomain: subdomain },
+                { domain: fullHost }
+              ],
+              status: 'ACTIVE' 
+            }, 
+            raw: true 
+          });
+          if (org) {
+            tenantId = (org as any).id;
+            (req as any).tenantId = tenantId;
+          }
         }
       }
     }

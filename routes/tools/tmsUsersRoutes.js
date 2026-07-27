@@ -7,6 +7,7 @@ const {
   removeUserById,
   tmsUserGoogleLogin,
   createTmsUserWithoutLogin,
+  switchTenant,
 } = require("../../controllers/tools/tmsUsersController");
 const router = express.Router();
 const { isTmsUserAuthenticated } = require("../../middlewares/isAuthenticated");
@@ -19,6 +20,7 @@ router.route("/getall/").get(isTmsUserAuthenticated, getAllUserDetails);
 router.route("/get").get(isTmsUserAuthenticated, getUserDetailsById);
 router.route("/update/:id").patch(isTmsUserAuthenticated, updateUserDetailsById);
 router.route("/delete/:id").delete(isTmsUserAuthenticated, removeUserById);          
-router.route("/createUser").post(isTmsUserAuthenticated, createTmsUserWithoutLogin);  
+router.route("/createUser").post(isTmsUserAuthenticated, createTmsUserWithoutLogin);
+router.route("/switch-tenant").post(isTmsUserAuthenticated, switchTenant);
 
 module.exports = router;

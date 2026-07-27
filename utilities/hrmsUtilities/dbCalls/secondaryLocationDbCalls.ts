@@ -530,13 +530,19 @@ export const createSecondaryLocationConfigService = async (
   }
 };
 
-export const listSecondaryLocationConfigsService = async (options: ConfigListOptions = {}) => {
+export const listSecondaryLocationConfigsService = async (
+  options: ConfigListOptions = {},
+  tenantId?: string | null
+) => {
   const limit =
     options.limit && options.limit > 0
       ? options.limit
       : SECONDARY_LOCATION_CONSTANTS.DEFAULTS.LIMIT;
 
   const whereClause: WhereOptions = { isDeleted: false };
+  if (tenantId) {
+    whereClause.empCompanyId = tenantId;
+  }
 
   const searchTerm = options.search?.trim().toLowerCase() || "";
   if (searchTerm) {
@@ -571,7 +577,7 @@ export const listSecondaryLocationConfigsService = async (options: ConfigListOpt
 
   if (lastId) {
     const anchorRow = (await configureSecondaryLocation.findOne({
-      where: { configId: lastId, isDeleted: false },
+      where: { configId: lastId, isDeleted: false ,empCompanyId:tenantId},
       attributes: ["configId", sortBy],
       raw: true,
     })) as

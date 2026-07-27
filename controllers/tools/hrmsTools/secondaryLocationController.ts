@@ -96,7 +96,7 @@ export const createSecondaryLocationConfig = async (req: Request, res: Response)
 
 export const getSecondaryLocationConfigs = async (req: Request, res: Response) => {
   try {
-    const { user } = req as AuthenticatedRequest;
+    const { user, tenantId } = req as AuthenticatedRequest;
     if (!(await hasPermission(user as AuthenticatedUser, "SecondaryLocationConfig_read"))) {
       res.status(403).json({ success: false, message: "You don't have permission to view location config" });
       return;
@@ -117,7 +117,7 @@ export const getSecondaryLocationConfigs = async (req: Request, res: Response) =
         (req.query.lastId as string | undefined) ||
         "",
       limit: req.query.limit ? Number(req.query.limit) : 10,
-    });
+    }, tenantId);
 
     res.status(200).json({ success: true, data });
   } catch (error) {

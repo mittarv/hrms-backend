@@ -109,6 +109,7 @@ export const getDashboard = async (
     if (!employeeUuid) {
       return sendError(res, "Employee context required", 401);
     }
+    const { tenantId } = req as AuthenticatedRequest;
     const yearQuery = Number(req.query.year);
     const monthQuery = Number(req.query.month);
     const selectedYear = Number.isInteger(yearQuery) ? yearQuery : undefined;
@@ -116,6 +117,7 @@ export const getDashboard = async (
     
     const data = await rewardsService.getDashboardData(
       employeeUuid,
+      tenantId || "",
       selectedYear,
       selectedMonth
     );
@@ -141,9 +143,10 @@ export const getCurrentCycle = async (
 ) => {
   try {
     const { month, year, getAll } = req.query;
+    const { tenantId } = req as AuthenticatedRequest;
 
     if (getAll === 'true') {
-      const cycles = await rewardsService.getAllCycles();
+      const cycles = await rewardsService.getAllCycles(tenantId || "");
       return res.json({
         success: true,
         message: "All cycles retrieved successfully.",
@@ -153,12 +156,12 @@ export const getCurrentCycle = async (
 
     let cycle;
     if (month && year) {
-      cycle = await rewardsService.getCycleByMonthYear(Number(month), Number(year));
+      cycle = await rewardsService.getCycleByMonthYear(Number(month), Number(year), tenantId || "");
       if (!cycle) {
         return sendError(res, "Cycle not found for the specified month and year.", 404);
       }
     } else {
-      cycle = await rewardsService.getCurrentCycle();
+      cycle = await rewardsService.getCurrentCycle(tenantId || "");
     }
 
     return res.json({
@@ -177,6 +180,7 @@ export const nominate = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const employeeUuid = req.user?.employeeUuid;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
+    const { tenantId } = req as AuthenticatedRequest;
 
     const { cycleId, nomineeEmpUuid, citation } = req.body;
     if (
@@ -194,7 +198,7 @@ export const nominate = async (req: AuthenticatedRequest, res: Response) => {
       return sendError(res, "You cannot nominate yourself");
     }
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Cycle not found", 404);
     if (cycle.currentPhase !== RewardCyclePhase.NOMINATION) {
       return sendError(res, "Nominations are not open for this cycle.", 400);
@@ -228,9 +232,10 @@ export const searchEmployees = async (
   try {
     const employeeUuid = req.user?.employeeUuid;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
+    const { tenantId } = req as AuthenticatedRequest;
 
     const q = (req.query.q as string) ?? "";
-    const list = await rewardsService.searchEmployees(q, employeeUuid);
+    const list = await rewardsService.searchEmployees(q, employeeUuid, tenantId);
     return res.json({ success: true, data: list });
   } catch (e) {
     console.error("Rewards searchEmployees error:", e);
@@ -253,6 +258,10 @@ export const getCycleNominations = async (
 
     const employeeUuid = req.user?.employeeUuid;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
+    const { tenantId } = req as AuthenticatedRequest;
+
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
+    if (!cycle) return sendError(res, "Cycle not found", 404);
 
     const admin = await isRewardsAdmin(employeeUuid, req.user?.toolsAccess);
     const forVoting = req.query.forVoting === "true";
@@ -283,8 +292,9 @@ export const getNomineesForVoting = async (
 
     const employeeUuid = req.user?.employeeUuid;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
+    const { tenantId } = req as AuthenticatedRequest;
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Cycle not found", 404);
     const phase = cycle.currentPhase;
     const winnersAnnounced = Boolean(cycle.winnersAnnouncedDate);
@@ -329,7 +339,7 @@ export const getNomineesForVoting = async (
 /** POST /api/hrms/rewards/vote - Cast or change vote. Uses employeeUuid from auth to find voter's department (employeeJobDetails) and set vote category (leadership_key => leadership_choice, else employee_choice). */
 export const vote = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { user } = req as AuthenticatedRequest;
+    const { user, tenantId } = req as AuthenticatedRequest;
     const { employeeUuid } = user as AuthenticatedUser;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
 
@@ -340,7 +350,7 @@ export const vote = async (req: AuthenticatedRequest, res: Response) => {
       return sendError(res, "You cannot vote for yourself.", 400);
     }
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Cycle not found", 404);
     if (cycle.currentPhase !== RewardCyclePhase.VOTING) {
       return sendError(
@@ -382,6 +392,11 @@ export const getMyCitationsForCycle = async (
       )?.trim?.() ?? "";
     const employeeUuid = req.user?.employeeUuid;
     if (!employeeUuid) return sendError(res, "Employee context required", 401);
+    const { tenantId } = req as AuthenticatedRequest;
+
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
+    if (!cycle) return sendError(res, "Cycle not found", 404);
+
     const data = await rewardsService.getMyCitationsForCycle(
       cycleId,
       employeeUuid,
@@ -440,6 +455,11 @@ export const getNomineesForAnnounce = async (
         : req.params.cycleId
       )?.trim?.() ?? "";
     if (!cycleId) return sendError(res, "Invalid cycle ID.");
+    const { tenantId } = req as AuthenticatedRequest;
+
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
+    if (!cycle) return sendError(res, "Cycle not found", 404);
+
     const data =
       await rewardsService.getNomineesWithVoteCountForAnnounce(cycleId);
     return res.json({ success: true, message: "Nominees for announce loaded successfully.", data });
@@ -457,6 +477,7 @@ export const startPhase = async (req: AuthenticatedRequest, res: Response) => {
     if (!(await hasRewardsProcessManage(employeeUuid, req.user?.toolsAccess))) {
       return sendError(res, "Forbidden", 403);
     }
+    const { tenantId } = req as AuthenticatedRequest;
 
     const cycleId =
       (Array.isArray(req.params.cycleId)
@@ -471,12 +492,12 @@ export const startPhase = async (req: AuthenticatedRequest, res: Response) => {
       return sendError(res, "Invalid phase. Allowed: nomination, voting.");
     }
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Rewards cycle not found.", 404);
 
-    await rewardsService.startPhase(cycleId, phase, employeeUuid);
+    await rewardsService.startPhase(cycleId, phase, employeeUuid, tenantId);
 
-    const updated = await rewardsService.getCycleById(cycleId);
+    const updated = await rewardsService.getCycleById(cycleId, tenantId);
     const phaseMessage =
       phase === RewardCyclePhase.NOMINATION
         ? "Nomination phase started successfully."
@@ -547,6 +568,7 @@ export const endPhase = async (req: AuthenticatedRequest, res: Response) => {
     if (!(await hasRewardsProcessManage(employeeUuid, req.user?.toolsAccess))) {
       return sendError(res, "Forbidden", 403);
     }
+    const { tenantId } = req as AuthenticatedRequest;
 
     const cycleId =
       (Array.isArray(req.params.cycleId)
@@ -556,8 +578,8 @@ export const endPhase = async (req: AuthenticatedRequest, res: Response) => {
     const { phase } = req.body;
     if (!cycleId || !phase) return sendError(res, "cycleId and phase are required.");
 
-    await rewardsService.endPhase(cycleId, phase, employeeUuid);
-    const updated = await rewardsService.getCycleById(cycleId);
+    await rewardsService.endPhase(cycleId, phase, employeeUuid, tenantId);
+    const updated = await rewardsService.getCycleById(cycleId, tenantId);
     const phaseMessage =
       phase === RewardCyclePhase.NOMINATION
         ? "Nomination phase ended successfully."
@@ -582,6 +604,7 @@ export const removeNomination = async (
     if (!(await hasRewardsAdminView(employeeUuid, req.user?.toolsAccess))) {
       return sendError(res, "Forbidden", 403);
     }
+    const { tenantId } = req as AuthenticatedRequest;
 
     const nominationId =
       (Array.isArray(req.params.nominationId)
@@ -595,7 +618,10 @@ export const removeNomination = async (
       attributes: ["cycleId"],
     });
     if (existingNom?.cycleId) {
-      const cycle = await rewardsService.getCycleById(existingNom.cycleId);
+      const cycle = await rewardsService.getCycleById(existingNom.cycleId, tenantId);
+      if (!cycle) {
+        return sendError(res, "Nomination not found or access denied.", 404);
+      }
       if (cycle && cycle.currentPhase !== RewardCyclePhase.NOMINATION) {
         return sendError(
           res,
@@ -667,6 +693,10 @@ export const getReviewNominees = async (
         : req.params.cycleId
       )?.trim?.() ?? "";
     if (!cycleId) return sendError(res, "Invalid cycle ID.");
+    const { tenantId } = req as AuthenticatedRequest;
+
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
+    if (!cycle) return sendError(res, "Cycle not found", 404);
 
     const data = await rewardsService.getReviewNominees(cycleId);
     return res.json({ success: true, message: "Review nominees loaded successfully.", data });
@@ -698,8 +728,9 @@ export const getNomineeCitations = async (
       : req.params.nomineeEmpUuid;
     if (!cycleId || !nomineeEmpUuid)
       return sendError(res, "cycleId and nomineeEmpUuid are required.");
+    const { tenantId } = req as AuthenticatedRequest;
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Rewards cycle not found.", 404);
     if (cycle.currentPhase !== RewardCyclePhase.NOMINATION) {
       return sendError(
@@ -744,8 +775,9 @@ export const upsertGroupedCitation = async (
         "cycleId, nomineeEmpUuid and groupedCitation are required.",
       );
     }
+    const { tenantId } = req as AuthenticatedRequest;
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Rewards cycle not found.", 404);
     if (cycle.currentPhase !== RewardCyclePhase.NOMINATION) {
       return sendError(
@@ -783,6 +815,7 @@ export const announceWinners = async (
     if (!(await hasRewardsChooseWinner(employeeUuid, req.user?.toolsAccess))) {
       return sendError(res, "Forbidden", 403);
     }
+    const { tenantId } = req as AuthenticatedRequest;
 
     const cycleId =
       (Array.isArray(req.params.cycleId)
@@ -794,7 +827,7 @@ export const announceWinners = async (
       return sendError(res, "cycleId is required.");
     }
 
-    const cycle = await rewardsService.getCycleById(cycleId);
+    const cycle = await rewardsService.getCycleById(cycleId, tenantId);
     if (!cycle) return sendError(res, "Rewards cycle not found.", 404);
     if (cycle.currentPhase !== RewardCyclePhase.WINNERS) {
       return sendError(
@@ -811,8 +844,8 @@ export const announceWinners = async (
 
     if (endWithoutWinners) {
       // End phase without selecting winners
-      await rewardsService.endPhaseWithoutWinners(cycleId, employeeUuid);
-      const updated = await rewardsService.getCycleById(cycleId);
+      await rewardsService.endPhaseWithoutWinners(cycleId, employeeUuid, tenantId);
+      const updated = await rewardsService.getCycleById(cycleId, tenantId);
       return res.json({
         success: true,
         data: updated,
@@ -833,9 +866,10 @@ export const announceWinners = async (
       employeeChoiceEmpUuids,
       leadershipChoiceEmpUuids,
       employeeUuid,
+      tenantId,
     );
 
-    const updated = await rewardsService.getCycleById(cycleId);
+    const updated = await rewardsService.getCycleById(cycleId, tenantId);
     res.json({ success: true, data: updated, message: "Winners announced successfully." });
 
     const cycleAttrs = cycle.get({ plain: true }) as RewardCycleAttributes;

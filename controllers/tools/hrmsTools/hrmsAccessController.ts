@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+const { createUUIDV4 } = require('../../../utilities/uuidV4Generator');
 import { Op, Transaction } from 'sequelize';
 import { outputSequelize } from '../../../models/index';
 import { AuthenticatedRequest } from '../../../middlewares/isAuthenticated';
@@ -712,32 +712,7 @@ export const getMyHrmsAccess = async (req: Request, res: Response): Promise<void
     let tenantId = (req as any).tenantId;
     let assignedRole: string | null = null;
     
-    // Resolve tenantId if middleware didn't provide it
-    if (!tenantId) {
-      const subdomain = req.headers['x-tenant-subdomain'] || req.query.tenant;
-      if (subdomain) {
-        const Organization = outputSequelize.models.organization;
-        if (Organization) {
-          let fullHost = req.headers.host || "";
-          fullHost = fullHost.split(":")[0];
-          
-          const Op = require('sequelize').Op;
-          const org = await Organization.findOne({ 
-            where: { 
-              [Op.or]: [
-                { subdomain: subdomain },
-                { slugDomain: subdomain },
-                { domain: fullHost }
-              ],
-              status: 'ACTIVE' 
-            } 
-          });
-          if (org) {
-            tenantId = (org as any).id;
-          }
-        }
-      }
-    }
+    // tenantId is now resolved securely from the JWT token via isAuthenticated middleware
 
     // --- SaaS Auto-Onboarding Logic ---
     if (tenantId && email && userId) {
@@ -799,9 +774,9 @@ export const getMyHrmsAccess = async (req: Request, res: Response): Promise<void
                 if (existingEmployeeInTenant) {
                   employeeUuid = (existingEmployeeInTenant as any).empUuid;
                 } else {
-                  const newUuid = uuidv4();
+                  const newUuid = await createUUIDV4();
                   await EmployeeContactDetails.create({
-                    contactId: uuidv4(),
+                    contactId: await createUUIDV4(),
                     empOfficialEmail: email,
                     empUuid: newUuid
                   });
@@ -818,7 +793,7 @@ export const getMyHrmsAccess = async (req: Request, res: Response): Promise<void
                   });
                   if (EmployeeJobDetails) {
                     await EmployeeJobDetails.create({
-                      jobId: uuidv4(),
+                      jobId: await createUUIDV4(),
                       empType: "",
                       empTitle: "Admin",
                       empDepartment: "Leadership",

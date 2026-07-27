@@ -11,6 +11,7 @@ export class configureSecondaryLocation
   declare minimumIntimationPeriodDays: number;
   declare createdBy: string;
   declare isDeleted?: boolean;
+  declare empCompanyId: string;
 
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
@@ -48,6 +49,11 @@ export const initConfigureSecondaryLocation = (sequelize: Sequelize, dataTypes: 
         type: dataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
       },
     },
     {

@@ -20,6 +20,7 @@ export class RewardCycle
   declare votingStartDate: Date | null;
   declare votingEndDate: Date | null;
   declare winnersAnnouncedDate: Date | null;
+  declare empCompanyId: string;
   declare readonly createdAt?: Date;
   declare readonly updatedAt?: Date;
 }
@@ -72,6 +73,11 @@ export const initRewardCycle = (sequelize: Sequelize, dataTypes: typeof DataType
         type: dataTypes.DATE,
         allowNull: true,
       },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
+      },
     },
     {
       sequelize,
@@ -81,7 +87,7 @@ export const initRewardCycle = (sequelize: Sequelize, dataTypes: typeof DataType
       createdAt: "createdAt",
       updatedAt: "updatedAt",
       indexes: [
-        { unique: true, fields: ["month", "year"] },
+        { unique: true, fields: ["month", "year", "empCompanyId"] },
         { fields: ["status", "currentPhase"] },
       ],
     }

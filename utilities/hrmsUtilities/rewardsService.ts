@@ -67,10 +67,11 @@ export const getVoterVoteCategory = async (
 export const getOrCreateCycle = async (
   month: number,
   year: number,
+  tenantId: string,
   transaction?: Transaction,
 ) => {
   let cycle = await rewardCycle.findOne({
-    where: { month, year },
+    where: { month, year, empCompanyId: tenantId },
     transaction,
   });
   if (!cycle) {
@@ -81,6 +82,7 @@ export const getOrCreateCycle = async (
           year,
           currentPhase: RewardCyclePhase.PENDING,
           status: RewardCycleStatus.ACTIVE,
+          empCompanyId: tenantId,
         },
         { transaction },
       );
@@ -92,7 +94,7 @@ export const getOrCreateCycle = async (
         (error as { code: string }).code === "ER_DUP_ENTRY"
       ) {
         cycle = await rewardCycle.findOne({
-          where: { month, year },
+          where: { month, year, empCompanyId: tenantId },
           transaction,
         });
       } else {
@@ -113,53 +115,64 @@ export const getOrCreateCycle = async (
  * 
  * This ensures received citations persist until the next month's nomination phase actually begins.
  */
-export const getEffectiveCurrentCycle = async (transaction?: Transaction) => {
+export const getEffectiveCurrentCycle = async (tenantId: string, transaction?: Transaction) => {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  return getOrCreateCycle(currentMonth, currentYear, transaction);
+  return getOrCreateCycle(currentMonth, currentYear, tenantId, transaction);
 };
 
 /** Get current active cycle: prefers incomplete previous month so process can be completed, else current month */
-export const getCurrentCycle = async (transaction?: Transaction) => {
-  return getEffectiveCurrentCycle(transaction);
+export const getCurrentCycle = async (tenantId: string, transaction?: Transaction) => {
+  return getEffectiveCurrentCycle(tenantId, transaction);
 };
 
 /** Get cycle by id */
 export const getCycleById = async (
   cycleId: string,
+  tenantId?: string | null,
   transaction?: Transaction,
 ) => {
-  return rewardCycle.findByPk(cycleId, { transaction });
+  const where: any = { id: cycleId };
+  if (tenantId) {
+    where.empCompanyId = tenantId;
+  }
+  return rewardCycle.findOne({ where, transaction });
 };
 
 /** Get cycle by month and year */
 export const getCycleByMonthYear = async (
   month: number,
   year: number,
+  tenantId: string,
   transaction?: Transaction,
 ) => {
-  return rewardCycle.findOne({ where: { month, year }, transaction });
+  return rewardCycle.findOne({ where: { month, year, empCompanyId: tenantId }, transaction });
 };
 
 /** Get all cycles for history */
-export const getAllCycles = async (transaction?: Transaction) => {
-  return rewardCycle.findAll({ order: [['year', 'DESC'], ['month', 'DESC']], transaction });
+export const getAllCycles = async (tenantId: string, transaction?: Transaction) => {
+  return rewardCycle.findAll({ 
+    where: { empCompanyId: tenantId }, 
+    order: [['year', 'DESC'], ['month', 'DESC']], 
+    transaction 
+  });
 };
 
 /** Get dashboard data: current cycle (effective = incomplete previous month or current month) + past winners */
 export const getDashboardData = async (
   empUuid: string,
+  tenantId: string,
   year?: number,
   month?: number,
 ) => {
   let currentCycle;
   if (typeof month === 'number' && typeof year === 'number') {
-    const specificCycle = await getCycleByMonthYear(month, year);
-    currentCycle = specificCycle || await getEffectiveCurrentCycle();
+    const specificCycle = await getCycleByMonthYear(month, year, tenantId);
+    currentCycle = specificCycle || await getEffectiveCurrentCycle(tenantId);
   } else {
-    currentCycle = await getEffectiveCurrentCycle();
+    currentCycle = await getEffectiveCurrentCycle(tenantId);
   }
   await currentCycle.reload();
 
@@ -185,6 +198,7 @@ export const getDashboardData = async (
       : await rewardCycle.findAll({
           where: {
             id: { [Op.in]: pastCycleIds },
+            empCompanyId: tenantId,
             ...(typeof year === "number" ? { year } : {}),
             [Op.or]: [
               { year: { [Op.lt]: effectiveYear } },
@@ -241,7 +255,11 @@ export const getDashboardData = async (
         model: rewardCycle,
         as: "cycle",
         attributes: ["id", "month", "year"],
-        ...(typeof year === "number" ? { where: { year }, required: true } : {}),
+        where: {
+          empCompanyId: tenantId,
+          ...(typeof year === "number" ? { year } : {}),
+        },
+        required: true,
       },
     ],
     order: [["createdAt", "DESC"]],
@@ -259,7 +277,11 @@ export const getDashboardData = async (
         model: rewardCycle,
         as: "cycle",
         attributes: ["id", "month", "year"],
-        ...(typeof year === "number" ? { where: { year }, required: true } : {}),
+        where: {
+          empCompanyId: tenantId,
+          ...(typeof year === "number" ? { year } : {}),
+        },
+        required: true,
       },
     ],
     order: [["createdAt", "DESC"]],
@@ -730,9 +752,10 @@ export const startPhase = async (
   cycleId: string,
   phase: RewardCyclePhase,
   triggeredByEmpUuid: string,
+  tenantId?: string | null,
   transaction?: Transaction,
 ) => {
-  const cycle = await rewardCycle.findByPk(cycleId, { transaction });
+  const cycle = await getCycleById(cycleId, tenantId, transaction);
   if (!cycle) throw new Error("Cycle not found.");
 
   const cycleAttrs = cycle.get({ plain: true }) as RewardCycleAttributes;
@@ -832,9 +855,10 @@ export const endPhase = async (
   cycleId: string,
   phase: RewardCyclePhase,
   triggeredByEmpUuid: string,
+  tenantId?: string | null,
   transaction?: Transaction,
 ) => {
-  const cycle = await rewardCycle.findByPk(cycleId, { transaction });
+  const cycle = await getCycleById(cycleId, tenantId, transaction);
   if (!cycle) throw new Error("Cycle not found.");
 
   const cycleAttrs = cycle.get({ plain: true }) as RewardCycleAttributes;
@@ -916,10 +940,11 @@ export const announceWinners = async (
   employeeChoiceEmpUuids: string[],
   leadershipChoiceEmpUuids: string[],
   announcedByEmpUuid: string,
+  tenantId?: string | null,
   transaction?: Transaction,
 ) => {
   const run = async (t: Transaction) => {
-    const cycle = await rewardCycle.findByPk(cycleId, { transaction: t });
+    const cycle = await getCycleById(cycleId, tenantId, t);
     if (!cycle) throw new Error("Cycle not found.");
 
     const [employeeVoteCounts, leadershipVoteCounts] = await Promise.all([
@@ -1008,7 +1033,7 @@ export const announceWinners = async (
       { transaction: t },
     );
 
-    return getCycleById(cycleId, t);
+    return getCycleById(cycleId, tenantId, t);
   };
 
   if (transaction) {
@@ -1021,10 +1046,11 @@ export const announceWinners = async (
 export const endPhaseWithoutWinners = async (
   cycleId: string,
   triggeredByEmpUuid: string,
+  tenantId?: string | null,
   transaction?: Transaction,
 ) => {
   const run = async (t: Transaction) => {
-    const cycle = await rewardCycle.findByPk(cycleId, { transaction: t });
+    const cycle = await getCycleById(cycleId, tenantId, t);
     if (!cycle) throw new Error("Cycle not found.");
 
     const now = new Date();
@@ -1051,7 +1077,7 @@ export const endPhaseWithoutWinners = async (
       { transaction: t },
     );
 
-    return getCycleById(cycleId, t);
+    return getCycleById(cycleId, tenantId, t);
   };
 
   if (transaction) {
@@ -1187,17 +1213,20 @@ export const getMyPastReceivedCitations = async (
 export const searchEmployees = async (
   query: string,
   excludeEmpUuid: string,
+  tenantId?: string | null,
   limit = 20,
 ) => {
-  type WhereClause = { isDeleted: false; [Op.or]?: unknown[] };
+  type WhereClause = { isDeleted: false; empCompanyId?: string; [Op.or]?: unknown[] };
   const where: WhereClause = { isDeleted: false };
+  if (tenantId) {
+    where.empCompanyId = tenantId;
+  }
   const q = query?.trim() ?? "";
   if (q) {
     const like = `%${q}%`;
     where[Op.or] = [
       { empFirstName: { [Op.like]: like } },
       { empLastName: { [Op.like]: like } },
-      { empCompanyId: { [Op.like]: like } },
     ];
   }
 
