@@ -168,6 +168,7 @@ exports.tmsUserGoogleLogin = async (req, res) => {
           id: user.userId,
           email: user.email,
           env: process.env.NODE_ENV,
+          tenantId: organization ? organization.id : null,
         },
         process.env.SECRET_KEY,
         { expiresIn: "30d" }
@@ -213,16 +214,24 @@ exports.createTmsUser = async (req, res) => {
     const name = payload.name;
     const profilePic = payload.picture;
 
-    if (!isAllowedDomain(email)) {
-      return res
-        .status(403)
-        .json({ success: false, message: `Please use your ${ALLOWED_DOMAINS.join(", ")} email to login` });
-    }
-
     if (!name || !profilePic) {
       return res
         .status(400)
         .json({ success: false, message: "Please fill all the details" });
+    }
+
+    const emailDomain = email.split("@")[1]?.toLowerCase();
+    let organization = null;
+    if (dbOutput.organization) {
+      organization = await dbOutput.organization.findOne({
+        where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
+      });
+    }
+
+    if (!organization && !isAllowedDomain(email)) {
+      return res
+        .status(403)
+        .json({ success: false, message: `Domain not registered in Organization and not in allowed domains list` });
     }
 
     const existingUser = await TmsUsers.findOne({
@@ -235,6 +244,7 @@ exports.createTmsUser = async (req, res) => {
           id: existingUser.userId,
           email: existingUser.email,
           env: process.env.NODE_ENV,
+          tenantId: organization ? organization.id : null,
         },
         process.env.SECRET_KEY,
         { expiresIn: "30d" }
@@ -266,6 +276,7 @@ exports.createTmsUser = async (req, res) => {
         id: newCreatedUser.userId,
         email: newCreatedUser.email,
         env: process.env.NODE_ENV,
+        tenantId: organization ? organization.id : null,
       },
       process.env.SECRET_KEY,
       { expiresIn: "30d" }
@@ -289,10 +300,18 @@ exports.createTmsUserWithoutLogin = async (req, res) => {
         .json({ success: false, message: "Please fill all the details" });
     }
 
-    if (!isAllowedDomain(email)) {
+    const emailDomain = email.split("@")[1]?.toLowerCase();
+    let organization = null;
+    if (dbOutput.organization) {
+      organization = await dbOutput.organization.findOne({
+        where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
+      });
+    }
+
+    if (!organization && !isAllowedDomain(email)) {
       return res
         .status(403)
-        .json({ success: false, message: `Only ${ALLOWED_DOMAINS.join(", ")} emails are allowed` });
+        .json({ success: false, message: `Domain not registered in Organization and not in allowed domains list` });
     }
 
     let userType = 100;
@@ -326,15 +345,12 @@ exports.getUserDetailsById = async (req, res) => {
     // Resolve the user's org subdomain for frontend redirect
     let redirectSubdomain = null;
     
-    if (dbOutput.organization && user.email) {
-      const emailDomain = user.email.split("@")[1]?.toLowerCase();
-      if (emailDomain) {
-        const org = await dbOutput.organization.findOne({
-          where: { allowedDomain: emailDomain, status: 'ACTIVE', isDeleted: false }
-        });
-        if (org) {
-          redirectSubdomain = org.subdomain;
-        }
+    if (dbOutput.organization && req.tenantId) {
+      const org = await dbOutput.organization.findOne({
+        where: { id: req.tenantId, status: 'ACTIVE', isDeleted: false }
+      });
+      if (org) {
+        redirectSubdomain = org.subdomain;
       }
     }
 
@@ -412,5 +428,49 @@ exports.removeUserById = async (req, res) => {
       .json({ success: true, message: "User removed from UAM successfully" });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+exports.switchTenant = async (req, res) => {
+  try {
+    const token = req.headers?.authorization;
+    if (!token) {
+      return res.status(401).json({ success: false, message: "No token provided" });
+    }
+    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    const { targetSubdomain } = req.body;
+
+    const Organization = dbOutput.organization;
+    let targetOrg = null;
+    if (Organization && targetSubdomain) {
+      targetOrg = await Organization.findOne({
+        where: { subdomain: targetSubdomain, status: 'ACTIVE', isDeleted: false },
+        raw: true
+      });
+    }
+
+    if (!targetOrg) {
+      return res.status(404).json({ success: false, message: "Organization not found" });
+    }
+
+    // Verify user has access to target tenant
+    const mapping = await dbOutput.userOrganizationMapping.findOne({
+      where: { userId: decoded.id, organizationId: targetOrg.id, isDeleted: false }
+    });
+
+    if (!mapping) {
+      return res.status(403).json({ success: false, message: "No access to this organization" });
+    }
+
+    // Issue new token with updated tenantId
+    const newToken = jwt.sign(
+      { id: decoded.id, email: decoded.email, env: decoded.env, tenantId: targetOrg.id },
+      process.env.SECRET_KEY,
+      { expiresIn: "30d" }
+    );
+
+    return res.status(200).json({ success: true, token: newToken });
+  } catch (error) {
+    return res.status(401).json({ success: false, message: "Invalid token" });
   }
 };

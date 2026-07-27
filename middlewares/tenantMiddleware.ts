@@ -13,53 +13,32 @@ import { extractSubdomainFromHost } from "../utilities/domainUtils";
  */
 export const tenantMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // 1. Get host and headers
-    let fullHost = (req.headers["x-tenant-domain"] as string) || (req.headers.host || "").split(":")[0].toLowerCase().trim();
-    let tenantHeader = (req.headers["x-tenant-subdomain"] as string) || (req.headers["x-tenant-id"] as string);
-
-    let extractedSubdomain = extractSubdomainFromHost(req.headers.host) || "";
-
-    const Organization = dbOutput.organization;
-
-    // In self-hosted or default builds
-    if (!Organization) {
-      req.body.empCompanyId = "DEFAULT_COMPANY";
-      return next();
-    }
-
-    // 2. Lookup Organization prioritizing direct domain match
-    const org = await Organization.findOne({ 
-      where: { 
-        [Op.or]: [
-          { domain: fullHost },
-          { allowedDomain: fullHost },
-          ...(extractedSubdomain ? [{ subdomain: extractedSubdomain }, { slugDomain: extractedSubdomain }] : []),
-          ...(tenantHeader ? [{ subdomain: tenantHeader }, { slugDomain: tenantHeader }] : [])
-        ],
-        status: "ACTIVE",
-        isDeleted: false
-      } 
-    });
-
-    if (!org) {
-      // Default fallback if no custom tenant matches
+    const tenantId = (req as any).tenantId;
+    
+    if (!tenantId) {
       req.body.empCompanyId = "DEFAULT_COMPANY";
       (req as any).empCompanyId = "DEFAULT_COMPANY";
       return next();
     }
 
-    // 4. Inject into the request so all downstream controllers/models use it
-    // Often we put it in req.body or req.query, or explicitly req.tenantId.
-    // For consistency with existing code, we will inject it where controllers expect it.
-    
-    // Most controllers pull empCompanyId from req.body (e.g. create APIs)
+    // Verify the organization is still active
+    const Organization = dbOutput.organization;
+    if (Organization) {
+      const org = await Organization.findByPk(tenantId, { attributes: ['id', 'status'], raw: true });
+      if (!org || (org as any).status !== 'ACTIVE') {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Organization is inactive or not found",
+          code: "TENANT_INACTIVE"
+        });
+      }
+    }
+
     if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
-      req.body.empCompanyId = org.id;
+      req.body.empCompanyId = tenantId;
     }
     
-    // Also attach to req for general usage
-    (req as any).empCompanyId = org.id;
-    (req as any).tenantId = org.id;
+    (req as any).empCompanyId = tenantId;
 
     next();
   } catch (error) {

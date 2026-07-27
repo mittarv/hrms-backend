@@ -900,6 +900,7 @@ export interface ConfigureSecondaryLocationAttributes {
   isDeleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
+  empCompanyId?:string;
 }
 
 export interface SecondaryLocationLogAttributes {
