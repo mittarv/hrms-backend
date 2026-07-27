@@ -5,7 +5,7 @@ import { dbOutput } from "../../../../models";
 export const getOrganizationDetails = async (req: Request, res: Response) => {
   try {
     const { empCompanyId } = req as any;
-    const targetCompanyId = empCompanyId || "DEFAULT_COMPANY";
+    const targetCompanyId = empCompanyId  ;
 
     // Execute queries in parallel using Promise.all for speed
     const [orgResult, leaveCount, orgConfigs] = await Promise.all([
@@ -22,7 +22,7 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
       dbOutput.employeeLeaveConfigurator
         ? dbOutput.employeeLeaveConfigurator.count({
             where: {
-              empCompanyId: { [Op.in]: [targetCompanyId, "DEFAULT_COMPANY", null] },
+              empCompanyId: targetCompanyId,
               isActive: true
             }
           })
@@ -30,7 +30,7 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
       dbOutput.employeeComponentConfigurator
         ? dbOutput.employeeComponentConfigurator.findAll({
             where: {
-              empCompanyId: { [Op.in]: [targetCompanyId, "DEFAULT_COMPANY", null] },
+              empCompanyId: targetCompanyId,
               isDeleted: false,
               componentType: [
                 "emp_type_dropdown",
@@ -69,8 +69,7 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
 
     requiredTypes.forEach(({ key, label }) => {
       const configItem = 
-        orgConfigs.find((c: any) => c.componentType === key && (c.empCompanyId === empCompanyId || c.empCompanyId === String(empCompanyId))) ||
-        orgConfigs.find((c: any) => c.componentType === key && (c.empCompanyId === "DEFAULT_COMPANY" || !c.empCompanyId));
+        orgConfigs.find((c: any) => c.componentType === key && (c.empCompanyId === empCompanyId || c.empCompanyId === String(empCompanyId)));
 
       let isConfigured = false;
 

@@ -12,6 +12,7 @@ export class PolicyList
   declare approvedBy?: string | null;
   declare lastModifiedBy?: number | null;
   declare createdBy?: number | null;
+  declare empCompanyId?: string | null;
   declare isDeleted?: boolean | null;
 
   declare readonly createdAt?: Date;
@@ -54,6 +55,11 @@ export const initPolicyList = (sequelize: Sequelize, dataTypes: typeof DataTypes
       createdBy: {
         type: dataTypes.INTEGER,
         allowNull: true,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: true,
+        defaultValue: "DEFAULT_COMPANY",
       },
       isDeleted: {
         type: dataTypes.BOOLEAN,

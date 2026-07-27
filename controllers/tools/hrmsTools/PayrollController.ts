@@ -111,6 +111,7 @@ const mergeSalaryComponentsWithSpecificPriority = <T extends Partial<salaryCompo
 
 export const getAllEmployeePayrollDetails = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
+    const tenantId = (req as any).tenantId;
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -196,20 +197,25 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         const componentFrequencies = leaveAccrualFrequency ? JSON.parse(leaveAccrualFrequency.componentValue) : {};
 
         // ============================================
-        // 4. CALCULATE PAGINATION COUNTS
+        // 4. CALCULATE PAGINATION COUNTS & TENANT ISOLATION
         // ============================================
-        // Get employee UUIDs matching search query for count filtering
+        // Tenant filter for employeeBasicDetails
+        const tenantFilter = tenantId ? { empCompanyId: tenantId } : {};
+
+        // Get employee UUIDs matching tenantId and search query for count filtering
         let employeeUuidsForCount: string[] | null = null;
-        if (searchQuery) {
+        let tenantAllEmpUuids: string[] | null = null;
+
+        if (tenantId || searchQuery) {
             const matchingEmployees = await dbOutput.employeeBasicDetails.findAll({
-                where: { isDeleted: false, ...searchConditions },
+                where: { isDeleted: false, ...tenantFilter, ...searchConditions },
                 attributes: ['empUuid'],
                 raw: true
             });
-            employeeUuidsForCount = matchingEmployees.map(e => e.empUuid);
+            employeeUuidsForCount = matchingEmployees.map((e: any) => e.empUuid);
             
-            // Early return if no employees match the search
-            if (!employeeUuidsForCount || employeeUuidsForCount.length === 0) {
+            // Early return if tenant or search specified and no employees match
+            if (employeeUuidsForCount?.length === 0) {
                 res.status(200).json({
                     success: true,
                     message: "No employees found",
@@ -224,12 +230,27 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 });
                 return;
             }
+
+            if (tenantId && searchQuery) {
+                const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+                    where: { isDeleted: false, empCompanyId: tenantId },
+                    attributes: ['empUuid'],
+                    raw: true
+                });
+                tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+            } else if (tenantId) {
+                tenantAllEmpUuids = employeeUuidsForCount;
+            }
         }
 
         // Count payslip records with and without search filter
+        const baseTenantMonthYearFilter = tenantAllEmpUuids 
+            ? { ...monthYearFilter, employeeId: { [Op.in]: tenantAllEmpUuids } }
+            : monthYearFilter;
+
         const countFilter = employeeUuidsForCount 
             ? { ...monthYearFilter, employeeId: { [Op.in]: employeeUuidsForCount } }
-            : monthYearFilter;
+            : baseTenantMonthYearFilter;
 
         const [totalWithSearch, totalWithoutSearch] = await Promise.all([
             dbOutput.employeePayslipRecords.count({
@@ -237,14 +258,14 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
                 distinct: true,
                 col: 'employeeId'
             }),
-            employeeUuidsForCount ? dbOutput.employeePayslipRecords.count({
-                where: monthYearFilter,
+            searchQuery ? dbOutput.employeePayslipRecords.count({
+                where: baseTenantMonthYearFilter,
                 distinct: true,
                 col: 'employeeId'
             }) : Promise.resolve(0)
         ]);
 
-        const finalTotalWithoutSearch = employeeUuidsForCount ? totalWithoutSearch : totalWithSearch;
+        const finalTotalWithoutSearch = searchQuery ? totalWithoutSearch : totalWithSearch;
 
         // ============================================
         // 5. FETCH EMPLOYEES WITH PAYSLIP RECORDS (WITH PAGINATION)
@@ -318,6 +339,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
             ],
             where: { 
                 empUuid: { [Op.in]: allEmpIdsWithPayslips },
+                ...(tenantId ? { empCompanyId: tenantId } : {}),
                 isDeleted: false
             },
             attributes: ['empUuid', 'empFirstName', 'empLastName'],
@@ -1374,7 +1396,7 @@ export const updatePayrollItems = async (req: Request, res: Response): Promise<v
 // TODO: send payslip mails to employees after payroll generation
 export const generatePayroll = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
-    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId || "DEFAULT_COMPANY";
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId  ;
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -1427,7 +1449,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
                 }),
                 dbOutput.employeeLeaveConfigurator.findOne({
                     where: {
-                        empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] }, // first for teh current org then fallback for default if there 
+                        empCompanyId,
                         [Op.and]: [
                             outputSequelize.where(
                                 outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
@@ -2687,21 +2709,49 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
     }
 };
 
-// API to get netPayAmount of combined employee for given month and year
 export const getNetPayAmount = async (req: Request, res: Response) => {
     try {
+        const tenantId = (req as any).tenantId;
         const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
 
         // Generate date range for database-agnostic filtering
         const { startDate: netPayMonthStart, endDate: netPayMonthEnd } = getMonthYearDateRange(month, year);
         
+        let tenantEmpUuids: string[] | null = null;
+        if (tenantId) {
+            const tenantEmps = await dbOutput.employeeBasicDetails.findAll({
+                where: { isDeleted: false, empCompanyId: tenantId },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            tenantEmpUuids = tenantEmps.map((e: any) => e.empUuid);
+            if (tenantEmpUuids?.length === 0) {
+                res.json({
+                    success: true,
+                    message: "NetPayAmount fetched successfully",
+                    netPayAmount: 0
+                });
+                return;
+            }
+        }
+
         const allPayslipRecords = await dbOutput.employeePayslipRecords.findAll({
             where: {
                 payrollStartDate: { [Op.between]: [netPayMonthStart, netPayMonthEnd] },
+                ...(tenantEmpUuids ? { employeeId: { [Op.in]: tenantEmpUuids } } : {}),
                 isDeleted: false
             }
         });
+
+        if (allPayslipRecords.length === 0) {
+            res.json({
+                success: true,
+                message: "NetPayAmount fetched successfully",
+                netPayAmount: 0
+            });
+            return;
+        }
 
         const isPayrollGenerated = !allPayslipRecords.some((payslip) => payslip.status  !== payrollStatus.PAYROLL_GENERATED);
 

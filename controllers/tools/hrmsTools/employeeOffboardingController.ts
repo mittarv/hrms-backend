@@ -62,12 +62,14 @@ export const getAllOffboardingInitiatedEmployeeDetails = async (
       return;
     }
 
+    const empCompanyId = (req as any).empCompanyId || (req as any).tenantId;
     const getOffboardingInitiatedEmployeeDetailsResult =
       await outputSequelize.transaction(
         { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
         async (transaction: Transaction) => {
           return await getAllOffboardingInitiatedEmployeeDetailsService(
             transaction,
+            empCompanyId
           );
         },
       );
@@ -677,10 +679,11 @@ export const getAllOffboardedEmployees = async (
       return;
     }
 
+    const empCompanyId = (req as any).empCompanyId || (req as any).tenantId;
     const offboardedEmployees = await outputSequelize.transaction(
       { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
       async (transaction: Transaction) => {
-        return await getAllOffboardedEmployeesService(transaction);
+        return await getAllOffboardedEmployeesService(transaction, empCompanyId);
       },
     );
     res.status(200).json({

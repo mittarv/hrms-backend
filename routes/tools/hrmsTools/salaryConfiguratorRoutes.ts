@@ -6,15 +6,16 @@ import {
     deleteSalaryConfig,
     updateSalaryConfig,
 } from '../../../controllers/tools/hrmsTools/salaryConfiguratorController';
+import {tenantMiddleware} from '../../../middlewares/tenantMiddleware';
 
 const router = express.Router();
 
-router.route("/getSalaryConfigDetails").get(isTmsUserAuthenticated, getAllSalaryConfigDetails);
+router.route("/getSalaryConfigDetails").get(isTmsUserAuthenticated,tenantMiddleware, getAllSalaryConfigDetails);
 
-router.route("/createSalaryConfig").post(isTmsUserAuthenticated,createSalaryConfig);
+router.route("/createSalaryConfig").post(isTmsUserAuthenticated,tenantMiddleware,createSalaryConfig);
 
-router.route("/updateSalaryConfig").patch(isTmsUserAuthenticated, updateSalaryConfig);
+router.route("/updateSalaryConfig").patch(isTmsUserAuthenticated,tenantMiddleware, updateSalaryConfig);
 
-router.route("/deleteSalaryConfig").delete(isTmsUserAuthenticated, deleteSalaryConfig);
+router.route("/deleteSalaryConfig").delete(isTmsUserAuthenticated,tenantMiddleware, deleteSalaryConfig);
 
 export default router;

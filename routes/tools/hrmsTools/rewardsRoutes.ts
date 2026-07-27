@@ -19,10 +19,11 @@ import {
   announceWinners,
 } from "../../../controllers/tools/hrmsTools/rewardsController";
 import { isTmsUserAuthenticated } from "../../../middlewares/isAuthenticated";
+import {tenantMiddleware} from "../../../middlewares/tenantMiddleware";
 
 const router = express.Router();
 
-router.use(isTmsUserAuthenticated);
+router.use(isTmsUserAuthenticated,tenantMiddleware);
 
 router.get("/dashboard", getDashboard);
 router.get("/current-cycle", getCurrentCycle);

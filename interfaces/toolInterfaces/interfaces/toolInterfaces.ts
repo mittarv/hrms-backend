@@ -209,6 +209,7 @@ export interface PolicyListAttributes {
   approvedBy?: string | null;
   lastModifiedBy?: number | null;
   createdBy?: number | null;
+  empCompanyId?: string | null;
   isDeleted?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -221,6 +222,7 @@ export interface ImportantLinkListAttributes {
   toolLink: string;
   lastModifiedBy?: number | null;
   createdBy?: number | null;
+  empCompanyId?: string | null;
   isDeleted?: boolean | null;
   createdAt?: Date;
   updatedAt?: Date;

@@ -9,6 +9,7 @@ export class ImportantLinkList
   declare toolLink: string;
   declare lastModifiedBy?: number | null;
   declare createdBy?: number | null;
+  declare empCompanyId?: string | null;
   declare isDeleted?: boolean | null;
 
   declare readonly createdAt?: Date;
@@ -39,6 +40,11 @@ export const initImportantLinkList = (sequelize: Sequelize, dataTypes: typeof Da
       createdBy: {
         type: dataTypes.INTEGER,
         allowNull: true,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING,
+        allowNull: true,
+        defaultValue: "DEFAULT_COMPANY",
       },
       isDeleted: {
         type: dataTypes.BOOLEAN,

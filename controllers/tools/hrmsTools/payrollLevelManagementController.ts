@@ -94,10 +94,15 @@ const hasPermission = async (req: Request, permissionName: string): Promise<bool
   return checkHrmsPermission(employeeUuid, permissionName, HR_TOOL_NAME, toolsAccess);
 };
 
-export const getAllComponentType = async (_req: Request, res: Response) => {
+export const getAllComponentType = async (req: Request, res: Response) => {
   try {
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
+    if (!empCompanyId) {
+      return res.status(400).json({ success: false, message: "Organization context is required" });
+    }
+
     const allComponentType = await EmployeeComponentConfigurator.findAll({
-      where: { isDeleted: false },
+      where: { isDeleted: false, empCompanyId },
       attributes: ["componentType", "componentValue"],
       raw: true,
     });
@@ -128,10 +133,13 @@ export const getPayrollLevels = async (req: Request, res: Response) => {
       });
     }
 
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
+
     const levelConfig = await EmployeeComponentConfigurator.findOne({
       where: {
         componentType: COMPONENT_TYPES.LEVEL_DROPDOWN,
         isDeleted: false,
+        ...(empCompanyId ? { empCompanyId } : {}),
       },
       attributes: ["componentValue"],
       raw: true,
@@ -208,6 +216,7 @@ export const createPayrollLevel = async (req: Request, res: Response) => {
 
     const authReq = req as AuthenticatedRequest;
     const actor = authReq.user?.email || String(authReq.user?.userId || "system");
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
 
     const configRows = (await EmployeeComponentConfigurator.findAll({
       where: {
@@ -220,6 +229,7 @@ export const createPayrollLevel = async (req: Request, res: Response) => {
           ],
         },
         isDeleted: false,
+        ...(empCompanyId ? { empCompanyId } : {}),
       },
       attributes: ["id", "componentType", "componentValue"],
       transaction,
@@ -329,6 +339,7 @@ export const createPayrollLevel = async (req: Request, res: Response) => {
           [Op.in]: [...TARGET_EMPLOYEE_TYPES.STANDARD, ...TARGET_EMPLOYEE_TYPES.INTERN],
         },
         isDeleted: false,
+        ...(empCompanyId ? { empCompanyId } : {}),
       },
       attributes: [
         "salaryCategoryId",
@@ -354,6 +365,7 @@ export const createPayrollLevel = async (req: Request, res: Response) => {
           salaryCategoryId,
           ...category,
           isDeleted: false,
+          ...(empCompanyId ? { empCompanyId } : {}),
         });
         existingCategoryMap.set(key, salaryCategoryId);
       }

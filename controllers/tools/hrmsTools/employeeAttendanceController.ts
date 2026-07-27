@@ -2974,6 +2974,7 @@ export const getCompOffleaveBalance = async (req: Request, res: Response) => {
 
         // Fetch total leave taken from employeeLeaveBalanceDetails for comp off leave type
         // First, find comp off leave config ID
+        const attendanceEmpCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
         const compOffLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
             where: {
                 [Op.and]: [
@@ -2981,7 +2982,8 @@ export const getCompOffleaveBalance = async (req: Request, res: Response) => {
                         outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
                         { [Op.like]: '%comp%' }
                     ),
-                    { isActive: true }
+                    { isActive: true },
+                    ...(attendanceEmpCompanyId ? [{ empCompanyId: attendanceEmpCompanyId }] : [])
                 ]
             },
             raw: true
@@ -3274,6 +3276,7 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
             // Find unpaid leave config if unpaid days exist
             let unpaidLeaveConfigId: string | undefined;
             if (finalUnpaidDays > 0) {
+                const attEmpCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
                 const unpaidLeaveConfig = await dbOutput.employeeLeaveConfigurator.findOne({
                     where: {
                         [Op.and]: [
@@ -3281,7 +3284,8 @@ export const registerCompOffLeave = async (req: Request, res: Response) => {
                                 outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
                                 { [Op.like]: '%unpaid%' }
                             ),
-                            { isActive: true }
+                            { isActive: true },
+                            ...(attEmpCompanyId ? [{ empCompanyId: attEmpCompanyId }] : [])
                         ]
                     },
                     attributes: ['leaveConfigId'],
@@ -3502,7 +3506,8 @@ export const getCompOffLeaveEligibility = async (req: Request, res: Response) =>
                             outputSequelize.fn('LOWER', outputSequelize.col('leaveType')),
                             { [Op.like]: '%comp%' }
                         ),
-                        { isActive: true }
+                        { isActive: true },
+                        ...((req as any).empCompanyId ? [{ empCompanyId: (req as any).empCompanyId }] : [])
                     ]
                 },
                 raw: true

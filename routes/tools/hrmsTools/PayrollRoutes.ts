@@ -14,20 +14,21 @@ import {
     deletePayrollRecords,
     updatePayslipStatus
 } from '../../../controllers/tools/hrmsTools/PayrollController';
+import {tenantMiddleware} from '../../../middlewares/tenantMiddleware';
 
 const router = express.Router();
 
-router.route("/createPayroll").post(isTmsUserAuthenticated, createPayroll);
-router.route("/getAllEmployeePayrollDetails").get(isTmsUserAuthenticated, getAllEmployeePayrollDetails);
-router.route("/updatePayrollItems").post(isTmsUserAuthenticated, updatePayrollItems);
-router.route("/generatePayroll").post(isTmsUserAuthenticated, generatePayroll);
-router.route("/finalizePayslips").post(isTmsUserAuthenticated, finalizePayslips);
-router.route("/markPayslipsAsPending").post(isTmsUserAuthenticated, markPayslipsAsPending);
-router.route("/fetchEmployeePayslipsForYear").get(isTmsUserAuthenticated, fetchEmployeePayslipsForYear);
-router.route("/exportPayrollAsCSV").get(isTmsUserAuthenticated, exportPayrollAsCSV);
-router.route("/downloadPayslip").get(isTmsUserAuthenticated, downloadPayslip);
-router.route("/getNetPayAmount").get(isTmsUserAuthenticated, getNetPayAmount);
-router.route("/deletePayrollRecords").patch(isTmsUserAuthenticated, deletePayrollRecords);
-router.route("/updatePayslipStatus").post(isTmsUserAuthenticated, updatePayslipStatus);
+router.route("/createPayroll").post(isTmsUserAuthenticated,tenantMiddleware, createPayroll);
+router.route("/getAllEmployeePayrollDetails").get(isTmsUserAuthenticated,tenantMiddleware, getAllEmployeePayrollDetails);
+router.route("/updatePayrollItems").post(isTmsUserAuthenticated,tenantMiddleware, updatePayrollItems);
+router.route("/generatePayroll").post(isTmsUserAuthenticated,tenantMiddleware, generatePayroll);
+router.route("/finalizePayslips").post(isTmsUserAuthenticated,tenantMiddleware, finalizePayslips);
+router.route("/markPayslipsAsPending").post(isTmsUserAuthenticated,tenantMiddleware, markPayslipsAsPending);
+router.route("/fetchEmployeePayslipsForYear").get(isTmsUserAuthenticated,tenantMiddleware, fetchEmployeePayslipsForYear);
+router.route("/exportPayrollAsCSV").get(isTmsUserAuthenticated,tenantMiddleware, exportPayrollAsCSV);
+router.route("/downloadPayslip").get(isTmsUserAuthenticated,tenantMiddleware, downloadPayslip);
+router.route("/getNetPayAmount").get(isTmsUserAuthenticated,tenantMiddleware, getNetPayAmount);
+router.route("/deletePayrollRecords").patch(isTmsUserAuthenticated,tenantMiddleware, deletePayrollRecords);
+router.route("/updatePayslipStatus").post(isTmsUserAuthenticated,tenantMiddleware, updatePayslipStatus);
 
 export default router;

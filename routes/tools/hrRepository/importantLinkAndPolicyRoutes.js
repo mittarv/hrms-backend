@@ -11,26 +11,27 @@ const {
   deletePolicy,
 } = require("../../../controllers/tools/hrRepository/importantLinkAndPolicyController");
 const { isTmsUserAuthenticated } =require( "../../../middlewares/isAuthenticated");
+const { tenantMiddleware }=require("../../../middlewares/tenantMiddleware");
 
 // =====================================important link related routes===================================================================
 
 router
   .route("/getall/importantlink")
-  .get(isTmsUserAuthenticated, getImportantLinkList);
+  .get(isTmsUserAuthenticated,tenantMiddleware, getImportantLinkList);
 router
   .route("/add/importantlink")
-  .post(isTmsUserAuthenticated, addImportantLink);
+  .post(isTmsUserAuthenticated,tenantMiddleware, addImportantLink);
 router
   .route("/update/importantlink")
-  .patch(isTmsUserAuthenticated, updateImportantLink);
+  .patch(isTmsUserAuthenticated,tenantMiddleware, updateImportantLink);
 router
   .route("/delete/importantlink")
-  .patch(isTmsUserAuthenticated, deleteImportantLink);
+  .patch(isTmsUserAuthenticated,tenantMiddleware, deleteImportantLink);
 
 // =====================================policy related routes===================================================================
-router.route("/getall/policy").get(isTmsUserAuthenticated, getPolicyList);
-router.route("/add/policy").post(isTmsUserAuthenticated, addPolicy);
-router.route("/update/policy").patch(isTmsUserAuthenticated, updatePolicy);
-router.route("/delete/policy").patch(isTmsUserAuthenticated, deletePolicy);
+router.route("/getall/policy").get(isTmsUserAuthenticated,tenantMiddleware, getPolicyList);
+router.route("/add/policy").post(isTmsUserAuthenticated,tenantMiddleware, addPolicy);
+router.route("/update/policy").patch(isTmsUserAuthenticated,tenantMiddleware, updatePolicy);
+router.route("/delete/policy").patch(isTmsUserAuthenticated, tenantMiddleware,deletePolicy);
 
 module.exports= router;

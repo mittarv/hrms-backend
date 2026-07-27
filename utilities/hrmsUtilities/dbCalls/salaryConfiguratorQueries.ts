@@ -86,7 +86,7 @@ export const getAllSalaryConfigService = async (empCompanyId: string, employeeTy
             isDeleted: false,
         },
         order: [['createdAt', 'ASC']],
-        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] } }, required: false }]
+        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId, null] } }, required: false }]
     }),
     salaryCategories.findAll({
         where: {
@@ -99,7 +99,7 @@ export const getAllSalaryConfigService = async (empCompanyId: string, employeeTy
             isDeleted: false,
         },
         order: [['createdAt', 'ASC']],
-        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId, "DEFAULT_COMPANY", null] } }, required: false }]
+        include: [{ model: salaryComponents, as: 'salaryComponents', where: { isDeleted: false, empCompanyId: { [Op.in]: [empCompanyId,  null] } }, required: false }]
     })
 ]);
 

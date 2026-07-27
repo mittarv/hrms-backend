@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { Transaction } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { outputSequelize } from '../../../models/index';
 import { AuthenticatedRequest } from '../../../middlewares/isAuthenticated';
 import { AuthenticatedUser } from '../../../interfaces/hrmsTool/interface/hrmsInterface';
@@ -769,6 +769,66 @@ export const getMyHrmsAccess = async (req: Request, res: Response): Promise<void
                   role: assignedRole
                 });
                 console.log(`Auto-assigned user ${email} as ${assignedRole} for tenant ${tenantId}`);
+              }
+            }
+
+            if (!employeeUuid && (assignedRole === "ADMIN" || (user as any).userType === 900 || (user as any).userType === 100)) {
+              const EmployeeContactDetails = outputSequelize.models.employeContactDetails || outputSequelize.models.employeeContactDetails;
+              const EmployeeBasicDetails = outputSequelize.models.employeeBasicDetails;
+              const EmployeeJobDetails = outputSequelize.models.employeeJobDetails;
+              if (EmployeeContactDetails && EmployeeBasicDetails) {
+                let existingEmployeeInTenant: any = null;
+                const contactRows = await EmployeeContactDetails.findAll({
+                  where: { empOfficialEmail: email },
+                  attributes: ['empUuid'],
+                  raw: true
+                });
+                if (contactRows && contactRows.length > 0) {
+                  const empUuids = contactRows.map((r: any) => r.empUuid);
+                  const basicRow = await EmployeeBasicDetails.findOne({
+                    where: { 
+                      empUuid: { [Op.in]: empUuids }, 
+                      ...(tenantId ? { empCompanyId: tenantId } : {}), 
+                      isDeleted: false 
+                    }
+                  });
+                  if (basicRow) {
+                    existingEmployeeInTenant = basicRow;
+                  }
+                }
+                if (existingEmployeeInTenant) {
+                  employeeUuid = (existingEmployeeInTenant as any).empUuid;
+                } else {
+                  const newUuid = uuidv4();
+                  await EmployeeContactDetails.create({
+                    contactId: uuidv4(),
+                    empOfficialEmail: email,
+                    empUuid: newUuid
+                  });
+                  const nameParts = ((user as any).name || "Admin").split(" ");
+                  const firstName = nameParts[0] || "Admin";
+                  const lastName = nameParts.slice(1).join(" ") || "";
+                  await EmployeeBasicDetails.create({
+                    empUuid: newUuid,
+                    empFirstName: firstName,
+                    empLastName: lastName,
+                    empCompanyId: tenantId,
+                    isManager: true,
+                    empHireDate: new Date()
+                  });
+                  if (EmployeeJobDetails) {
+                    await EmployeeJobDetails.create({
+                      jobId: uuidv4(),
+                      empType: "",
+                      empTitle: "Admin",
+                      empDepartment: "Leadership",
+                      empUuid: newUuid,
+                      effectiveDate: new Date()
+                    });
+                  }
+                  employeeUuid = newUuid;
+                  console.log(`Auto-created employee profile for admin ${email} (${newUuid}) in tenant ${tenantId}`);
+                }
               }
             }
 
