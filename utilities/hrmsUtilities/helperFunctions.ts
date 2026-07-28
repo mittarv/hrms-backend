@@ -953,13 +953,25 @@ export const fetchApplicableLeaveConfigs = async (employeeType: string, empGende
   const allLeaveConfigs = await fetchAllLeaveConfigDetails();
 
   // Filter leave configs applicable to employee's type
-  
   const applicableLeaveConfigs = allLeaveConfigs.filter(config => {
-      const employeeTypes = JSON.parse(config.employeeType || '[]');
-      const appliedGenders = JSON.parse(config.appliedGender || '[]');
+      let employeeTypes: string[] = [];
+      try {
+        employeeTypes = Array.isArray(config.employeeType) ? config.employeeType : JSON.parse(config.employeeType || '[]');
+      } catch (e) {
+        employeeTypes = [config.employeeType];
+      }
+
+      let appliedGenders: string[] = [];
+      try {
+        appliedGenders = Array.isArray(config.appliedGender) ? config.appliedGender : JSON.parse(config.appliedGender || '[]');
+      } catch (e) {
+        appliedGenders = [config.appliedGender];
+      }
 
       // Check if config is applicable to employee
-      const isBasicMatch = employeeTypes.includes(employeeType) && appliedGenders.includes(empGender) && config.isActive;
+      const isEmployeeTypeMatch = employeeTypes.includes('All') || employeeTypes.includes(employeeType);
+      const isGenderMatch = appliedGenders.includes('All') || appliedGenders.includes(empGender);
+      const isBasicMatch = isEmployeeTypeMatch && isGenderMatch && config.isActive;
 
       if (!isBasicMatch) return false;
 

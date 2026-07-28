@@ -69,6 +69,7 @@ export const createSalaryConfig = async(req, res) => {
     // Extract user details and request body
     const { toolsAccess, email, userId, employeeUuid } = user as AuthenticatedUser;
     const toolName = hrmsConstants.HR_REPOSITORY;
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
 
     const { createData } = req.body as { createData: CreateRequest[] };
 
@@ -143,7 +144,7 @@ export const createSalaryConfig = async(req, res) => {
         },
         async (transaction) => {
             try {
-                const results = await createSalaryConfigService(createData, id, transaction);
+                const results = await createSalaryConfigService(createData, id, empCompanyId, transaction);
                 
                 res.status(201).json({
                     status: "success",

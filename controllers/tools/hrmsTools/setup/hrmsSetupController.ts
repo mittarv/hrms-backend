@@ -1,9 +1,37 @@
 import { Request, Response } from "express";
 import { Op } from "sequelize";
 import { dbOutput } from "../../../../models";
+import { AuthenticatedRequest } from "../../../../middlewares/isAuthenticated";
+import { AuthenticatedUser } from "../../../../interfaces/hrmsTool/interface/hrmsInterface";
+import { hrmsConstants } from "../../../../interfaces/hrmsTool/enum/hrmsEnum";
+import { checkHrmsPermission } from "../../../../utilities/hrmsUtilities/dbCalls/hrmsAccessServices";
 
 export const getOrganizationDetails = async (req: Request, res: Response) => {
   try {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    // Check permission: admin access (>= 900) OR Organization_read OR Organization_write permission
+    const hasReadPermission = await checkHrmsPermission(
+        employeeUuid,
+        "Organization_read",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    ) || await checkHrmsPermission(
+        employeeUuid,
+        "Organization_write",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasReadPermission) {
+        return res.status(403).json({
+            success: false,
+            message: "You don't have permission to view organization details"
+        });
+    }
+
     const { empCompanyId } = req as any;
     const targetCompanyId = empCompanyId  ;
 
@@ -114,6 +142,25 @@ export const getOrganizationDetails = async (req: Request, res: Response) => {
 
 export const updateOrganizationDetails = async (req: Request, res: Response) => {
   try {
+    const { user } = req as AuthenticatedRequest;
+    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
+    const toolName = hrmsConstants.HR_REPOSITORY;
+
+    // Check permission: admin access (>= 900) OR Organization_write permission
+    const hasWritePermission = await checkHrmsPermission(
+        employeeUuid,
+        "Organization_write",
+        toolName,
+        toolsAccess as Record<string, number> | undefined
+    );
+
+    if (!hasWritePermission) {
+        return res.status(403).json({
+            success: false,
+            message: "You don't have permission to update organization details"
+        });
+    }
+
     const { empCompanyId } = req as any;
     const { logo, address } = req.body;
     if (!empCompanyId) return res.status(400).json({ error: "Missing organization ID." });

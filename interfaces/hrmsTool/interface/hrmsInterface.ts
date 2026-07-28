@@ -662,6 +662,7 @@ export interface extraWorkDayAttributes {
 
 export interface hrmsAccessRoleAttributes {
   roleId: number;
+  empCompanyId: string;
   roleName: string;
   description: string | null;
   isDeleted: boolean;

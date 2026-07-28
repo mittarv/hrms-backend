@@ -315,21 +315,21 @@ exports.createEmployeeData = async (req, res) => {
       isInitialAdminSelfOnboarding &&
       user?.email?.toLowerCase() === emp_official_email?.toLowerCase();
     if (isSelfOnboardingAdmin) {
-      const superAdminRole = await hrmsAccessRole.findOne({
-        where: { roleName: "Super Admin", isDeleted: false },
+      const adminRole = await hrmsAccessRole.findOne({
+        where: { roleName: "Admin", isDeleted: false },
         transaction,
       });
 
-      if (superAdminRole) {
+      if (adminRole) {
         await hrmsEmployeeRole.findOrCreate({
           where: {
             empUuid: employeeUuid,
-            roleId: superAdminRole.roleId,
+            roleId: adminRole.roleId,
             isDeleted: false,
           },
           defaults: {
             empUuid: employeeUuid,
-            roleId: superAdminRole.roleId,
+            roleId: adminRole.roleId,
             assignedBy: employeeUuid,
             isDeleted: false,
           },

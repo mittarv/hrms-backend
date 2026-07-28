@@ -59,7 +59,7 @@ export const getAllPermissionsService = async () => {
  * Get all roles with their permissions
  * @returns All roles with their associated permissions
  */
-export const getAllRolesService = async () => {
+export const getAllRolesService = async (empCompanyId: string) => {
   // First, get all non-deleted permissions to check if role has all permissions
   const allPermissions = await hrmsAccessPermission.findAll({
     where: {
@@ -72,6 +72,7 @@ export const getAllRolesService = async () => {
 
   const roles = await hrmsAccessRole.findAll({
     where: {
+      empCompanyId,
       isDeleted: false,
     },
     attributes: ['roleId', 'roleName', 'description', 'updatedBy', 'createdAt', 'updatedAt'],
@@ -128,7 +129,7 @@ export const getAllRolesService = async () => {
  * @param roleId - The ID of the role to fetch
  * @returns The role with its permissions, or null if not found
  */
-export const getRoleByIdService = async (roleId: number) => {
+export const getRoleByIdService = async (roleId: number, empCompanyId: string) => {
   // First, get all non-deleted permissions to check if role has all permissions
   const allPermissions = await hrmsAccessPermission.findAll({
     where: {
@@ -142,6 +143,7 @@ export const getRoleByIdService = async (roleId: number) => {
   const role = await hrmsAccessRole.findOne({
     where: {
       roleId: roleId,
+      empCompanyId,
       isDeleted: false,
     },
     attributes: ['roleId', 'roleName', 'description', 'updatedBy', 'createdAt', 'updatedAt'],
@@ -203,15 +205,18 @@ export const getRoleByIdService = async (roleId: number) => {
  */
 export const checkRoleNameExistsService = async (
   roleName: string,
+  empCompanyId: string,
   transaction: Transaction,
   excludeRoleId?: number
 ): Promise<boolean> => {
   const whereClause: {
     roleName: string;
+    empCompanyId: string;
     isDeleted: boolean;
     roleId?: { [Op.ne]: number };
   } = {
     roleName: roleName.trim(),
+    empCompanyId,
     isDeleted: false,
   };
 
@@ -260,6 +265,7 @@ export const validatePermissionIdsService = async (
  */
 export const createRoleService = async (
   roleName: string,
+  empCompanyId: string,
   description: string | null,
   permissionIds: number[],
   updatedBy: string | null,
@@ -269,6 +275,7 @@ export const createRoleService = async (
   const newRole = await hrmsAccessRole.create(
     {
       roleName: roleName.trim(),
+      empCompanyId,
       description: description || null,
       updatedBy: updatedBy,
       isDeleted: false,
@@ -336,11 +343,13 @@ export const createRoleService = async (
  */
 export const findRoleByIdService = async (
   roleId: number,
+  empCompanyId: string,
   transaction: Transaction
 ) => {
   const role = await hrmsAccessRole.findOne({
     where: {
       roleId: roleId,
+      empCompanyId,
       isDeleted: false,
     },
     transaction,
@@ -657,7 +666,7 @@ export const getMyHrmsPermissionsService = async (empUuid: string) => {
       empUuid: empUuid,
       isDeleted: false,
     },
-    attributes: ['empUuid'],
+    attributes: ['empUuid', 'empCompanyId'],
     include: [
       {
         model: hrmsEmployeeRole,
@@ -671,7 +680,7 @@ export const getMyHrmsPermissionsService = async (empUuid: string) => {
           {
             model: hrmsAccessRole,
             as: 'role',
-            attributes: ['roleId', 'roleName'],
+            attributes: ['roleId', 'roleName', 'empCompanyId'],
             required: false,
             include: [
               {
@@ -697,22 +706,25 @@ export const getMyHrmsPermissionsService = async (empUuid: string) => {
     return [];
   }
 
+  const empCompanyId = (employee as any).empCompanyId;
+
   const employeeData = employee.toJSON() as {
     employeeRoles?: Array<{
       role: {
         roleId: number;
         roleName: string;
+        empCompanyId: string;
         permissions?: Permission[];
       } | null;
     }>;
   };
 
-  // Collect all unique permissions from all roles
+  // Collect all unique permissions from all roles matching the company ID
   const permissionsMap = new Map<number, Permission>();
 
   if (employeeData.employeeRoles) {
     for (const employeeRole of employeeData.employeeRoles) {
-      if (employeeRole.role?.permissions) {
+      if (employeeRole.role && employeeRole.role.empCompanyId === empCompanyId && employeeRole.role.permissions) {
         for (const permission of employeeRole.role.permissions) {
           if (!permissionsMap.has(permission.permissionId)) {
             permissionsMap.set(permission.permissionId, permission);
@@ -722,11 +734,11 @@ export const getMyHrmsPermissionsService = async (empUuid: string) => {
     }
   }
 
-  // Get unique role names
+  // Get unique role names matching the company ID
   const roleNamesSet = new Set<string>();
   if (employeeData.employeeRoles) {
     for (const employeeRole of employeeData.employeeRoles) {
-      if (employeeRole.role?.roleName) {
+      if (employeeRole.role && employeeRole.role.empCompanyId === empCompanyId && employeeRole.role.roleName) {
         roleNamesSet.add(employeeRole.role.roleName);
       }
     }
