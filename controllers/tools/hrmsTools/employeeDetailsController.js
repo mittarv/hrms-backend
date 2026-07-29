@@ -316,7 +316,7 @@ exports.createEmployeeData = async (req, res) => {
       user?.email?.toLowerCase() === emp_official_email?.toLowerCase();
     if (isSelfOnboardingAdmin) {
       const adminRole = await hrmsAccessRole.findOne({
-        where: { roleName: "Admin", isDeleted: false },
+        where: { roleName: "Admin", isDeleted: false,empCompanyId:emp_company_id },
         transaction,
       });
 
@@ -334,7 +334,9 @@ exports.createEmployeeData = async (req, res) => {
             isDeleted: false,
           },
           transaction,
-        });
+        }); 
+      } else {
+        throw new Error("Admin role is not configured for this organization");
       }
     }
 

@@ -52,7 +52,6 @@ export const initHrmsAccessRole = (sequelize: Sequelize, dataTypes: typeof DataT
       updatedAt: "updatedAt",
       indexes: [
         {
-          unique: true,
           name: "unique_emp_company_role_name",
           fields: ["empCompanyId", "roleName", "isDeleted"],
         },
