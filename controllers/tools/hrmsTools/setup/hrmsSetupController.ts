@@ -8,29 +8,6 @@ import { checkHrmsPermission } from "../../../../utilities/hrmsUtilities/dbCalls
 
 export const getOrganizationDetails = async (req: Request, res: Response) => {
   try {
-    const { user } = req as AuthenticatedRequest;
-    const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
-    const toolName = hrmsConstants.HR_REPOSITORY;
-
-    // Check permission: admin access (>= 900) OR Organization_read OR Organization_write permission
-    const hasReadPermission = await checkHrmsPermission(
-        employeeUuid,
-        "Organization_read",
-        toolName,
-        toolsAccess as Record<string, number> | undefined
-    ) || await checkHrmsPermission(
-        employeeUuid,
-        "Organization_write",
-        toolName,
-        toolsAccess as Record<string, number> | undefined
-    );
-
-    if (!hasReadPermission) {
-        return res.status(403).json({
-            success: false,
-            message: "You don't have permission to view organization details"
-        });
-    }
 
     const { empCompanyId } = req as any;
     const targetCompanyId = empCompanyId  ;
