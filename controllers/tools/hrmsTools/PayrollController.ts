@@ -995,7 +995,7 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         // Check if any payslip is not yet generated
         const nonFinalizedCount = await dbOutput.employeePayslipRecords.count({
         where: {
-            ...monthYearFilter,
+            ...baseTenantMonthYearFilter,
             status: { [Op.notIn]: [payrollStatus.PAYROLL_FINALIZED, payrollStatus.SKIPPED, payrollStatus.PAYROLL_GENERATED] }
             }
         });
@@ -1003,12 +1003,12 @@ export const getAllEmployeePayrollDetails = async (req: Request, res: Response):
         const isAllPayrollFinalized = nonFinalizedCount === 0;
 
         const totalRecords = await dbOutput.employeePayslipRecords.count({
-        where: monthYearFilter
+        where: baseTenantMonthYearFilter
         });
 
         const generatedRecords = await dbOutput.employeePayslipRecords.count({
         where: {
-            ...monthYearFilter,
+            ...baseTenantMonthYearFilter,
             status: payrollStatus.PAYROLL_GENERATED
         }
         });
@@ -1440,10 +1440,19 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
             // Fetch all payslip records for the given month
             // Fetch unpaid leave config
             const { startDate: payrollMonthStart, endDate: payrollMonthEnd } = getMonthYearDateRange(month, year);
+            
+            const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+                where: { isDeleted: false, empCompanyId },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            const tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+
             const [finalizedPayrollRecords, unpaidLeaveConfig] = await Promise.all([
                 dbOutput.employeePayslipRecords.findAll({
                     where: {
                         payrollStartDate: { [Op.between]: [payrollMonthStart, payrollMonthEnd] },
+                        employeeId: { [Op.in]: tenantAllEmpUuids },
                         isDeleted: false
                     }
                 }),
@@ -1870,6 +1879,7 @@ export const generatePayroll = async (req: Request, res: Response): Promise<void
 // Finalize Payslips
 export const finalizePayslips = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -1901,11 +1911,22 @@ export const finalizePayslips = async (req: Request, res: Response): Promise<voi
     }
 
     try {
+        let tenantAllEmpUuids: string[] | undefined;
+        if (empCompanyId) {
+            const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+                where: { isDeleted: false, empCompanyId },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+        }
+
         const result = await outputSequelize.transaction(async (transaction) => {
             // Fetch all payslip records for the given IDs
             const payslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
                 where: {
                     payslipId: payslipIds,
+                    ...(tenantAllEmpUuids ? { employeeId: { [Op.in]: tenantAllEmpUuids } } : {}),
                     isDeleted: false,
                 },
                 attributes: ['payslipId', 'status'],
@@ -1984,6 +2005,7 @@ export const finalizePayslips = async (req: Request, res: Response): Promise<voi
 // Mark payslips as pending
 export const markPayslipsAsPending = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -2015,11 +2037,22 @@ export const markPayslipsAsPending = async (req: Request, res: Response): Promis
     }
 
     try {
+        let tenantAllEmpUuids: string[] | undefined;
+        if (empCompanyId) {
+            const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+                where: { isDeleted: false, empCompanyId },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+        }
+
         const result = await outputSequelize.transaction(async (transaction) => {
             // Fetch all payslip records for the given IDs
             const payslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
                 where: {
                     payslipId: payslipIds,
+                    ...(tenantAllEmpUuids ? { employeeId: { [Op.in]: tenantAllEmpUuids } } : {}),
                     isDeleted: false,
                 },
                 attributes: ['payslipId', 'status'],
@@ -2091,6 +2124,7 @@ export const markPayslipsAsPending = async (req: Request, res: Response): Promis
 // API to fetch all payslips details of employee for the given year
 export const fetchEmployeePayslipsForYear = async (req: Request, res: Response): Promise<void> => {
     try {
+        const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
         const employeeId = req.query.employeeId as string | undefined;
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
 
@@ -2100,6 +2134,19 @@ export const fetchEmployeePayslipsForYear = async (req: Request, res: Response):
                 message: "Employee ID is required",
             });
             return;
+        }
+
+        if (empCompanyId) {
+            const employeeBelongsToTenant = await dbOutput.employeeBasicDetails.findOne({
+                where: { empUuid: employeeId, empCompanyId, isDeleted: false }
+            });
+            if (!employeeBelongsToTenant) {
+                res.status(403).json({
+                    success: false,
+                    message: "Unauthorized access to employee data"
+                });
+                return;
+            }
         }
 
         if (isNaN(year)) {
@@ -2150,6 +2197,7 @@ export const fetchEmployeePayslipsForYear = async (req: Request, res: Response):
 // TODO: Enable Export when payroll is not generated
 export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<void> => {
     const { user } = req as AuthenticatedRequest;
+    const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
     
     // Check user permissions
     const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
@@ -2190,11 +2238,19 @@ export const exportPayrollAsCSV = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+            where: { isDeleted: false, empCompanyId },
+            attributes: ['empUuid'],
+            raw: true
+        });
+        const tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+
         // Fetch all payslip records for the given month and year (database-agnostic)
         const { startDate: csvMonthStart, endDate: csvMonthEnd } = getMonthYearDateRange(month, year);
         const payslips: employeePayslipAttributes[] = await dbOutput.employeePayslipRecords.findAll({
             where: {
                 payrollStartDate: { [Op.between]: [csvMonthStart, csvMonthEnd] },
+                employeeId: { [Op.in]: tenantAllEmpUuids },
                 isDeleted: false,
             },
             attributes: ['payslipId', 'employeeId', 'payrollStartDate', 'payrollEndDate', 'status', 'netPay'],
@@ -2711,7 +2767,7 @@ export const downloadPayslip = async (req: Request, res: Response): Promise<void
 
 export const getNetPayAmount = async (req: Request, res: Response) => {
     try {
-        const tenantId = (req as any).tenantId;
+        const tenantId = (req as any).empCompanyId || req.body?.empCompanyId;
         const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
 
@@ -3098,6 +3154,7 @@ export const deletePayrollRecords = async (req: Request, res: Response): Promise
 
     try {
         const { user } = req as AuthenticatedRequest;
+        const empCompanyId = (req as any).empCompanyId || req.body?.empCompanyId;
         const { toolsAccess, employeeUuid } = user as AuthenticatedUser;
         const toolName = hrmsConstants.HR_REPOSITORY;
 
@@ -3139,9 +3196,20 @@ export const deletePayrollRecords = async (req: Request, res: Response): Promise
             return;
         }
 
+        let tenantAllEmpUuids: string[] | undefined;
+        if (empCompanyId) {
+            const allTenantEmployees = await dbOutput.employeeBasicDetails.findAll({
+                where: { isDeleted: false, empCompanyId },
+                attributes: ['empUuid'],
+                raw: true
+            });
+            tenantAllEmpUuids = allTenantEmployees.map((e: any) => e.empUuid);
+        }
+
         const existingRecords = await dbOutput.employeePayslipRecords.findAll({
             where: {
                 payslipId: { [Op.in]: uniquePayslipIds },
+                ...(tenantAllEmpUuids ? { employeeId: { [Op.in]: tenantAllEmpUuids } } : {}),
                 isDeleted: false
             },
             attributes: ['payslipId'],
