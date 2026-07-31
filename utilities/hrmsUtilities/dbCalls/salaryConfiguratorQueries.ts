@@ -114,7 +114,7 @@ return [...allDefaults, ...specific];
  * @param transaction - The database transaction to use.
  * @returns The result of the creation process.
  */
-export const createSalaryConfigService = async (createData: CreateRequest[], userId: string, transaction: Transaction): Promise<CreateResult> => {
+export const createSalaryConfigService = async (createData: CreateRequest[], userId: string, empCompanyId: string, transaction: Transaction): Promise<CreateResult> => {
     const categoriesCreated: unknown[] = [];
     const componentsCreated: unknown[] = [];
     const errors: CreateResult['errors'] = [];
@@ -140,6 +140,7 @@ export const createSalaryConfigService = async (createData: CreateRequest[], use
                 // Find existing category
                 category = await salaryCategories.findOne({
                     where: {
+                        empCompanyId,
                         employeeType: categoryDetails.employeeType,
                         employeeLocation: categoryDetails.employeeLocation,
                         employeeLevel: categoryDetails.employeeLevel || null,
@@ -154,6 +155,7 @@ export const createSalaryConfigService = async (createData: CreateRequest[], use
                 if (!category) {
                     category = await salaryCategories.create({
                         salaryCategoryId: await createUUIDV4(),
+                        empCompanyId,
                         employeeType: categoryDetails.employeeType,
                         employeeLocation: categoryDetails.employeeLocation,
                         employeeLevel: categoryDetails.employeeLevel,
@@ -169,6 +171,7 @@ export const createSalaryConfigService = async (createData: CreateRequest[], use
                 // Handle global category
                 category = await salaryCategories.findOne({
                     where: {
+                        empCompanyId,
                         employeeType: componentTypes.ALL,
                         employeeLocation: componentTypes.ALL,
                         employeeLevel: componentTypes.ALL,
@@ -182,6 +185,7 @@ export const createSalaryConfigService = async (createData: CreateRequest[], use
                 if (!category) {
                     category = await salaryCategories.create({
                         salaryCategoryId: await createUUIDV4(),
+                        empCompanyId,
                         employeeType: componentTypes.ALL,
                         employeeLocation: componentTypes.ALL,
                         employeeLevel: componentTypes.ALL,
@@ -203,6 +207,7 @@ export const createSalaryConfigService = async (createData: CreateRequest[], use
             const componentsToCreate = await Promise.all(
                 componentDetails.map(async (component: ComponentData) => ({
                     componentId: await createUUIDV4(),
+                    empCompanyId,
                     salaryCategoryId: (category as { salaryCategoryId: string }).salaryCategoryId,
                     componentName: component.componentName,
                     componentType: component.componentType,

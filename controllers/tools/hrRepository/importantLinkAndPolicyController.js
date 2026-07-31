@@ -212,7 +212,6 @@ exports.addPolicy = async (req, res) => {
         !lastModifiedBy ||
         !createdBy ||
         !version ||
-        !remarks ||
         !approvedBy
       ) {
         await transaction.rollback();

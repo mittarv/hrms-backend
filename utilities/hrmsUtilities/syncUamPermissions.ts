@@ -1,5 +1,7 @@
 import { dbOutput } from "../../models/index";
 
+
+
 export const syncUamPermissions = async () => {
   console.log("Checking and auto-seeding HRMS UAM permissions if missing...");
 
@@ -59,18 +61,12 @@ export const syncUamPermissions = async () => {
     { name: 'HrmsRoleManagement_delete', displayName: 'Delete Existing Roles', description: 'Permission to delete the existing roles', category: 'HrmsAccess' },
     { name: 'HrmsUserManagement_read', displayName: 'View User Management', description: 'Permission to view user management', category: 'HrmsAccess' },
     { name: 'HrmsUserManagement_write', displayName: 'Assign & Revoke Roles Access', description: 'Permission to assign and revoke roles access', category: 'HrmsAccess' },
+    // Organization Details/Settings
+    { name: 'Organization_read', displayName: 'View Organization details', description: 'Permission to view organization details', category: 'Organization' },
+    { name: 'Organization_write', displayName: 'Update Organization details', description: 'Permission to update organization details', category: 'Organization' }
   ];
 
   try {
-    const existingCount = await HrmsAccessPermission.count({
-      where: { isDeleted: false },
-    });
-
-    if (existingCount > 0) {
-      console.log("HRMS UAM permissions table is not empty. Skipping auto-seed.");
-      return;
-    }
-
     for (const perm of permissions) {
       const existing = await HrmsAccessPermission.findOne({
         where: { name: perm.name, isDeleted: false },
@@ -87,4 +83,5 @@ export const syncUamPermissions = async () => {
   } catch (error) {
     console.error("Error during HRMS UAM permissions sync:", error);
   }
+
 };

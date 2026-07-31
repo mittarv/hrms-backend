@@ -1,6 +1,105 @@
-# HRMS Backend
+<div align="center">
+  <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-logo-horizontal-coloured.png" alt="MittArv HRMS Logo" width="300" />
 
-This is the backend application for the HRMS (Human Resource Management System) built with Node.js, Express, TypeScript, and Sequelize.
+  <h1>MittArv HRMS (Backend)</h1>
+
+  <p>
+    <strong>📚 A modern, scalable, and highly customizable low-code Human Resource Management System, built for dynamic organizational structures.</strong>
+  </p>
+
+  <p>
+    <a href="https://github.com/mittarv/hrms-admin-backend/actions"><img src="https://img.shields.io/github/actions/workflow/status/mittarv/hrms-admin-backend/deploy.yml?branch=main" alt="Build Status" /></a>
+    <a href="https://github.com/mittarv/hrms-admin-backend/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License: AGPL 3.0" /></a>
+    <a href="https://github.com/mittarv/hrms-admin-backend/pulls"><img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg" alt="PRs Welcome" /></a>
+    <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-24.x-green.svg" alt="Node version" /></a>
+  </p>
+  <br />
+  <h3>
+    <a href="#-business-overview">🏢 Business Overview</a>
+    <span> | </span>
+    <a href="#-technical-documentation">🧑‍💻 Technical Documentation</a>
+  </h3>
+</div>
+
+<h2 id="-business-overview">🏢 Business Overview</h2>
+
+## ✨ Quick Start
+* If you just want to try out MittArv HRMS without managing infrastructure, use our fully managed **SaaS version** at [hrms.dev.mittarv.com](https://hrms.dev.mittarv.com). Our SaaS offerings are securely powered by **Google Cloud Platform (GCP)**.
+* If you want to demo this open-source project, click here for [⚡️Gitpod Online Demo](#).
+* If you want to try the self-hosted version, [🚀 one-click deploy with Docker here](#).
+* If you want to set up your local development environment, read our [🧑‍💻 Developer Guide](CONTRIBUTING.md).
+
+---
+
+## 🔥 Features
+
+<p align="center">
+  <!-- Replace this src with your actual illustration asset -->
+  <img src="assets/mittarv_name_and_logo.svg" alt="MittArv Offerings Illustration" width="800" />
+</p>
+
+MittArv HRMS provides a range of amazing features, moving away from legacy tool-based management to a robust **Organization Settings** paradigm.
+
+### Advanced technology stack and open-source
+* **Frontend:** React.js, Redux, SCSS built with Vite for extremely fast and smooth UI rendering.
+* **Backend:** Node.js, Express.js, TypeScript with a database-native architecture via Sequelize ORM.
+* **Architecture:** Changeset, operation, and scalable real-time collaboration methodologies.
+* **Language Support:** Community-friendly programming languages and framework choices for high extensibility.
+
+### Beautiful and Rich UI
+* **Dashboard & Insights:** View key organizational updates, leaves, birthdays, and work anniversaries at a glance.
+<p align="center">
+  <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-icons/Dashboard%20-%204.png" alt="MittArv Dashboard" width="800" />
+</p>
+
+* **Employee Directory:** Intuitive Grid and Card views for employee data management.
+<p align="center">
+  <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-icons/employee_directory.png" alt="MittArv Employee Directory" width="800" />
+</p>
+
+* **Data views:** Easy-to-use interfaces for navigating Job History, Salaries, and Contact details.
+* **Responsive Design:** Operates flawlessly across desktop and mobile browsers.
+
+### 📦 Core Modules Included Out-of-the-Box
+* **Organization Settings (UAM Alternative):** Dynamic mapping of organizational levels (L1, L2, G++, etc.), departments, and roles.
+* **Payroll Management:** Configurable payroll components, tax mappings, dynamic salary structures, and compensation bands.
+* **Leave & Attendance:** Advanced leave configurator with custom workflows and automated balance calculations.
+<p align="center">
+  <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-icons/leave&attendence.png" alt="MittArv Leave and Attendance" width="800" />
+</p>
+* **Onboarding & Offboarding:** Automated task assignments, document generation, and HR/Finance clearances.
+* **Reward and Recognition:** Peer-to-peer recognition, Manager awards, and integrations directly with Payroll.
+<p align="center">
+  <img src="https://mittarvtesting.blob.core.windows.net/mittarv-icons/mittarv-icons/reward&recogination.png" alt="MittArv Reward and Recognition" width="800" />
+</p>
+
+### Enterprise-grade permissions
+* **Role-Based Access Control (RBAC):** Built-in complex matrix permissions.
+* **Organization Scoping:** Run multiple organizations or branches securely under one deployment.
+* **Row/Column Level Permissions:** Finely granular permissions for sensitive fields (e.g., Salary, Appraisals).
+* **Audit Logs:** Track employee login history, data requests, and administrative actions natively.
+
+---
+
+This repository contains the backend application for the HRMS built with Node.js, Express, TypeScript, and Sequelize.
+
+<br />
+
+<h2 id="-technical-documentation">🧑‍💻 Technical Documentation</h2>
+
+### Technical Architecture Flow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#0284c7', 'primaryTextColor': '#fff', 'primaryBorderColor': '#0369a1', 'lineColor': '#f43f5e', 'secondaryColor': '#10b981', 'tertiaryColor': '#f59e0b'}}}%%
+graph LR
+  classDef frontend fill:#3b82f6,stroke:#1d4ed8,stroke-width:4px,color:#fff;
+  classDef backend fill:#10b981,stroke:#047857,stroke-width:4px,color:#fff;
+  classDef db fill:#f59e0b,stroke:#b45309,stroke-width:4px,color:#fff;
+  
+  A[React Frontend]:::frontend ==>|REST API| B(Node.js Backend):::backend
+  B ==>|Sequelize ORM| C[(Database)]:::db
+  linkStyle default stroke-width:4px;
+```
 
 ## Table of Contents
 
@@ -364,41 +463,14 @@ This application uses **Google OAuth 2.0 Authorization Code flow** for secure au
 
 **IMPORTANT:** Before onboarding any employees or accessing the HRMS features, you need to set up a superadmin user.
 
-### Option 1: Using Environment Variable (Recommended)
+To manage and configure superadmin users across organizations, we use a separate centralized application: **MittArv HRMS Admin**.
 
-Set the `TMS_SUPER_ADMIN_EMAILS` environment variable in your `.env` file before the user's first login:
-
-```env
-TMS_SUPER_ADMIN_EMAILS=admin1@mittarv.com,admin2@mittarv.com
-```
-
-When these users log in for the first time, they will automatically be assigned `userType 900` (superadmin). This is the preferred method as it doesn't require direct database access.
-
-### Option 2: Using SQL (Manual)
-
-If the user already exists in the database, manually update the `tmsusers` table:
-
-#### Using MySQL:
-
-```sql
-UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
-```
-
-#### Using PostgreSQL:
-
-```sql
-UPDATE tmsusers SET usertype = 900 WHERE id = <your_user_id>;
-```
-
-**User Type Values:**
-- `900` - Superadmin (full system access, can onboard employees and manage all HRMS features)
+Please refer to the [MittArv HRMS Admin Repository](https://github.com/MittArv) (our dedicated admin service) for detailed instructions on how to seed or configure superadmin users. 
 
 **Why is this needed?**
-- The superadmin role allows you to onboard the first set of employees
-- Without a superadmin, you cannot access HRMS administrative features
-- This is a one-time setup required during initial deployment
-
-**Note:** Replace `<your_user_id>` with the actual user ID from the `tmsusers` table.
+- The superadmin role allows you to onboard the first set of employees for any organization.
+- Without a superadmin, you cannot access HRMS administrative features.
+- This is a one-time setup securely handled by our dedicated Admin service during initial deployment.
 
 ---
 

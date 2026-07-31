@@ -74,7 +74,8 @@ export const getAllRoles = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const formattedRoles = await getAllRolesService();
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
+    const formattedRoles = await getAllRolesService(empCompanyId);
 
     res.status(200).json({
       success: 'true',
@@ -126,7 +127,8 @@ export const getRoleById = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const formattedRole = await getRoleByIdService(parseInt(roleId));
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
+    const formattedRole = await getRoleByIdService(parseInt(roleId), empCompanyId);
 
     if (!formattedRole) {
       res.status(404).json({
@@ -192,8 +194,10 @@ export const createRole = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
+
     // Check if role name already exists
-    const roleNameExists = await checkRoleNameExistsService(roleName, transaction);
+    const roleNameExists = await checkRoleNameExistsService(roleName, empCompanyId, transaction);
 
     if (roleNameExists) {
       await transaction.rollback();
@@ -219,6 +223,7 @@ export const createRole = async (req: Request, res: Response): Promise<void> => 
     // Create role with permissions
     const createdRole = await createRoleService(
       roleName,
+      empCompanyId,
       description || null,
       permissionIds,
       updatedBy,
@@ -286,8 +291,10 @@ export const updateRole = async (req: Request, res: Response): Promise<void> => 
 
     const roleIdNum = parseInt(roleId);
 
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
+
     // Find existing role
-    const existingRole = await findRoleByIdService(roleIdNum, transaction);
+    const existingRole = await findRoleByIdService(roleIdNum, empCompanyId, transaction);
 
     if (!existingRole) {
       await transaction.rollback();
@@ -305,6 +312,7 @@ export const updateRole = async (req: Request, res: Response): Promise<void> => 
     ) {
       const roleNameExists = await checkRoleNameExistsService(
         roleName,
+        empCompanyId,
         transaction,
         roleIdNum
       );
@@ -402,8 +410,10 @@ export const deleteRole = async (req: Request, res: Response): Promise<void> => 
 
     const roleIdNum = parseInt(roleId);
 
+    const empCompanyId = (req as any).empCompanyId || req.body.empCompanyId;
+
     // Find existing role
-    const existingRole = await findRoleByIdService(roleIdNum, transaction);
+    const existingRole = await findRoleByIdService(roleIdNum, empCompanyId, transaction);
 
     if (!existingRole) {
       await transaction.rollback();

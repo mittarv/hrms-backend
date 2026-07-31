@@ -3,6 +3,7 @@ import { hrmsAccessRoleAttributes } from "../../../../interfaces/hrmsTool/interf
 
 class hrmsAccessRole extends Model<hrmsAccessRoleAttributes, Partial<hrmsAccessRoleAttributes>> implements hrmsAccessRoleAttributes {
   declare roleId: number;
+  declare empCompanyId: string;
   declare roleName: string;
   declare description: string | null;
   declare isDeleted: boolean;
@@ -19,6 +20,11 @@ export const initHrmsAccessRole = (sequelize: Sequelize, dataTypes: typeof DataT
         allowNull: false,
         primaryKey: true,
         autoIncrement: true,
+      },
+      empCompanyId: {
+        type: dataTypes.STRING(36),
+        allowNull: false,
+        defaultValue: "DEFAULT_COMPANY",
       },
       roleName: {
         type: dataTypes.STRING(100),
@@ -45,6 +51,10 @@ export const initHrmsAccessRole = (sequelize: Sequelize, dataTypes: typeof DataT
       createdAt: "createdAt",
       updatedAt: "updatedAt",
       indexes: [
+        {
+          name: "unique_emp_company_role_name",
+          fields: ["empCompanyId", "roleName", "isDeleted"],
+        },
         {
           name: "idx_hrms_role_roleName",
           fields: ["roleName"],
