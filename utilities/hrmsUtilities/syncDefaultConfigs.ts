@@ -58,15 +58,6 @@ export const syncDefaultConfigs = async () => {
   ];
 
   try {
-    const existingCount = await EmployeeComponentConfigurator.count({
-      where: { isDeleted: false },
-    });
-
-    if (existingCount > 0) {
-      console.log("HRMS configurations table is not empty. Skipping auto-seed.");
-      return;
-    }
-
     for (const config of defaults) {
       const existingConfig = await EmployeeComponentConfigurator.findOne({
         where: { componentType: config.componentType, isDeleted: false },

@@ -68,9 +68,13 @@ export const fetchLeaveConfigDetails = async (leaveConfigId: string) => {
  * Fetches all leave configurations
  * @returns {Promise<Array>} All leave configurations
  */
-export const fetchAllLeaveConfigDetails = async () => {
+export const fetchAllLeaveConfigDetails = async (empCompanyId?: string) => {
     try {
-        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({ where: { isActive: true }, raw: true });
+        const where: { isActive: boolean; empCompanyId?: string } = { isActive: true };
+        if (empCompanyId) {
+            where.empCompanyId = empCompanyId;
+        }
+        const allLeaveConfigs = await employeeLeaveConfigurator.findAll({ where, raw: true });
         return allLeaveConfigs;
     } catch (error) {
         console.error("Error fetching all leave configs:", error);

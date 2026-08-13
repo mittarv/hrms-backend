@@ -903,7 +903,7 @@ export const isEmployeeEligible = (
     empType: string
 ): boolean => {
     
-    if (!config.leaveApplicableTo || config.leaveApplicableTo === 'null') {
+    if (!config.leaveApplicableTo || config.leaveApplicableTo === 'null' || config.leaveApplicableTo === 'All') {
         return true;
     }
 
@@ -919,6 +919,9 @@ export const isEmployeeEligible = (
         }
 
         const rule = rules[empType];
+        if (!rule || typeof rule !== 'object') {
+            return true;
+        }
 
         
 
@@ -948,25 +951,63 @@ export const isEmployeeEligible = (
 
 
 
-export const fetchApplicableLeaveConfigs = async (employeeType: string, empGender: string, conversionDate: Date) => {
-  // Fetch all leave configurations
-  const allLeaveConfigs = await fetchAllLeaveConfigDetails();
+const normalizeToStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
+
+  if (value == null || value === '') {
+    return [];
+  }
+
+  const fromObject = (obj: Record<string, unknown>): string[] => {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) {
+      // Empty object means no employee types configured (not "All")
+      return [];
+    }
+    // Support both map forms: ["fte_key"] and {"fte_key":"FTE"}
+    return Array.from(new Set([...keys, ...Object.values(obj).map(String)]));
+  };
+
+  if (typeof value === 'object') {
+    return fromObject(value as Record<string, unknown>);
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map(String);
+      }
+      if (parsed == null || parsed === '') {
+        return [];
+      }
+      if (typeof parsed === 'object') {
+        return fromObject(parsed as Record<string, unknown>);
+      }
+      return [String(parsed)];
+    } catch {
+      return [value];
+    }
+  }
+
+  return [String(value)];
+};
+
+export const fetchApplicableLeaveConfigs = async (
+  employeeType: string,
+  empGender: string,
+  conversionDate: Date,
+  empCompanyId?: string
+) => {
+  // Fetch leave configurations for this tenant only
+  const allLeaveConfigs = await fetchAllLeaveConfigDetails(empCompanyId);
 
   // Filter leave configs applicable to employee's type
   const applicableLeaveConfigs = allLeaveConfigs.filter(config => {
-      let employeeTypes: string[] = [];
-      try {
-        employeeTypes = Array.isArray(config.employeeType) ? config.employeeType : JSON.parse(config.employeeType || '[]');
-      } catch (e) {
-        employeeTypes = [config.employeeType];
-      }
-
-      let appliedGenders: string[] = [];
-      try {
-        appliedGenders = Array.isArray(config.appliedGender) ? config.appliedGender : JSON.parse(config.appliedGender || '[]');
-      } catch (e) {
-        appliedGenders = [config.appliedGender];
-      }
+      const employeeTypes = normalizeToStringArray(config.employeeType);
+      const appliedGenders = normalizeToStringArray(config.appliedGender);
 
       // Check if config is applicable to employee
       const isEmployeeTypeMatch = employeeTypes.includes('All') || employeeTypes.includes(employeeType);

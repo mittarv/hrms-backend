@@ -390,7 +390,7 @@ export const registerAttendance = async (req: Request, res: Response) => {
             // Fetch leave balance and all leave configs in parallel
             const [balance, configs] = await Promise.all([
                 fetchLeaveBalanceDetails(jobDetails, fiscalYearStart),
-                fetchAllLeaveConfigDetails(),
+                fetchAllLeaveConfigDetails((req as any).empCompanyId),
             ]);
 
             // Find the config for the requested leave type
@@ -1005,7 +1005,7 @@ export const reviewLeaveRequest = async (req: Request, res: Response) => {
             // and fetch all leave config details
             const [leaveRequests, allLeaveConfigs] = await Promise.all([
                 fetchLeaveRequestDetailsFromLeaveId(leaveRequestIds, transaction),
-                fetchAllLeaveConfigDetails()
+                fetchAllLeaveConfigDetails((req as any).empCompanyId)
             ]);
 
             for (const request of leaveRequests) {
@@ -1689,7 +1689,7 @@ export const updateEmployeeAttendance = async (req: Request, res: Response) => {
             // --- Fetch leave balance and all leave configs for further calculations ---
             const [balance, configs] = await Promise.all([
                 fetchLeaveBalanceDetails(jobDetails, fiscalYearStart),
-                fetchAllLeaveConfigDetails(),
+                fetchAllLeaveConfigDetails((req as any).empCompanyId),
             ]);
 
             // Find the config for the requested leave type
@@ -2428,7 +2428,7 @@ export const getLeavesEligibility = async (req: Request, res: Response) => {
         ]);
 
         // Filter leave configs applicable to employee's type
-        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender,jobDetails.empConversionDate);
+        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender,jobDetails.empConversionDate, basicDetails.empCompanyId);
 
         // Run async calls in parallel with Promise.all
         await Promise.all(
@@ -2524,7 +2524,7 @@ export const getAccrualLeaveBalance = async (req: Request, res: Response) => {
         const conversionDate = new Date(jobDetails.empConversionDate);
 
         // Filter leave configs applicable to employee's type
-        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender, jobDetails.empConversionDate);
+        const applicableLeaveConfigs = await fetchApplicableLeaveConfigs(jobDetails.empType, basicDetails.empGender, jobDetails.empConversionDate, basicDetails.empCompanyId);
 
         // If specific leave config requested, filter further
         const leaveConfigs = leaveConfigId 
